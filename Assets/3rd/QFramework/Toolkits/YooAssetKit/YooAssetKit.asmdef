@@ -1,0 +1,19 @@
+{
+    "name": "YooAssetKit",
+    "rootNamespace": "",
+    "references": [
+        "GUID:e34a5702dd353724aa315fb8011f08c3",
+        "GUID:c6cc6fcb304714348bf89e12ea161938",
+        "GUID:038dff00bcd140258ec2ecc4c541bea0",
+        "GUID:22208c7e849c34c218fe267b9a814fab"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
