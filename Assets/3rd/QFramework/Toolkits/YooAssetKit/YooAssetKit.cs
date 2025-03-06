@@ -333,7 +333,7 @@ namespace QFramework
             float currProgress;
             SceneHandle handle = YooAssets.LoadSceneAsync(scene, loadSceneMode, physicsMode, suspendLoad);
             //场景流畅加载
-            if (!handle.IsDone)
+            //if (!handle.IsDone)
             {
                 while (handle.Progress < 0.9f)
                 {
@@ -342,7 +342,7 @@ namespace QFramework
                     {
                         ++displayBar;
                         currProgress = displayBar / 100.0f;
-                        onUpdateProgress.Invoke(currProgress);
+                        onUpdateProgress?.Invoke(currProgress);
                         yield return new WaitForEndOfFrame();
                     }
                     yield return null;
@@ -352,10 +352,11 @@ namespace QFramework
                 {
                     ++displayBar;
                     currProgress = displayBar / 100.0f;
-                    onUpdateProgress.Invoke(currProgress);
+                    onUpdateProgress?.Invoke(currProgress);
                     yield return new WaitForEndOfFrame();
                 }
             }
+            //yield return new WaitUntil(() => displayBar == 100);
             yield return handle;
             onCompleted?.Invoke(handle);
         }

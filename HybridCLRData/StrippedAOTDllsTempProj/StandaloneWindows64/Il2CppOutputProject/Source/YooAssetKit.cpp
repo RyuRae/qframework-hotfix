@@ -220,6 +220,7 @@ IL2CPP_EXTERN_C RuntimeClass* U3CU3Ec__DisplayClass8_0_t2CA66577039BEA705AB2BA1A
 IL2CPP_EXTERN_C RuntimeClass* U3CUnloadAllAssetsU3Ed__21_t95641A0667FCADDFA24FF4203E205ED8A21D93E4_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* U3CUnloadUnusedAssetsU3Ed__20_t61EC41F4A8F56F3C7B148C3378A5E59FE40AD031_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* UIKit_t677A94304C21F268561FFE09EF41745F3802B048_il2cpp_TypeInfo_var;
+IL2CPP_EXTERN_C RuntimeClass* WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* YooAssetAudioLoaderPool_tB92CAC64FCE49B626C9635FC0981A94808802045_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* YooAssetAudioLoader_tBE19D1C26A6E15E6CD5D90F01EF9A4F5ACA1DE74_il2cpp_TypeInfo_var;
 IL2CPP_EXTERN_C RuntimeClass* YooAssetPanelLoaderPool_tDF6B25822093B3E719873FB8429D962A4B68B290_il2cpp_TypeInfo_var;
@@ -357,6 +358,19 @@ struct ValueType_t6D9B272BD21782F0A9A14F2E41F85A50E97A986F_marshaled_pinvoke
 };
 // Native definition for COM marshalling of System.ValueType
 struct ValueType_t6D9B272BD21782F0A9A14F2E41F85A50E97A986F_marshaled_com
+{
+};
+
+// UnityEngine.YieldInstruction
+struct YieldInstruction_tFCE35FD0907950EFEE9BC2890AC664E41C53728D  : public RuntimeObject
+{
+};
+// Native definition for P/Invoke marshalling of UnityEngine.YieldInstruction
+struct YieldInstruction_tFCE35FD0907950EFEE9BC2890AC664E41C53728D_marshaled_pinvoke
+{
+};
+// Native definition for COM marshalling of UnityEngine.YieldInstruction
+struct YieldInstruction_tFCE35FD0907950EFEE9BC2890AC664E41C53728D_marshaled_com
 {
 };
 
@@ -558,6 +572,11 @@ struct Void_t4861ACF8F4594C3437BB48B6E56783494B843915
 		};
 		uint8_t Void_t4861ACF8F4594C3437BB48B6E56783494B843915__padding[1];
 	};
+};
+
+// UnityEngine.WaitForEndOfFrame
+struct WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663  : public YieldInstruction_tFCE35FD0907950EFEE9BC2890AC664E41C53728D
+{
 };
 
 // QFramework.YooAssetAudioLoaderPool
@@ -928,8 +947,14 @@ struct U3CLoadSceneU3Ed__22_tEBF3DBA61E1DAF76F976832B0E09D53B57EF93F6  : public 
 	bool ___suspendLoad_6;
 	// System.Action`1<System.Single> QFramework.YooAssetKit/<LoadScene>d__22::onUpdateProgress
 	Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___onUpdateProgress_7;
-	// YooAsset.SceneHandle QFramework.YooAssetKit/<LoadScene>d__22::<handle>5__2
-	SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* ___U3ChandleU3E5__2_8;
+	// System.Action`1<YooAsset.SceneHandle> QFramework.YooAssetKit/<LoadScene>d__22::onCompleted
+	Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* ___onCompleted_8;
+	// System.Int32 QFramework.YooAssetKit/<LoadScene>d__22::<displayBar>5__2
+	int32_t ___U3CdisplayBarU3E5__2_9;
+	// System.Int32 QFramework.YooAssetKit/<LoadScene>d__22::<targetBar>5__3
+	int32_t ___U3CtargetBarU3E5__3_10;
+	// YooAsset.SceneHandle QFramework.YooAssetKit/<LoadScene>d__22::<handle>5__4
+	SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* ___U3ChandleU3E5__4_11;
 };
 
 // QFramework.YooAssetKit/<LoadScene>d__23
@@ -949,8 +974,14 @@ struct U3CLoadSceneU3Ed__23_tF2CE63FB92E766721286391FD95E42DC84F2B243  : public 
 	bool ___suspendLoad_5;
 	// System.Action`1<System.Single> QFramework.YooAssetKit/<LoadScene>d__23::onUpdateProgress
 	Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___onUpdateProgress_6;
-	// YooAsset.SceneHandle QFramework.YooAssetKit/<LoadScene>d__23::<handle>5__2
-	SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* ___U3ChandleU3E5__2_7;
+	// System.Action`1<YooAsset.SceneHandle> QFramework.YooAssetKit/<LoadScene>d__23::onCompleted
+	Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* ___onCompleted_7;
+	// System.Int32 QFramework.YooAssetKit/<LoadScene>d__23::<displayBar>5__2
+	int32_t ___U3CdisplayBarU3E5__2_8;
+	// System.Int32 QFramework.YooAssetKit/<LoadScene>d__23::<targetBar>5__3
+	int32_t ___U3CtargetBarU3E5__3_9;
+	// YooAsset.SceneHandle QFramework.YooAssetKit/<LoadScene>d__23::<handle>5__4
+	SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* ___U3ChandleU3E5__4_10;
 };
 
 // System.Action`1<System.Byte[]>
@@ -980,6 +1011,11 @@ struct Action_1_t6F9EB113EB3F16226AEF811A2744F4111C116C87  : public MulticastDel
 
 // System.Action`1<YooAsset.RawFileHandle>
 struct Action_1_t4E8A78AAE4D3D94225030626B69248DBEA0690BE  : public MulticastDelegate_t
+{
+};
+
+// System.Action`1<YooAsset.SceneHandle>
+struct Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57  : public MulticastDelegate_t
 {
 };
 
@@ -1232,6 +1268,10 @@ struct IntPtr_t_StaticFields
 
 // System.Void
 
+// UnityEngine.WaitForEndOfFrame
+
+// UnityEngine.WaitForEndOfFrame
+
 // QFramework.YooAssetAudioLoaderPool
 
 // QFramework.YooAssetAudioLoaderPool
@@ -1325,6 +1365,10 @@ struct Type_t_StaticFields
 // System.Action`1<YooAsset.RawFileHandle>
 
 // System.Action`1<YooAsset.RawFileHandle>
+
+// System.Action`1<YooAsset.SceneHandle>
+
+// System.Action`1<YooAsset.SceneHandle>
 
 // System.Action`1<System.Single>
 
@@ -1509,14 +1553,14 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RawFileHandle_t14B7F11A3B4FE74E7235DF3302AE92
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void U3CU3Ec__DisplayClass13_0__ctor_mB98FF3B73B75CFED60A689775EF764EE83B1B8C9 (U3CU3Ec__DisplayClass13_0_tE42301789F11C90A6F71522B2F32F1178181516E* __this, const RuntimeMethod* method) ;
 // System.Void QFramework.YooAssetKit/<>c__DisplayClass14_0::.ctor()
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void U3CU3Ec__DisplayClass14_0__ctor_mF7B556FC3FE13B2DEE57D53D992F53C458CB40C5 (U3CU3Ec__DisplayClass14_0_tC61409137249D49E6E78C6BD0BE678C8AE8FBC3D* __this, const RuntimeMethod* method) ;
-// System.Collections.IEnumerator QFramework.YooAssetKit::LoadScene(YooAsset.ResourcePackage,System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>)
-IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* YooAssetKit_LoadScene_mBC12560433783A69A884846D94F2CE6A1D998327 (ResourcePackage_t6B28B6B3A6DEAB641E6CBB06F383D7B947198022* ___0_resourcePackage, String_t* ___1_scene, int32_t ___2_loadSceneMode, int32_t ___3_physicsMode, bool ___4_suspendLoad, Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___5_onUpdateProgress, const RuntimeMethod* method) ;
+// System.Collections.IEnumerator QFramework.YooAssetKit::LoadScene(YooAsset.ResourcePackage,System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>,System.Action`1<YooAsset.SceneHandle>)
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* YooAssetKit_LoadScene_mF7CF6372C5EC147EA5B5A58988CF348AAB9F74AB (ResourcePackage_t6B28B6B3A6DEAB641E6CBB06F383D7B947198022* ___0_resourcePackage, String_t* ___1_scene, int32_t ___2_loadSceneMode, int32_t ___3_physicsMode, bool ___4_suspendLoad, Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___5_onUpdateProgress, Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* ___6_onCompleted, const RuntimeMethod* method) ;
 // QFramework.IAction QFramework.CoroutineExtension::ToAction(System.Collections.IEnumerator)
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* CoroutineExtension_ToAction_mF7AAAFC1FE87593694E537ACB3590C5159CBE327 (RuntimeObject* ___0_self, const RuntimeMethod* method) ;
 // QFramework.IActionController QFramework.IActionExtensions::StartGlobal(QFramework.IAction,System.Action`1<QFramework.IActionController>)
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* IActionExtensions_StartGlobal_m4DDE86A0CC4FBFDC39B49F68E827AC61DA497277 (RuntimeObject* ___0_self, Action_1_tBCCFB17D067C07A274521C4FA4ECD14916C4613F* ___1_onFinish, const RuntimeMethod* method) ;
-// System.Collections.IEnumerator QFramework.YooAssetKit::LoadScene(System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>)
-IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* YooAssetKit_LoadScene_m7C411318F546D04E9AD85DA8DE9355610E409E92 (String_t* ___0_scene, int32_t ___1_loadSceneMode, int32_t ___2_physicsMode, bool ___3_suspendLoad, Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___4_onUpdateProgress, const RuntimeMethod* method) ;
+// System.Collections.IEnumerator QFramework.YooAssetKit::LoadScene(System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>,System.Action`1<YooAsset.SceneHandle>)
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* YooAssetKit_LoadScene_m8848E354BE6C879AD5EC861122FBA239101D9BAE (String_t* ___0_scene, int32_t ___1_loadSceneMode, int32_t ___2_physicsMode, bool ___3_suspendLoad, Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___4_onUpdateProgress, Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* ___5_onCompleted, const RuntimeMethod* method) ;
 // System.Collections.IEnumerator QFramework.YooAssetKit::UnloadUnusedAssets(YooAsset.ResourcePackage)
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* YooAssetKit_UnloadUnusedAssets_m77538FE44FEF50F17CAF6BF5ABEA7BCD12919715 (ResourcePackage_t6B28B6B3A6DEAB641E6CBB06F383D7B947198022* ___0_package, const RuntimeMethod* method) ;
 // System.Collections.IEnumerator QFramework.YooAssetKit::UnloadAllAssets(YooAsset.ResourcePackage)
@@ -1557,6 +1601,13 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR float HandleBase_get_Progress_m8E6A904ED955BA
 inline void Action_1_Invoke_mA8F89FB04FEA0F48A4F22EC84B5F9ADB2914341F_inline (Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* __this, float ___0_obj, const RuntimeMethod* method)
 {
 	((  void (*) (Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A*, float, const RuntimeMethod*))Action_1_Invoke_mA8F89FB04FEA0F48A4F22EC84B5F9ADB2914341F_gshared_inline)(__this, ___0_obj, method);
+}
+// System.Void UnityEngine.WaitForEndOfFrame::.ctor()
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void WaitForEndOfFrame__ctor_m4AF7E576C01E6B04443BB898B1AE5D645F7D45AB (WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663* __this, const RuntimeMethod* method) ;
+// System.Void System.Action`1<YooAsset.SceneHandle>::Invoke(T)
+inline void Action_1_Invoke_m1713199CBF3762FCC5629A85376F7E2B183D9F69_inline (Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* __this, SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* ___0_obj, const RuntimeMethod* method)
+{
+	((  void (*) (Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57*, SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9*, const RuntimeMethod*))Action_1_Invoke_mF2422B2DD29F74CE66F791C3F68E288EC7C3DB9E_gshared_inline)(__this, ___0_obj, method);
 }
 // YooAsset.SceneHandle YooAsset.YooAssets::LoadSceneAsync(System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.UInt32)
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* YooAssets_LoadSceneAsync_m5388F3BB24BB41629EC2F4728EDF87771DC4230B (String_t* ___0_location, int32_t ___1_sceneMode, int32_t ___2_physicsMode, bool ___3_suspendLoad, uint32_t ___4_priority, const RuntimeMethod* method) ;
@@ -2527,8 +2578,8 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void YooAssetKit_LoadRawToStringAsync_mF0F1DF
 		return;
 	}
 }
-// System.Void QFramework.YooAssetKit::LoadSceneAsync(System.String,UnityEngine.SceneManagement.LoadSceneMode,System.Boolean,System.Action`1<System.Single>,System.String)
-IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void YooAssetKit_LoadSceneAsync_m86F19424D57C06CFE7A543F6B9AA3A92D28DD104 (String_t* ___0_sceneName, int32_t ___1_loadSceneMode, bool ___2_suspendLoad, Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___3_onUpdateProgress, String_t* ___4_packageName, const RuntimeMethod* method) 
+// System.Void QFramework.YooAssetKit::LoadSceneAsync(System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>,System.Action`1<YooAsset.SceneHandle>,System.String)
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void YooAssetKit_LoadSceneAsync_m1E9CEF55F5854D051BAF9E08073ED29DFD0789F7 (String_t* ___0_sceneName, int32_t ___1_loadSceneMode, int32_t ___2_physicsMode, bool ___3_suspendLoad, Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___4_onUpdateProgress, Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* ___5_onCompleted, String_t* ___6_packageName, const RuntimeMethod* method) 
 {
 	static bool s_Il2CppMethodInitialized;
 	if (!s_Il2CppMethodInitialized)
@@ -2538,40 +2589,44 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void YooAssetKit_LoadSceneAsync_m86F19424D57C
 	}
 	{
 		// var package = YooAssets.GetPackage(packageName);
-		String_t* L_0 = ___4_packageName;
+		String_t* L_0 = ___6_packageName;
 		il2cpp_codegen_runtime_class_init_inline(YooAssets_tD00B5B9911F87CF8AC643076BF1ECB1F10DEBA56_il2cpp_TypeInfo_var);
 		ResourcePackage_t6B28B6B3A6DEAB641E6CBB06F383D7B947198022* L_1;
 		L_1 = YooAssets_GetPackage_m68AE6D22A074754AB7926D47C10DC2DC1CA9C098(L_0, NULL);
-		// LoadScene(package, sceneName, loadSceneMode, LocalPhysicsMode.None, suspendLoad, onUpdateProgress).ToAction().StartGlobal();
+		// LoadScene(package, sceneName, loadSceneMode, physicsMode, suspendLoad, onUpdateProgress, onCompleted).ToAction().StartGlobal();
 		String_t* L_2 = ___0_sceneName;
 		int32_t L_3 = ___1_loadSceneMode;
-		bool L_4 = ___2_suspendLoad;
-		Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* L_5 = ___3_onUpdateProgress;
-		RuntimeObject* L_6;
-		L_6 = YooAssetKit_LoadScene_mBC12560433783A69A884846D94F2CE6A1D998327(L_1, L_2, L_3, 0, L_4, L_5, NULL);
-		RuntimeObject* L_7;
-		L_7 = CoroutineExtension_ToAction_mF7AAAFC1FE87593694E537ACB3590C5159CBE327(L_6, NULL);
+		int32_t L_4 = ___2_physicsMode;
+		bool L_5 = ___3_suspendLoad;
+		Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* L_6 = ___4_onUpdateProgress;
+		Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* L_7 = ___5_onCompleted;
 		RuntimeObject* L_8;
-		L_8 = IActionExtensions_StartGlobal_m4DDE86A0CC4FBFDC39B49F68E827AC61DA497277(L_7, (Action_1_tBCCFB17D067C07A274521C4FA4ECD14916C4613F*)NULL, NULL);
+		L_8 = YooAssetKit_LoadScene_mF7CF6372C5EC147EA5B5A58988CF348AAB9F74AB(L_1, L_2, L_3, L_4, L_5, L_6, L_7, NULL);
+		RuntimeObject* L_9;
+		L_9 = CoroutineExtension_ToAction_mF7AAAFC1FE87593694E537ACB3590C5159CBE327(L_8, NULL);
+		RuntimeObject* L_10;
+		L_10 = IActionExtensions_StartGlobal_m4DDE86A0CC4FBFDC39B49F68E827AC61DA497277(L_9, (Action_1_tBCCFB17D067C07A274521C4FA4ECD14916C4613F*)NULL, NULL);
 		// }
 		return;
 	}
 }
-// System.Void QFramework.YooAssetKit::LoadSceneAsync(System.String,UnityEngine.SceneManagement.LoadSceneMode,System.Boolean,System.Action`1<System.Single>)
-IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void YooAssetKit_LoadSceneAsync_m969E47D76A4B0AFDC3E9AB2DF431C5CE8D1E30D5 (String_t* ___0_sceneName, int32_t ___1_loadSceneMode, bool ___2_suspendLoad, Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___3_onUpdateProgress, const RuntimeMethod* method) 
+// System.Void QFramework.YooAssetKit::LoadSceneAsync(System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>,System.Action`1<YooAsset.SceneHandle>)
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void YooAssetKit_LoadSceneAsync_m57AD475E4373A6BBB88FDA8D99BB37149B0A8BE5 (String_t* ___0_sceneName, int32_t ___1_loadSceneMode, int32_t ___2_physicsMode, bool ___3_suspendLoad, Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___4_onUpdateProgress, Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* ___5_onCompleted, const RuntimeMethod* method) 
 {
 	{
-		// LoadScene(sceneName, loadSceneMode, LocalPhysicsMode.None, suspendLoad, onUpdateProgress).ToAction().StartGlobal();
+		// LoadScene(sceneName, loadSceneMode, physicsMode, suspendLoad, onUpdateProgress, onCompleted).ToAction().StartGlobal();
 		String_t* L_0 = ___0_sceneName;
 		int32_t L_1 = ___1_loadSceneMode;
-		bool L_2 = ___2_suspendLoad;
-		Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* L_3 = ___3_onUpdateProgress;
-		RuntimeObject* L_4;
-		L_4 = YooAssetKit_LoadScene_m7C411318F546D04E9AD85DA8DE9355610E409E92(L_0, L_1, 0, L_2, L_3, NULL);
-		RuntimeObject* L_5;
-		L_5 = CoroutineExtension_ToAction_mF7AAAFC1FE87593694E537ACB3590C5159CBE327(L_4, NULL);
+		int32_t L_2 = ___2_physicsMode;
+		bool L_3 = ___3_suspendLoad;
+		Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* L_4 = ___4_onUpdateProgress;
+		Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* L_5 = ___5_onCompleted;
 		RuntimeObject* L_6;
-		L_6 = IActionExtensions_StartGlobal_m4DDE86A0CC4FBFDC39B49F68E827AC61DA497277(L_5, (Action_1_tBCCFB17D067C07A274521C4FA4ECD14916C4613F*)NULL, NULL);
+		L_6 = YooAssetKit_LoadScene_m8848E354BE6C879AD5EC861122FBA239101D9BAE(L_0, L_1, L_2, L_3, L_4, L_5, NULL);
+		RuntimeObject* L_7;
+		L_7 = CoroutineExtension_ToAction_mF7AAAFC1FE87593694E537ACB3590C5159CBE327(L_6, NULL);
+		RuntimeObject* L_8;
+		L_8 = IActionExtensions_StartGlobal_m4DDE86A0CC4FBFDC39B49F68E827AC61DA497277(L_7, (Action_1_tBCCFB17D067C07A274521C4FA4ECD14916C4613F*)NULL, NULL);
 		// }
 		return;
 	}
@@ -2693,8 +2748,8 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* YooAssetKit_UnloadAllAssets_m8
 		return L_1;
 	}
 }
-// System.Collections.IEnumerator QFramework.YooAssetKit::LoadScene(YooAsset.ResourcePackage,System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>)
-IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* YooAssetKit_LoadScene_mBC12560433783A69A884846D94F2CE6A1D998327 (ResourcePackage_t6B28B6B3A6DEAB641E6CBB06F383D7B947198022* ___0_resourcePackage, String_t* ___1_scene, int32_t ___2_loadSceneMode, int32_t ___3_physicsMode, bool ___4_suspendLoad, Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___5_onUpdateProgress, const RuntimeMethod* method) 
+// System.Collections.IEnumerator QFramework.YooAssetKit::LoadScene(YooAsset.ResourcePackage,System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>,System.Action`1<YooAsset.SceneHandle>)
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* YooAssetKit_LoadScene_mF7CF6372C5EC147EA5B5A58988CF348AAB9F74AB (ResourcePackage_t6B28B6B3A6DEAB641E6CBB06F383D7B947198022* ___0_resourcePackage, String_t* ___1_scene, int32_t ___2_loadSceneMode, int32_t ___3_physicsMode, bool ___4_suspendLoad, Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___5_onUpdateProgress, Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* ___6_onCompleted, const RuntimeMethod* method) 
 {
 	static bool s_Il2CppMethodInitialized;
 	if (!s_Il2CppMethodInitialized)
@@ -2733,11 +2788,16 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* YooAssetKit_LoadScene_mBC12560
 		NullCheck(L_11);
 		L_11->___onUpdateProgress_7 = L_12;
 		Il2CppCodeGenWriteBarrier((void**)(&L_11->___onUpdateProgress_7), (void*)L_12);
-		return L_11;
+		U3CLoadSceneU3Ed__22_tEBF3DBA61E1DAF76F976832B0E09D53B57EF93F6* L_13 = L_11;
+		Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* L_14 = ___6_onCompleted;
+		NullCheck(L_13);
+		L_13->___onCompleted_8 = L_14;
+		Il2CppCodeGenWriteBarrier((void**)(&L_13->___onCompleted_8), (void*)L_14);
+		return L_13;
 	}
 }
-// System.Collections.IEnumerator QFramework.YooAssetKit::LoadScene(System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>)
-IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* YooAssetKit_LoadScene_m7C411318F546D04E9AD85DA8DE9355610E409E92 (String_t* ___0_scene, int32_t ___1_loadSceneMode, int32_t ___2_physicsMode, bool ___3_suspendLoad, Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___4_onUpdateProgress, const RuntimeMethod* method) 
+// System.Collections.IEnumerator QFramework.YooAssetKit::LoadScene(System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>,System.Action`1<YooAsset.SceneHandle>)
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* YooAssetKit_LoadScene_m8848E354BE6C879AD5EC861122FBA239101D9BAE (String_t* ___0_scene, int32_t ___1_loadSceneMode, int32_t ___2_physicsMode, bool ___3_suspendLoad, Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* ___4_onUpdateProgress, Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* ___5_onCompleted, const RuntimeMethod* method) 
 {
 	static bool s_Il2CppMethodInitialized;
 	if (!s_Il2CppMethodInitialized)
@@ -2771,7 +2831,12 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR RuntimeObject* YooAssetKit_LoadScene_m7C41131
 		NullCheck(L_9);
 		L_9->___onUpdateProgress_6 = L_10;
 		Il2CppCodeGenWriteBarrier((void**)(&L_9->___onUpdateProgress_6), (void*)L_10);
-		return L_9;
+		U3CLoadSceneU3Ed__23_tF2CE63FB92E766721286391FD95E42DC84F2B243* L_11 = L_9;
+		Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* L_12 = ___5_onCompleted;
+		NullCheck(L_11);
+		L_11->___onCompleted_7 = L_12;
+		Il2CppCodeGenWriteBarrier((void**)(&L_11->___onCompleted_7), (void*)L_12);
+		return L_11;
 	}
 }
 // System.Void QFramework.YooAssetKit::.ctor()
@@ -3298,7 +3363,17 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void U3CLoadSceneU3Ed__22_System_IDisposable_
 // System.Boolean QFramework.YooAssetKit/<LoadScene>d__22::MoveNext()
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool U3CLoadSceneU3Ed__22_MoveNext_m6B1D8099DB556CD1F82B566CE3F48D54C07DB377 (U3CLoadSceneU3Ed__22_tEBF3DBA61E1DAF76F976832B0E09D53B57EF93F6* __this, const RuntimeMethod* method) 
 {
+	static bool s_Il2CppMethodInitialized;
+	if (!s_Il2CppMethodInitialized)
+	{
+		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663_il2cpp_TypeInfo_var);
+		s_Il2CppMethodInitialized = true;
+	}
 	int32_t V_0 = 0;
+	float V_1 = 0.0f;
+	int32_t V_2 = 0;
+	Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* G_B18_0 = NULL;
+	Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* G_B17_0 = NULL;
 	{
 		int32_t L_0 = __this->___U3CU3E1__state_0;
 		V_0 = L_0;
@@ -3307,15 +3382,23 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool U3CLoadSceneU3Ed__22_MoveNext_m6B1D8099D
 		{
 			case 0:
 			{
-				goto IL_001b;
+				goto IL_0023;
 			}
 			case 1:
 			{
-				goto IL_0074;
+				goto IL_00c5;
 			}
 			case 2:
 			{
-				goto IL_009d;
+				goto IL_00ea;
+			}
+			case 3:
+			{
+				goto IL_014e;
+			}
+			case 4:
+			{
+				goto IL_0178;
 			}
 		}
 	}
@@ -3323,9 +3406,11 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool U3CLoadSceneU3Ed__22_MoveNext_m6B1D8099D
 		return (bool)0;
 	}
 
-IL_001b:
+IL_0023:
 	{
 		__this->___U3CU3E1__state_0 = (-1);
+		// int displayBar = 0;
+		__this->___U3CdisplayBarU3E5__2_9 = 0;
 		// SceneHandle handle = resourcePackage.LoadSceneAsync(scene, loadSceneMode, physicsMode, suspendLoad);
 		ResourcePackage_t6B28B6B3A6DEAB641E6CBB06F383D7B947198022* L_2 = __this->___resourcePackage_2;
 		String_t* L_3 = __this->___scene_3;
@@ -3335,57 +3420,181 @@ IL_001b:
 		NullCheck(L_2);
 		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_7;
 		L_7 = ResourcePackage_LoadSceneAsync_m5581932BF32FD858A7487A9E9E28ED3F141CFBA5(L_2, L_3, L_4, L_5, L_6, 0, NULL);
-		__this->___U3ChandleU3E5__2_8 = L_7;
-		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3ChandleU3E5__2_8), (void*)L_7);
-		goto IL_007b;
+		__this->___U3ChandleU3E5__4_11 = L_7;
+		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3ChandleU3E5__4_11), (void*)L_7);
+		// if (!handle.IsDone)
+		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_8 = __this->___U3ChandleU3E5__4_11;
+		NullCheck(L_8);
+		bool L_9;
+		L_9 = HandleBase_get_IsDone_m114F22ECBD0A2CF6C3255FBFFC2BCBCA9703EDCB(L_8, NULL);
+		if (L_9)
+		{
+			goto IL_0163;
+		}
+	}
+	{
+		goto IL_00f1;
 	}
 
-IL_004e:
+IL_0070:
 	{
-		// onUpdateProgress.Invoke(handle.Progress);
-		Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* L_8 = __this->___onUpdateProgress_7;
-		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_9 = __this->___U3ChandleU3E5__2_8;
-		NullCheck(L_9);
-		float L_10;
-		L_10 = HandleBase_get_Progress_m8E6A904ED955BAD1A673BBD9D7A8A5CD6442D50F(L_9, NULL);
-		NullCheck(L_8);
-		Action_1_Invoke_mA8F89FB04FEA0F48A4F22EC84B5F9ADB2914341F_inline(L_8, L_10, NULL);
-		// yield return null;
-		__this->___U3CU3E2__current_1 = NULL;
-		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3CU3E2__current_1), (void*)NULL);
+		// targetBar = (int)handle.Progress * 100;
+		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_10 = __this->___U3ChandleU3E5__4_11;
+		NullCheck(L_10);
+		float L_11;
+		L_11 = HandleBase_get_Progress_m8E6A904ED955BAD1A673BBD9D7A8A5CD6442D50F(L_10, NULL);
+		__this->___U3CtargetBarU3E5__3_10 = ((int32_t)il2cpp_codegen_multiply(il2cpp_codegen_cast_double_to_int<int32_t>(L_11), ((int32_t)100)));
+		goto IL_00cc;
+	}
+
+IL_0087:
+	{
+		// ++displayBar;
+		int32_t L_12 = __this->___U3CdisplayBarU3E5__2_9;
+		V_2 = ((int32_t)il2cpp_codegen_add(L_12, 1));
+		int32_t L_13 = V_2;
+		__this->___U3CdisplayBarU3E5__2_9 = L_13;
+		// currProgress = displayBar / 100.0f;
+		int32_t L_14 = __this->___U3CdisplayBarU3E5__2_9;
+		V_1 = ((float)(((float)L_14)/(100.0f)));
+		// onUpdateProgress.Invoke(currProgress);
+		Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* L_15 = __this->___onUpdateProgress_7;
+		float L_16 = V_1;
+		NullCheck(L_15);
+		Action_1_Invoke_mA8F89FB04FEA0F48A4F22EC84B5F9ADB2914341F_inline(L_15, L_16, NULL);
+		// yield return new WaitForEndOfFrame();
+		WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663* L_17 = (WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663*)il2cpp_codegen_object_new(WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663_il2cpp_TypeInfo_var);
+		NullCheck(L_17);
+		WaitForEndOfFrame__ctor_m4AF7E576C01E6B04443BB898B1AE5D645F7D45AB(L_17, NULL);
+		__this->___U3CU3E2__current_1 = L_17;
+		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3CU3E2__current_1), (void*)L_17);
 		__this->___U3CU3E1__state_0 = 1;
 		return (bool)1;
 	}
 
-IL_0074:
+IL_00c5:
 	{
 		__this->___U3CU3E1__state_0 = (-1);
 	}
 
-IL_007b:
+IL_00cc:
 	{
-		// while (!handle.IsDone)
-		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_11 = __this->___U3ChandleU3E5__2_8;
-		NullCheck(L_11);
-		bool L_12;
-		L_12 = HandleBase_get_IsDone_m114F22ECBD0A2CF6C3255FBFFC2BCBCA9703EDCB(L_11, NULL);
-		if (!L_12)
+		// while (displayBar < targetBar)
+		int32_t L_18 = __this->___U3CdisplayBarU3E5__2_9;
+		int32_t L_19 = __this->___U3CtargetBarU3E5__3_10;
+		if ((((int32_t)L_18) < ((int32_t)L_19)))
 		{
-			goto IL_004e;
+			goto IL_0087;
 		}
 	}
 	{
-		// yield return handle;
-		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_13 = __this->___U3ChandleU3E5__2_8;
-		__this->___U3CU3E2__current_1 = L_13;
-		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3CU3E2__current_1), (void*)L_13);
+		// yield return null;
+		__this->___U3CU3E2__current_1 = NULL;
+		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3CU3E2__current_1), (void*)NULL);
 		__this->___U3CU3E1__state_0 = 2;
 		return (bool)1;
 	}
 
-IL_009d:
+IL_00ea:
 	{
 		__this->___U3CU3E1__state_0 = (-1);
+	}
+
+IL_00f1:
+	{
+		// while (handle.Progress < 0.9f)
+		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_20 = __this->___U3ChandleU3E5__4_11;
+		NullCheck(L_20);
+		float L_21;
+		L_21 = HandleBase_get_Progress_m8E6A904ED955BAD1A673BBD9D7A8A5CD6442D50F(L_20, NULL);
+		if ((((float)L_21) < ((float)(0.899999976f))))
+		{
+			goto IL_0070;
+		}
+	}
+	{
+		// targetBar = 100;
+		__this->___U3CtargetBarU3E5__3_10 = ((int32_t)100);
+		goto IL_0155;
+	}
+
+IL_0110:
+	{
+		// ++displayBar;
+		int32_t L_22 = __this->___U3CdisplayBarU3E5__2_9;
+		V_2 = ((int32_t)il2cpp_codegen_add(L_22, 1));
+		int32_t L_23 = V_2;
+		__this->___U3CdisplayBarU3E5__2_9 = L_23;
+		// currProgress = displayBar / 100.0f;
+		int32_t L_24 = __this->___U3CdisplayBarU3E5__2_9;
+		V_1 = ((float)(((float)L_24)/(100.0f)));
+		// onUpdateProgress.Invoke(currProgress);
+		Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* L_25 = __this->___onUpdateProgress_7;
+		float L_26 = V_1;
+		NullCheck(L_25);
+		Action_1_Invoke_mA8F89FB04FEA0F48A4F22EC84B5F9ADB2914341F_inline(L_25, L_26, NULL);
+		// yield return new WaitForEndOfFrame();
+		WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663* L_27 = (WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663*)il2cpp_codegen_object_new(WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663_il2cpp_TypeInfo_var);
+		NullCheck(L_27);
+		WaitForEndOfFrame__ctor_m4AF7E576C01E6B04443BB898B1AE5D645F7D45AB(L_27, NULL);
+		__this->___U3CU3E2__current_1 = L_27;
+		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3CU3E2__current_1), (void*)L_27);
+		__this->___U3CU3E1__state_0 = 3;
+		return (bool)1;
+	}
+
+IL_014e:
+	{
+		__this->___U3CU3E1__state_0 = (-1);
+	}
+
+IL_0155:
+	{
+		// while (displayBar < targetBar)
+		int32_t L_28 = __this->___U3CdisplayBarU3E5__2_9;
+		int32_t L_29 = __this->___U3CtargetBarU3E5__3_10;
+		if ((((int32_t)L_28) < ((int32_t)L_29)))
+		{
+			goto IL_0110;
+		}
+	}
+
+IL_0163:
+	{
+		// yield return handle;
+		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_30 = __this->___U3ChandleU3E5__4_11;
+		__this->___U3CU3E2__current_1 = L_30;
+		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3CU3E2__current_1), (void*)L_30);
+		__this->___U3CU3E1__state_0 = 4;
+		return (bool)1;
+	}
+
+IL_0178:
+	{
+		__this->___U3CU3E1__state_0 = (-1);
+		// onCompleted?.Invoke(handle);
+		Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* L_31 = __this->___onCompleted_8;
+		Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* L_32 = L_31;
+		G_B17_0 = L_32;
+		if (L_32)
+		{
+			G_B18_0 = L_32;
+			goto IL_018b;
+		}
+	}
+	{
+		goto IL_0196;
+	}
+
+IL_018b:
+	{
+		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_33 = __this->___U3ChandleU3E5__4_11;
+		NullCheck(G_B18_0);
+		Action_1_Invoke_m1713199CBF3762FCC5629A85376F7E2B183D9F69_inline(G_B18_0, L_33, NULL);
+	}
+
+IL_0196:
+	{
 		// }
 		return (bool)0;
 	}
@@ -3447,10 +3656,19 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool U3CLoadSceneU3Ed__23_MoveNext_mBB9AC8E4E
 	static bool s_Il2CppMethodInitialized;
 	if (!s_Il2CppMethodInitialized)
 	{
+		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663_il2cpp_TypeInfo_var);
 		il2cpp_codegen_initialize_runtime_metadata((uintptr_t*)&YooAssets_tD00B5B9911F87CF8AC643076BF1ECB1F10DEBA56_il2cpp_TypeInfo_var);
 		s_Il2CppMethodInitialized = true;
 	}
 	int32_t V_0 = 0;
+	float V_1 = 0.0f;
+	int32_t V_2 = 0;
+	Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* G_B6_0 = NULL;
+	Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* G_B5_0 = NULL;
+	Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* G_B16_0 = NULL;
+	Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* G_B15_0 = NULL;
+	Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* G_B23_0 = NULL;
+	Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* G_B22_0 = NULL;
 	{
 		int32_t L_0 = __this->___U3CU3E1__state_0;
 		V_0 = L_0;
@@ -3459,15 +3677,23 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool U3CLoadSceneU3Ed__23_MoveNext_mBB9AC8E4E
 		{
 			case 0:
 			{
-				goto IL_001b;
+				goto IL_0023;
 			}
 			case 1:
 			{
-				goto IL_006f;
+				goto IL_00b6;
 			}
 			case 2:
 			{
-				goto IL_0098;
+				goto IL_00db;
+			}
+			case 3:
+			{
+				goto IL_0145;
+			}
+			case 4:
+			{
+				goto IL_016f;
 			}
 		}
 	}
@@ -3475,9 +3701,11 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool U3CLoadSceneU3Ed__23_MoveNext_mBB9AC8E4E
 		return (bool)0;
 	}
 
-IL_001b:
+IL_0023:
 	{
 		__this->___U3CU3E1__state_0 = (-1);
+		// int displayBar = 0;
+		__this->___U3CdisplayBarU3E5__2_8 = 0;
 		// SceneHandle handle = YooAssets.LoadSceneAsync(scene, loadSceneMode, physicsMode, suspendLoad);
 		String_t* L_2 = __this->___scene_2;
 		int32_t L_3 = __this->___loadSceneMode_3;
@@ -3486,57 +3714,204 @@ IL_001b:
 		il2cpp_codegen_runtime_class_init_inline(YooAssets_tD00B5B9911F87CF8AC643076BF1ECB1F10DEBA56_il2cpp_TypeInfo_var);
 		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_6;
 		L_6 = YooAssets_LoadSceneAsync_m5388F3BB24BB41629EC2F4728EDF87771DC4230B(L_2, L_3, L_4, L_5, ((int32_t)100), NULL);
-		__this->___U3ChandleU3E5__2_7 = L_6;
-		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3ChandleU3E5__2_7), (void*)L_6);
-		goto IL_0076;
+		__this->___U3ChandleU3E5__4_10 = L_6;
+		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3ChandleU3E5__4_10), (void*)L_6);
+		goto IL_00e2;
 	}
 
-IL_0049:
+IL_005b:
 	{
-		// onUpdateProgress.Invoke(handle.Progress);
-		Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* L_7 = __this->___onUpdateProgress_6;
-		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_8 = __this->___U3ChandleU3E5__2_7;
-		NullCheck(L_8);
-		float L_9;
-		L_9 = HandleBase_get_Progress_m8E6A904ED955BAD1A673BBD9D7A8A5CD6442D50F(L_8, NULL);
+		// targetBar = (int)handle.Progress * 100;
+		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_7 = __this->___U3ChandleU3E5__4_10;
 		NullCheck(L_7);
-		Action_1_Invoke_mA8F89FB04FEA0F48A4F22EC84B5F9ADB2914341F_inline(L_7, L_9, NULL);
-		// yield return null;
-		__this->___U3CU3E2__current_1 = NULL;
-		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3CU3E2__current_1), (void*)NULL);
+		float L_8;
+		L_8 = HandleBase_get_Progress_m8E6A904ED955BAD1A673BBD9D7A8A5CD6442D50F(L_7, NULL);
+		__this->___U3CtargetBarU3E5__3_9 = ((int32_t)il2cpp_codegen_multiply(il2cpp_codegen_cast_double_to_int<int32_t>(L_8), ((int32_t)100)));
+		goto IL_00bd;
+	}
+
+IL_0072:
+	{
+		// ++displayBar;
+		int32_t L_9 = __this->___U3CdisplayBarU3E5__2_8;
+		V_2 = ((int32_t)il2cpp_codegen_add(L_9, 1));
+		int32_t L_10 = V_2;
+		__this->___U3CdisplayBarU3E5__2_8 = L_10;
+		// currProgress = displayBar / 100.0f;
+		int32_t L_11 = __this->___U3CdisplayBarU3E5__2_8;
+		V_1 = ((float)(((float)L_11)/(100.0f)));
+		// onUpdateProgress?.Invoke(currProgress);
+		Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* L_12 = __this->___onUpdateProgress_6;
+		Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* L_13 = L_12;
+		G_B5_0 = L_13;
+		if (L_13)
+		{
+			G_B6_0 = L_13;
+			goto IL_009c;
+		}
+	}
+	{
+		goto IL_00a2;
+	}
+
+IL_009c:
+	{
+		float L_14 = V_1;
+		NullCheck(G_B6_0);
+		Action_1_Invoke_mA8F89FB04FEA0F48A4F22EC84B5F9ADB2914341F_inline(G_B6_0, L_14, NULL);
+	}
+
+IL_00a2:
+	{
+		// yield return new WaitForEndOfFrame();
+		WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663* L_15 = (WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663*)il2cpp_codegen_object_new(WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663_il2cpp_TypeInfo_var);
+		NullCheck(L_15);
+		WaitForEndOfFrame__ctor_m4AF7E576C01E6B04443BB898B1AE5D645F7D45AB(L_15, NULL);
+		__this->___U3CU3E2__current_1 = L_15;
+		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3CU3E2__current_1), (void*)L_15);
 		__this->___U3CU3E1__state_0 = 1;
 		return (bool)1;
 	}
 
-IL_006f:
+IL_00b6:
 	{
 		__this->___U3CU3E1__state_0 = (-1);
 	}
 
-IL_0076:
+IL_00bd:
 	{
-		// while (!handle.IsDone)
-		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_10 = __this->___U3ChandleU3E5__2_7;
-		NullCheck(L_10);
-		bool L_11;
-		L_11 = HandleBase_get_IsDone_m114F22ECBD0A2CF6C3255FBFFC2BCBCA9703EDCB(L_10, NULL);
-		if (!L_11)
+		// while (displayBar < targetBar)
+		int32_t L_16 = __this->___U3CdisplayBarU3E5__2_8;
+		int32_t L_17 = __this->___U3CtargetBarU3E5__3_9;
+		if ((((int32_t)L_16) < ((int32_t)L_17)))
 		{
-			goto IL_0049;
+			goto IL_0072;
 		}
 	}
 	{
-		// yield return handle;
-		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_12 = __this->___U3ChandleU3E5__2_7;
-		__this->___U3CU3E2__current_1 = L_12;
-		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3CU3E2__current_1), (void*)L_12);
+		// yield return null;
+		__this->___U3CU3E2__current_1 = NULL;
+		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3CU3E2__current_1), (void*)NULL);
 		__this->___U3CU3E1__state_0 = 2;
 		return (bool)1;
 	}
 
-IL_0098:
+IL_00db:
 	{
 		__this->___U3CU3E1__state_0 = (-1);
+	}
+
+IL_00e2:
+	{
+		// while (handle.Progress < 0.9f)
+		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_18 = __this->___U3ChandleU3E5__4_10;
+		NullCheck(L_18);
+		float L_19;
+		L_19 = HandleBase_get_Progress_m8E6A904ED955BAD1A673BBD9D7A8A5CD6442D50F(L_18, NULL);
+		if ((((float)L_19) < ((float)(0.899999976f))))
+		{
+			goto IL_005b;
+		}
+	}
+	{
+		// targetBar = 100;
+		__this->___U3CtargetBarU3E5__3_9 = ((int32_t)100);
+		goto IL_014c;
+	}
+
+IL_0101:
+	{
+		// ++displayBar;
+		int32_t L_20 = __this->___U3CdisplayBarU3E5__2_8;
+		V_2 = ((int32_t)il2cpp_codegen_add(L_20, 1));
+		int32_t L_21 = V_2;
+		__this->___U3CdisplayBarU3E5__2_8 = L_21;
+		// currProgress = displayBar / 100.0f;
+		int32_t L_22 = __this->___U3CdisplayBarU3E5__2_8;
+		V_1 = ((float)(((float)L_22)/(100.0f)));
+		// onUpdateProgress?.Invoke(currProgress);
+		Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* L_23 = __this->___onUpdateProgress_6;
+		Action_1_t310F18CB4338A2740CA701F160C62E2C3198E66A* L_24 = L_23;
+		G_B15_0 = L_24;
+		if (L_24)
+		{
+			G_B16_0 = L_24;
+			goto IL_012b;
+		}
+	}
+	{
+		goto IL_0131;
+	}
+
+IL_012b:
+	{
+		float L_25 = V_1;
+		NullCheck(G_B16_0);
+		Action_1_Invoke_mA8F89FB04FEA0F48A4F22EC84B5F9ADB2914341F_inline(G_B16_0, L_25, NULL);
+	}
+
+IL_0131:
+	{
+		// yield return new WaitForEndOfFrame();
+		WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663* L_26 = (WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663*)il2cpp_codegen_object_new(WaitForEndOfFrame_tE38D80923E3F8380069B423968C25ABE50A46663_il2cpp_TypeInfo_var);
+		NullCheck(L_26);
+		WaitForEndOfFrame__ctor_m4AF7E576C01E6B04443BB898B1AE5D645F7D45AB(L_26, NULL);
+		__this->___U3CU3E2__current_1 = L_26;
+		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3CU3E2__current_1), (void*)L_26);
+		__this->___U3CU3E1__state_0 = 3;
+		return (bool)1;
+	}
+
+IL_0145:
+	{
+		__this->___U3CU3E1__state_0 = (-1);
+	}
+
+IL_014c:
+	{
+		// while (displayBar < targetBar)
+		int32_t L_27 = __this->___U3CdisplayBarU3E5__2_8;
+		int32_t L_28 = __this->___U3CtargetBarU3E5__3_9;
+		if ((((int32_t)L_27) < ((int32_t)L_28)))
+		{
+			goto IL_0101;
+		}
+	}
+	{
+		// yield return handle;
+		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_29 = __this->___U3ChandleU3E5__4_10;
+		__this->___U3CU3E2__current_1 = L_29;
+		Il2CppCodeGenWriteBarrier((void**)(&__this->___U3CU3E2__current_1), (void*)L_29);
+		__this->___U3CU3E1__state_0 = 4;
+		return (bool)1;
+	}
+
+IL_016f:
+	{
+		__this->___U3CU3E1__state_0 = (-1);
+		// onCompleted?.Invoke(handle);
+		Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* L_30 = __this->___onCompleted_7;
+		Action_1_tAB2D36EC9101D1E3344D0A2493599AF9C7B12D57* L_31 = L_30;
+		G_B22_0 = L_31;
+		if (L_31)
+		{
+			G_B23_0 = L_31;
+			goto IL_0182;
+		}
+	}
+	{
+		goto IL_018d;
+	}
+
+IL_0182:
+	{
+		SceneHandle_t6C10C189E8FE59F286B9B3EC13EC38ABFE101AF9* L_32 = __this->___U3ChandleU3E5__4_10;
+		NullCheck(G_B23_0);
+		Action_1_Invoke_m1713199CBF3762FCC5629A85376F7E2B183D9F69_inline(G_B23_0, L_32, NULL);
+	}
+
+IL_018d:
+	{
 		// }
 		return (bool)0;
 	}

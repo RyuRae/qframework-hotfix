@@ -60,13 +60,13 @@ namespace MsbFramework
 
 
             YooAssetKit.SetDefaultPackage();
-            string location = "Assets/AssetsPackage/AssetsHotFix/HotfixDemo/Scenes/main";
+            string location = "main";
             YooAssetKit.LoadSceneAsync(location, LoadSceneMode.Single, LocalPhysicsMode.None, false, (progress) => 
             {
                 TypeEventSystem.Global.Send(new OnSceneloadUpdateEvent() { progress = progress });
             }, (sceneHandle) => 
             {
-                ActionKit.Delay(1f, () =>
+                ActionKit.Delay(0.5f, () =>
                 {
                     UIPanelRoot.Instance.CloseLoadingPanel();
                 }).Start(this);

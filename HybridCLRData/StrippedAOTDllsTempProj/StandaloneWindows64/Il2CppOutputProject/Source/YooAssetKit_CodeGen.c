@@ -82,10 +82,10 @@ extern void YooAssetKit_LoadRawToByteAsync_m446D9A5024D6DEDA7DAD0AECBE6D94F879A2
 extern void YooAssetKit_LoadRawToStringAsync_m9FFCDAFAAA68482A0389510AF44CC5CC30FCD84E (void);
 // 0x00000027 System.Void QFramework.YooAssetKit::LoadRawToStringAsync(System.String,System.Action`1<System.String>)
 extern void YooAssetKit_LoadRawToStringAsync_mF0F1DFF0E2F9EA2537CAE44B6431F0176D4E3A1A (void);
-// 0x00000028 System.Void QFramework.YooAssetKit::LoadSceneAsync(System.String,UnityEngine.SceneManagement.LoadSceneMode,System.Boolean,System.Action`1<System.Single>,System.String)
-extern void YooAssetKit_LoadSceneAsync_m86F19424D57C06CFE7A543F6B9AA3A92D28DD104 (void);
-// 0x00000029 System.Void QFramework.YooAssetKit::LoadSceneAsync(System.String,UnityEngine.SceneManagement.LoadSceneMode,System.Boolean,System.Action`1<System.Single>)
-extern void YooAssetKit_LoadSceneAsync_m969E47D76A4B0AFDC3E9AB2DF431C5CE8D1E30D5 (void);
+// 0x00000028 System.Void QFramework.YooAssetKit::LoadSceneAsync(System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>,System.Action`1<YooAsset.SceneHandle>,System.String)
+extern void YooAssetKit_LoadSceneAsync_m1E9CEF55F5854D051BAF9E08073ED29DFD0789F7 (void);
+// 0x00000029 System.Void QFramework.YooAssetKit::LoadSceneAsync(System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>,System.Action`1<YooAsset.SceneHandle>)
+extern void YooAssetKit_LoadSceneAsync_m57AD475E4373A6BBB88FDA8D99BB37149B0A8BE5 (void);
 // 0x0000002A System.Void QFramework.YooAssetKit::UnloadUnusedAssets(System.String)
 extern void YooAssetKit_UnloadUnusedAssets_mBA308127D9D0B4A46D7355BDE6B171058AD94DAD (void);
 // 0x0000002B System.Void QFramework.YooAssetKit::TryUnloadUnusedAsset(System.String,System.String)
@@ -96,10 +96,10 @@ extern void YooAssetKit_ForceUnloadAllAssets_mA39C4B8857C5E352042C9CDA90F466015B
 extern void YooAssetKit_UnloadUnusedAssets_m77538FE44FEF50F17CAF6BF5ABEA7BCD12919715 (void);
 // 0x0000002E System.Collections.IEnumerator QFramework.YooAssetKit::UnloadAllAssets(YooAsset.ResourcePackage)
 extern void YooAssetKit_UnloadAllAssets_m80361EB82AE6C1C807C75603673A1936665E57C0 (void);
-// 0x0000002F System.Collections.IEnumerator QFramework.YooAssetKit::LoadScene(YooAsset.ResourcePackage,System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>)
-extern void YooAssetKit_LoadScene_mBC12560433783A69A884846D94F2CE6A1D998327 (void);
-// 0x00000030 System.Collections.IEnumerator QFramework.YooAssetKit::LoadScene(System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>)
-extern void YooAssetKit_LoadScene_m7C411318F546D04E9AD85DA8DE9355610E409E92 (void);
+// 0x0000002F System.Collections.IEnumerator QFramework.YooAssetKit::LoadScene(YooAsset.ResourcePackage,System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>,System.Action`1<YooAsset.SceneHandle>)
+extern void YooAssetKit_LoadScene_mF7CF6372C5EC147EA5B5A58988CF348AAB9F74AB (void);
+// 0x00000030 System.Collections.IEnumerator QFramework.YooAssetKit::LoadScene(System.String,UnityEngine.SceneManagement.LoadSceneMode,UnityEngine.SceneManagement.LocalPhysicsMode,System.Boolean,System.Action`1<System.Single>,System.Action`1<YooAsset.SceneHandle>)
+extern void YooAssetKit_LoadScene_m8848E354BE6C879AD5EC861122FBA239101D9BAE (void);
 // 0x00000031 System.Void QFramework.YooAssetKit::.ctor()
 extern void YooAssetKit__ctor_m7A27A21DA735CC156BD1BAE46A5F46FEF6030F17 (void);
 // 0x00000032 System.Void QFramework.YooAssetKit/<>c__DisplayClass5_0`1::.ctor()
@@ -223,15 +223,15 @@ static Il2CppMethodPointer s_methodPointers[93] =
 	YooAssetKit_LoadRawToByteAsync_m446D9A5024D6DEDA7DAD0AECBE6D94F879A20FAA,
 	YooAssetKit_LoadRawToStringAsync_m9FFCDAFAAA68482A0389510AF44CC5CC30FCD84E,
 	YooAssetKit_LoadRawToStringAsync_mF0F1DFF0E2F9EA2537CAE44B6431F0176D4E3A1A,
-	YooAssetKit_LoadSceneAsync_m86F19424D57C06CFE7A543F6B9AA3A92D28DD104,
-	YooAssetKit_LoadSceneAsync_m969E47D76A4B0AFDC3E9AB2DF431C5CE8D1E30D5,
+	YooAssetKit_LoadSceneAsync_m1E9CEF55F5854D051BAF9E08073ED29DFD0789F7,
+	YooAssetKit_LoadSceneAsync_m57AD475E4373A6BBB88FDA8D99BB37149B0A8BE5,
 	YooAssetKit_UnloadUnusedAssets_mBA308127D9D0B4A46D7355BDE6B171058AD94DAD,
 	YooAssetKit_TryUnloadUnusedAsset_m6D1B205B91FDEBAADB74B9C90F3C3D9FE1703C7E,
 	YooAssetKit_ForceUnloadAllAssets_mA39C4B8857C5E352042C9CDA90F466015B043437,
 	YooAssetKit_UnloadUnusedAssets_m77538FE44FEF50F17CAF6BF5ABEA7BCD12919715,
 	YooAssetKit_UnloadAllAssets_m80361EB82AE6C1C807C75603673A1936665E57C0,
-	YooAssetKit_LoadScene_mBC12560433783A69A884846D94F2CE6A1D998327,
-	YooAssetKit_LoadScene_m7C411318F546D04E9AD85DA8DE9355610E409E92,
+	YooAssetKit_LoadScene_mF7CF6372C5EC147EA5B5A58988CF348AAB9F74AB,
+	YooAssetKit_LoadScene_m8848E354BE6C879AD5EC861122FBA239101D9BAE,
 	YooAssetKit__ctor_m7A27A21DA735CC156BD1BAE46A5F46FEF6030F17,
 	NULL,
 	NULL,
@@ -319,15 +319,15 @@ static const int32_t s_InvokerIndices[93] =
 	6531,
 	6050,
 	6531,
-	5218,
-	5577,
+	4857,
+	4956,
 	6988,
 	6531,
 	6988,
 	6828,
 	6828,
+	4838,
 	4914,
-	5120,
 	4655,
 	0,
 	0,

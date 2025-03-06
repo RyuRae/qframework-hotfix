@@ -25,7 +25,7 @@ namespace MsbFramework.Procedure
     {
        
         //资产配置文件
-        private string location = "Assets/AssetsPackage/AssetsHotFix/Configs/YooAssetHybridCLRSetting.asset";
+        private string location = "YooAssetHybridCLRSetting";
 
         private Dictionary<string, Assembly> currLoadedAssembliesCache = new Dictionary<string, Assembly>();
 

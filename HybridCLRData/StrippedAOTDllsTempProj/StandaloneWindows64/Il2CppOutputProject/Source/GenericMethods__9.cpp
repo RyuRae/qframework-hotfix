@@ -12908,6 +12908,10 @@ struct MeshInfo_tE55C4A8846CC2C399CCC3FE989476D987B86AB2F_StaticFields
 
 // MsbFramework.Events.OnDownloadInfoHandlerEvent
 
+// MsbFramework.Events.OnSceneloadUpdateEvent
+
+// MsbFramework.Events.OnSceneloadUpdateEvent
+
 // UnityEngine.TextCore.Text.PageInfo
 
 // UnityEngine.TextCore.Text.PageInfo
@@ -35327,6 +35331,37 @@ IL_0010:
 		return;
 	}
 }
+// System.Void QFramework.TypeEventSystem::Send<MsbFramework.Events.OnSceneloadUpdateEvent>(T)
+IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void TypeEventSystem_Send_TisOnSceneloadUpdateEvent_t17102E2F415E52772106154053D3FAAE928EF99C_m2FBFBFC2307DD166701E2889575AA35368311D07_gshared (TypeEventSystem_tF10E9750C7BBFD440169038BECB75D3D68106FD0* __this, OnSceneloadUpdateEvent_t17102E2F415E52772106154053D3FAAE928EF99C ___0_e, const RuntimeMethod* method) 
+{
+	EasyEvent_1_t68CFE2C76A089AAC2C525259CADE8A69C0CDFAA7* G_B2_0 = NULL;
+	EasyEvent_1_t68CFE2C76A089AAC2C525259CADE8A69C0CDFAA7* G_B1_0 = NULL;
+	{
+		// public void Send<T>(T e) => mEvents.GetEvent<EasyEvent<T>>()?.Trigger(e);
+		EasyEvents_t34902FDB1581BB8EE7C6CC1410769CD627826BDA* L_0 = __this->___mEvents_0;
+		NullCheck(L_0);
+		EasyEvent_1_t68CFE2C76A089AAC2C525259CADE8A69C0CDFAA7* L_1;
+		L_1 = ((  EasyEvent_1_t68CFE2C76A089AAC2C525259CADE8A69C0CDFAA7* (*) (EasyEvents_t34902FDB1581BB8EE7C6CC1410769CD627826BDA*, const RuntimeMethod*))il2cpp_codegen_get_method_pointer(il2cpp_rgctx_method(method->rgctx_data, 0)))(L_0, il2cpp_rgctx_method(method->rgctx_data, 0));
+		EasyEvent_1_t68CFE2C76A089AAC2C525259CADE8A69C0CDFAA7* L_2 = L_1;
+		G_B1_0 = L_2;
+		if (L_2)
+		{
+			G_B2_0 = L_2;
+			goto IL_0010;
+		}
+	}
+	{
+		return;
+	}
+
+IL_0010:
+	{
+		OnSceneloadUpdateEvent_t17102E2F415E52772106154053D3FAAE928EF99C L_3 = ___0_e;
+		NullCheck(G_B2_0);
+		((  void (*) (EasyEvent_1_t68CFE2C76A089AAC2C525259CADE8A69C0CDFAA7*, OnSceneloadUpdateEvent_t17102E2F415E52772106154053D3FAAE928EF99C, const RuntimeMethod*))il2cpp_codegen_get_method_pointer(il2cpp_rgctx_method(method->rgctx_data, 1)))(G_B2_0, L_3, il2cpp_rgctx_method(method->rgctx_data, 1));
+		return;
+	}
+}
 // System.Void QFramework.TypeEventSystem::UnRegister<System.Object>(System.Action`1<T>)
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void TypeEventSystem_UnRegister_TisRuntimeObject_m888CB23861140A0CF0FA4A1E0AAC8BF1620644AC_gshared (TypeEventSystem_tF10E9750C7BBFD440169038BECB75D3D68106FD0* __this, Action_1_t6F9EB113EB3F16226AEF811A2744F4111C116C87* ___0_onEvent, const RuntimeMethod* method) 
 {
@@ -41474,44 +41509,6 @@ IL_000f:
 }
 // System.Int32 Unity.Collections.LowLevel.Unsafe.UnsafeUtility::AlignOf<UnityEngine.Tilemaps.TileData>()
 IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR int32_t UnsafeUtility_AlignOf_TisTileData_tFB814629D010ABD175127C0BE96FD96EA606E00F_m0E2BB9A892EEC5D0D8FDA66EB48D725E6367A1A7_gshared (const RuntimeMethod* method) 
-{
-	int32_t V_0 = 0;
-	{
-		int32_t L_0;
-		L_0 = ((  int32_t (*) (const RuntimeMethod*))il2cpp_codegen_get_method_pointer(il2cpp_rgctx_method(method->rgctx_data, 0)))(il2cpp_rgctx_method(method->rgctx_data, 0));
-		int32_t L_1;
-		L_1 = ((  int32_t (*) (const RuntimeMethod*))il2cpp_codegen_get_method_pointer(il2cpp_rgctx_method(method->rgctx_data, 1)))(il2cpp_rgctx_method(method->rgctx_data, 1));
-		V_0 = ((int32_t)il2cpp_codegen_subtract(L_0, L_1));
-		goto IL_000f;
-	}
-
-IL_000f:
-	{
-		int32_t L_2 = V_0;
-		return L_2;
-	}
-}
-// System.Int32 Unity.Collections.LowLevel.Unsafe.UnsafeUtility::AlignOf<UnityEngine.UIElements.UIR.Transform3x4>()
-IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR int32_t UnsafeUtility_AlignOf_TisTransform3x4_t9F79FC0112A00D3FFD7AFAD2D10AD22DF929052F_m13DE66EB8075C2AB0F83D029123CADCABF3F9055_gshared (const RuntimeMethod* method) 
-{
-	int32_t V_0 = 0;
-	{
-		int32_t L_0;
-		L_0 = ((  int32_t (*) (const RuntimeMethod*))il2cpp_codegen_get_method_pointer(il2cpp_rgctx_method(method->rgctx_data, 0)))(il2cpp_rgctx_method(method->rgctx_data, 0));
-		int32_t L_1;
-		L_1 = ((  int32_t (*) (const RuntimeMethod*))il2cpp_codegen_get_method_pointer(il2cpp_rgctx_method(method->rgctx_data, 1)))(il2cpp_rgctx_method(method->rgctx_data, 1));
-		V_0 = ((int32_t)il2cpp_codegen_subtract(L_0, L_1));
-		goto IL_000f;
-	}
-
-IL_000f:
-	{
-		int32_t L_2 = V_0;
-		return L_2;
-	}
-}
-// System.Int32 Unity.Collections.LowLevel.Unsafe.UnsafeUtility::AlignOf<System.UInt16>()
-IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR int32_t UnsafeUtility_AlignOf_TisUInt16_tF4C148C876015C212FD72652D0B6ED8CC247A455_m742C058FF2011B81DD081BA92DC32E0E34CEAAC8_gshared (const RuntimeMethod* method) 
 {
 	int32_t V_0 = 0;
 	{
