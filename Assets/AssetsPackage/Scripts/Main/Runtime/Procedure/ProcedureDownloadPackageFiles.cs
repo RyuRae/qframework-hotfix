@@ -37,6 +37,30 @@ namespace MsbFramework.Procedure
 
         private IEnumerator BeginDownload()
         {
+            //var downloader = mTarget._downloaderOperation;
+            //downloader.DownloadErrorCallback = OnDownloadErrorHandler;
+            //downloader.DownloadFileBeginCallback = OnStartDownloadFileHandler;
+            //downloader.DownloadUpdateCallback = OnDownloadProgressUpdateHandler;
+            //downloader.DownloadFinishCallback = OnDownloadOverHandler;
+
+            //downloader.BeginDownload();
+            //yield return downloader;
+
+            yield return DownloadDefaultPackage();
+
+            if (mTarget._isIncludeRawFile)
+                yield return DownloadRawFilePackage();
+
+            mFSM.ChangeState(ResPackageStates.DownloadPackageOver);
+        }
+
+        bool IsMainPkgFinish = false;
+        /// <summary>
+        /// 下载默认包（主包）
+        /// </summary>
+        /// <returns></returns>
+        IEnumerator DownloadDefaultPackage()
+        {
             var downloader = mTarget._downloaderOperation;
             downloader.DownloadErrorCallback = OnDownloadErrorHandler;
             downloader.DownloadFileBeginCallback = OnStartDownloadFileHandler;
@@ -45,12 +69,31 @@ namespace MsbFramework.Procedure
 
             downloader.BeginDownload();
             yield return downloader;
-
             // 检测下载结果
             if (downloader.Status != EOperationStatus.Succeed)
                 yield break;
+            yield return new WaitUntil(() => IsMainPkgFinish);
+        }
 
-            mFSM.ChangeState(ResPackageStates.DownloadPackageOver);
+        bool IsRawFileFinish = false;
+        /// <summary>
+        /// 下载原生文件包
+        /// </summary>
+        /// <returns></returns>
+        IEnumerator DownloadRawFilePackage()
+        {
+            var downloader = mTarget._downloaderRawfile;
+            downloader.DownloadErrorCallback = OnDownloadErrorHandler;
+            downloader.DownloadFileBeginCallback = OnStartDownloadFileHandler;
+            downloader.DownloadUpdateCallback = OnDownloadProgressUpdateHandler;
+            downloader.DownloadFinishCallback = OnDownloadFinishHandler;
+
+            downloader.BeginDownload();
+            yield return downloader;
+            // 检测下载结果
+            if (downloader.Status != EOperationStatus.Succeed)
+                yield break;
+            yield return new WaitUntil(() => IsRawFileFinish);
         }
 
         /// <summary>
@@ -67,6 +110,14 @@ namespace MsbFramework.Procedure
         private void OnDownloadOverHandler(DownloaderFinishData downloaderFinishData)
         {
             TypeEventSystem.Global.Send(new OnDownloadFinishEvent() { downloaderFinishData = downloaderFinishData });
+            IsMainPkgFinish = true;
+        }
+
+
+        private void OnDownloadFinishHandler(DownloaderFinishData downloaderFinishData)
+        {
+            TypeEventSystem.Global.Send(new OnDownloadFinishEvent() { downloaderFinishData = downloaderFinishData });
+            IsRawFileFinish = true;
         }
 
         /// <summary>

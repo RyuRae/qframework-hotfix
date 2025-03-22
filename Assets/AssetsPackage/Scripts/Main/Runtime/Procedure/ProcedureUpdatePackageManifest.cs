@@ -33,12 +33,23 @@ namespace MsbFramework.Procedure
 
         }
 
+
         private IEnumerator UpdateManifest()
         {
             var packageName = mTarget._packageName;
             var packageVersion = mTarget._packageVersion;
-            var package = YooAssets.GetPackage(packageName);
+            var package = YooAssets.GetPackage(packageName);//´ýÓÅ»¯
             var operation = package.UpdatePackageManifestAsync(packageVersion);
+            string rawfilePkgVersion = null;
+            ResourcePackage rawfilePackage = null;
+            UpdatePackageManifestOperation rawfileOperation = null;
+            if (mTarget._isIncludeRawFile)
+            {
+                rawfilePkgVersion = mTarget._rawfilePkgVersion;
+                rawfilePackage = YooAssets.GetPackage(mTarget._rawfilwPkgName);
+                rawfileOperation = rawfilePackage.UpdatePackageManifestAsync(rawfilePkgVersion);
+                yield return rawfileOperation;
+            }
             yield return operation;
 
             if (operation.Status != EOperationStatus.Succeed)

@@ -6,6 +6,8 @@ using MsbFramework.Procedure;
 using UnityEngine.SceneManagement;
 using MsbFramework.Events;
 using MsbFramework.UI;
+//using MsbFramework.Events;
+//using MsbFramework.UI;
 
 namespace MsbFramework
 {
@@ -21,6 +23,15 @@ namespace MsbFramework
         [SerializeField]
         private Camera mCamera;
 
+        /// <summary>
+		/// 主包名称，根据打包设置变化
+		/// </summary>
+		public static string mainPackageName = "DefaultPackage";
+        /// <summary>
+        /// 原生文件包名称，根据打包设置变化
+        /// </summary>
+        public static string rawfilePackageName = "RawFilePackage";
+
         void Awake()
         {
             Application.targetFrameRate = targetFrame;//设置目标帧率
@@ -30,45 +41,32 @@ namespace MsbFramework
 
         IEnumerator Start()
         {
-            LogKit.I(Application.persistentDataPath);
+            //LogKit.I(Application.persistentDataPath);
             //初始化资源系统
             YooAssets.Initialize();
-            
+
             //进入资源检查及更新状态
-            var operation = new ProcedureManager("DefaultPackage", playMode);
+            var operation = new ProcedureManager(mainPackageName, playMode);
             YooAssets.StartOperation(operation);
             yield return operation;
 
-            LogKit.I("资源检查完毕！！！");
-            // 设置默认的资源包
-            //var gamePackage = YooAssets.GetPackage("DefaultPackage");
-            //YooAssets.SetDefaultPackage(gamePackage);
+            //LogKit.I("资源检查完毕！！！");
 
-            //// 切换到主页面场景
-            //string location = "Assets/AssetsPackage/AssetsHotFix/HotfixDemo/Scenes/main";
-            //var sceneMode = UnityEngine.SceneManagement.LoadSceneMode.Single;
-            //var physicsMode = LocalPhysicsMode.None;
-            //bool suspendLoad = false;
-            //SceneHandle handle = gamePackage.LoadSceneAsync(location, sceneMode, physicsMode, suspendLoad);
-            //TypeEventSystem.Global.Send(new OnSceneloadUpdateEvent() { progress = handle.Progress });
-            //yield return handle;
-            //ActionKit.Delay(0.5f, () =>
-            //{
-            //    //mCamera.Hide();
-            //    UIPanelRoot.Instance.CloseLoadingPanel();
-            //}).Start(this);
-
-
-            YooAssetKit.SetDefaultPackage();
+            //YooAssetKit.SetDefaultPackage();
             string location = "main";
-            YooAssetKit.LoadSceneAsync(location, LoadSceneMode.Single, LocalPhysicsMode.None, false, (progress) => 
+            LogKit.I("加载场景");
+            //YooAssets.LoadSceneAsync(location, LoadSceneMode.Single, LocalPhysicsMode.None,false);
+            YooAssetKit.LoadSceneAsync(location, LoadSceneMode.Single, LocalPhysicsMode.None, false, (progress) =>
             {
-                TypeEventSystem.Global.Send(new OnSceneloadUpdateEvent() { progress = progress });
-            }, (sceneHandle) => 
+                //LogKit.I("更新进度");
+                TypeEventSystem.Global.Send(new OnSceneloadUpdateEvent() { progress = progress, desc = "场景加载中" });
+            }, (sceneHandle) =>
             {
-                ActionKit.Delay(0.5f, () =>
+                //LogKit.I("加载完成");
+                ActionKit.Delay(0.2f, () =>
                 {
                     UIPanelRoot.Instance.CloseLoadingPanel();
+                    UIPanelRoot.Instance.ClearScreen();
                 }).Start(this);
             });
         }

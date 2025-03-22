@@ -56,6 +56,10 @@ namespace MsbFramework.Procedure
         /// </summary>
         public readonly string _packageName;
         /// <summary>
+        /// 原生文件资源包名
+        /// </summary>
+        public readonly string _rawfilwPkgName;
+        /// <summary>
         /// 播放模式
         /// </summary>
         public readonly EPlayMode _playMode;
@@ -63,16 +67,30 @@ namespace MsbFramework.Procedure
         /// 资源包版本信息
         /// </summary>
         public string _packageVersion;
+        //是否包含原生资源
+        public bool _isIncludeRawFile;
+
+        /// <summary>
+        /// 资源包版本信息
+        /// </summary>
+        public string _rawfilePkgVersion;
         /// <summary>
         /// 下载器
         /// </summary>
         public ResourceDownloaderOperation _downloaderOperation;
+        /// <summary>
+        /// 原生文件下载器
+        /// </summary>
+        public ResourceDownloaderOperation _downloaderRawfile;
 
         public FSM<ResPackageStates> _mFSM = new FSM<ResPackageStates>();
-        public ProcedureManager(string packageName, EPlayMode playMode)
+        public ProcedureManager(string packageName, EPlayMode playMode, bool IsIncludeRawFile = false)
         {
             _packageName = packageName;
             _playMode = playMode;
+            _isIncludeRawFile = IsIncludeRawFile;
+            if (_isIncludeRawFile)
+                _rawfilwPkgName = Boot.rawfilePackageName;
 
             _mFSM.AddState(ResPackageStates.InitializePackage, new ProcedureInitializePackage(_mFSM, this));
             _mFSM.AddState(ResPackageStates.RequestPackageVersion, new ProcedureRequestPackageVersion(_mFSM, this));

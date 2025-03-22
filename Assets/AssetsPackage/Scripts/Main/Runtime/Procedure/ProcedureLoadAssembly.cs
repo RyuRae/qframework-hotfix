@@ -12,6 +12,9 @@ using System.IO;
 using System;
 using Main.Editor;
 using System.Reflection;
+using HybridCLR;
+using MsbFramework.Events;
+using MsbFramework.UI;
 #if ENABLE_HYBRID_CLR_UNITY
 using HybridCLR;
 #endif
@@ -35,31 +38,34 @@ namespace MsbFramework.Procedure
 
         private bool mIsHotfixAsmLoadComplete = false;
         private bool mIsAotMetaAsmLoadComplete = false;
+        private float rawProgress;
+        private float displayProgress;
+        private bool IsLoading = false;
         public ProcedureLoadAssembly(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)
         {
         }
 
         protected override bool OnCondition()
         {
-
             return mFSM.CurrentStateId == ResPackageStates.CreateDownloader || mFSM.CurrentStateId == ResPackageStates.DownloadPackageOver;
         }
 
         protected override void OnEnter()
         {
             LogKit.I("加载代码文件");
-            currLoadedAssembliesList = AppDomain.CurrentDomain.GetAssemblies().ToList();
-            if (currLoadedAssembliesList != null)
+
+            ActionKit.OnUpdate.Register(() =>
             {
-                currLoadedAssembliesList.ForEach(p => 
-                {
-                    string dllName = p.GetName().Name;
-                    if (!currLoadedAssembliesCache.ContainsKey(dllName))
-                    {
-                        currLoadedAssembliesCache.Add(dllName, p);
-                    }
-                });
-            }
+                if (!IsLoading) return;
+
+                // 动态插值平滑进度
+                if (displayProgress < 0.98f)
+                    displayProgress = Mathf.Lerp(displayProgress, rawProgress, Time.deltaTime * 10f);
+                else
+                    displayProgress = 1;
+                TypeEventSystem.Global.Send(new OnAssetloadProgressEvent() { progress = displayProgress, desc = "资源加载中" });
+            }).UnRegisterWhenGameObjectDestroyed(CoroutineController.manager);
+
             mIsHotfixAsmLoadComplete = false;
             mIsAotMetaAsmLoadComplete = false;
             mHotfixAssemblies = new List<Assembly>();
@@ -74,6 +80,7 @@ namespace MsbFramework.Procedure
         private List<string> mAssetsCache = new List<string>();
         IEnumerator LoadAssemblies()
         {
+            IsLoading = true;
             var packageName = mTarget._packageName;
             var package = YooAssets.GetPackage(packageName);
             //加载资产配置文件
@@ -90,14 +97,18 @@ namespace MsbFramework.Procedure
             while (asset.MoveNext())
             {
                 tempHandle = package.LoadAssetAsync<TextAsset>(asset.Current);
+                rawProgress = (mAssetsCache.IndexOf(asset.Current) + 1 + tempHandle.Progress) / (float)mAssetsCache.Count;
                 yield return tempHandle;
+                //LogKit.I(asset.Current);
                 var assetObj = tempHandle.AssetObject as TextAsset;
                 mAssetDatas[asset.Current] = assetObj;
             }
-
+            IsLoading = false;
+            yield return null;
+            //UIPanelRoot.Instance.CloseLoadingPanel();
             LoadMetadataForAOTAssemblies();
             LoadHotfixAssemblies();
-
+            mAssetDatas.Clear();
         }
 
         private static Dictionary<string, TextAsset> mAssetDatas = new Dictionary<string, TextAsset>();
@@ -128,6 +139,8 @@ namespace MsbFramework.Procedure
                 // 加载assembly对应的dll，会自动为它hook。一旦aot泛型函数的native函数不存在，用解释器版本代码
                 LoadImageErrorCode err = RuntimeApi.LoadMetadataForAOTAssembly(dllBytes, mode);
                 Debug.Log($"LoadMetadataForAOTAssembly:{aotDllName}. mode:{mode} ret:{err}");
+                float progress = (mAotMetaAssemblies.IndexOf(aotDllName) + 1) / (float)mAotMetaAssemblies.Count;
+                LogKit.I("加载元数据进度：" + progress);
             }
 #endif
             mIsAotMetaAsmLoadComplete = true;
@@ -161,7 +174,7 @@ namespace MsbFramework.Procedure
 
         protected override void OnExit()
         {
-
+            
         }
 
         protected override void OnUpdate()

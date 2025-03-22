@@ -45,6 +45,14 @@ namespace MsbFramework.Procedure
             int failedTryAgain = 3;
             var downloader = package.CreateResourceDownloader(downloadingMaxNum, failedTryAgain);
             mTarget._downloaderOperation = downloader;
+            ResourcePackage rawfilePkg = null;
+            ResourceDownloaderOperation downloaderRawfile = null;
+            if (mTarget._isIncludeRawFile)
+            {
+                rawfilePkg = YooAssets.GetPackage(mTarget._rawfilwPkgName);
+                downloaderRawfile = rawfilePkg.CreateResourceDownloader(downloadingMaxNum, failedTryAgain);
+                mTarget._downloaderRawfile = downloaderRawfile;
+            }
 
             if (downloader.TotalDownloadCount == 0)
             {
@@ -57,10 +65,12 @@ namespace MsbFramework.Procedure
             {
                 // 发现新更新文件后，挂起流程系统
                 // 注意：开发者需要在下载前检测磁盘空间不足
+                int totalDownloadCount = mTarget._isIncludeRawFile ? downloader.TotalDownloadCount + downloaderRawfile.TotalDownloadCount : downloader.TotalDownloadCount;
+                long totalDownloadBytes = mTarget._isIncludeRawFile ? downloader.TotalDownloadBytes + downloaderRawfile.TotalDownloadBytes : downloader.TotalDownloadBytes;
                 OnDownloadInfoHandlerEvent onDownloadInfoHandler = new OnDownloadInfoHandlerEvent()
                 { 
-                    totalDownloadCount = downloader.TotalDownloadCount,
-                    totalDownloadBytes = downloader.TotalDownloadBytes,
+                    totalDownloadCount = totalDownloadCount,
+                    totalDownloadBytes = totalDownloadBytes,
                     confirmCallBack = () => 
                     {
                         //切换为下载状态

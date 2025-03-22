@@ -29,31 +29,58 @@ namespace MsbFramework.Procedure
             CoroutineController.manager.StartCoroutine(InitPackage());
         }
 
+        ResourcePackage _rawFilePackage = null;
+        InitializationOperation initRawFileOperation = null;
         IEnumerator InitPackage()
         {
             var playMode = _manager._playMode;
             var packageName = _manager._packageName;
 
-            // 创建资源包裹类
+            // 创建主资源包裹类
             var package = YooAssets.TryGetPackage(packageName) ?? YooAssets.CreatePackage(packageName);
             YooAssets.SetDefaultPackage(package);
             InitializationOperation initializationOperation = null;
 
+            if(_manager._isIncludeRawFile)
+                //创建原生文件包裹类
+                _rawFilePackage = YooAssets.TryGetPackage(_manager._rawfilwPkgName) ?? YooAssets.CreatePackage(_manager._rawfilwPkgName);
+           
+
             // 编辑器下的模拟模式
             if (playMode == EPlayMode.EditorSimulateMode)
             {
+                //主资源包
                 var buildResult = EditorSimulateModeHelper.SimulateBuild(packageName);
                 var packageRoot = buildResult.PackageRootDirectory;
                 var createParameters = new EditorSimulateModeParameters();
                 createParameters.EditorFileSystemParameters = FileSystemParameters.CreateDefaultEditorFileSystemParameters(packageRoot);
                 initializationOperation = package.InitializeAsync(createParameters);
+
+                //原生资源包
+                if (_manager._isIncludeRawFile)
+                {
+                    var rawfileBuildResult = EditorSimulateModeHelper.SimulateBuild(packageName);
+                    var rawfilePkgRoot = rawfileBuildResult.PackageRootDirectory;
+                    var createParameters2 = new EditorSimulateModeParameters();
+                    createParameters2.EditorFileSystemParameters = FileSystemParameters.CreateDefaultEditorFileSystemParameters(rawfilePkgRoot);
+                    initRawFileOperation = _rawFilePackage.InitializeAsync(createParameters2);
+                }
             }
             // 单机运行模式
             else if (playMode == EPlayMode.OfflinePlayMode)
             {
+                //主文件初始化
                 var createParameters = new OfflinePlayModeParameters();
                 createParameters.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
                 initializationOperation = package.InitializeAsync(createParameters);
+
+                //原生文件初始化
+                if (_manager._isIncludeRawFile)
+                {
+                    var createParameters2 = new OfflinePlayModeParameters();
+                    createParameters2.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
+                    initRawFileOperation = _rawFilePackage.InitializeAsync(createParameters2);
+                }
             }
             // 联机运行模式
             else if (playMode == EPlayMode.HostPlayMode)
@@ -61,28 +88,62 @@ namespace MsbFramework.Procedure
                 string defaultHostServer = GetHostServerURL();
                 string fallbackHostServer = GetHostServerURL();
                 IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
+                //主资源包
                 var createParameters = new HostPlayModeParameters();
                 createParameters.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
                 createParameters.CacheFileSystemParameters = FileSystemParameters.CreateDefaultCacheFileSystemParameters(remoteServices);
                 initializationOperation = package.InitializeAsync(createParameters);
+
+                //原生资源包
+                if (_manager._isIncludeRawFile)
+                {
+                    var createParameters2 = new HostPlayModeParameters();
+                    createParameters2.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
+                    createParameters2.CacheFileSystemParameters = FileSystemParameters.CreateDefaultCacheFileSystemParameters(remoteServices);
+                    initRawFileOperation = _rawFilePackage.InitializeAsync(createParameters2);
+                }
             }
             // WebGL运行模式
             else if (playMode == EPlayMode.WebPlayMode)
             {
-                var createParameters = new WebPlayModeParameters();
-#if UNITY_WEBGL && WEIXINMINIGAME && !UNITY_EDITOR
-			string defaultHostServer = GetHostServerURL();
-            string fallbackHostServer = GetHostServerURL();
-            string packageRoot = $"{WeChatWASM.WX.env.USER_DATA_PATH}/__GAME_FILE_CACHE"; //注意：如果有子目录，请修改此处！
-            IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
-            createParameters.WebServerFileSystemParameters = WechatFileSystemCreater.CreateWechatFileSystemParameters(packageRoot, remoteServices);
-#else
-                createParameters.WebServerFileSystemParameters = FileSystemParameters.CreateDefaultWebServerFileSystemParameters(new WebDecryption());
-#endif
-                initializationOperation = package.InitializeAsync(createParameters);
+//                var createParameters = new WebPlayModeParameters();
+//#if UNITY_WEBGL && WEIXINMINIGAME && !UNITY_EDITOR
+//			string defaultHostServer = GetHostServerURL();
+//            string fallbackHostServer = GetHostServerURL();
+//            string packageRoot = $"{WeChatWASM.WX.env.USER_DATA_PATH}/__GAME_FILE_CACHE"; //注意：如果有子目录，请修改此处！
+//            IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
+//            createParameters.WebServerFileSystemParameters = WechatFileSystemCreater.CreateWechatFileSystemParameters(packageRoot, remoteServices);
+//            LogKit.I("资源包初始化成功！");
+//#else
+//                createParameters.WebServerFileSystemParameters = FileSystemParameters.CreateDefaultWebServerFileSystemParameters(new WebDecryption());
+//#endif
+//                initializationOperation = package.InitializeAsync(createParameters);
+
+                string defaultHostServer = GetHostServerURL();
+                string fallbackHostServer = GetHostServerURL();
+                IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
+                var webServerFileSystemParams = FileSystemParameters.CreateDefaultWebServerFileSystemParameters();
+                var webRemoteFileSystemParams = FileSystemParameters.CreateDefaultWebRemoteFileSystemParameters(remoteServices); //支持跨域下载
+                //主资源包
+                var initParameters = new WebPlayModeParameters();
+                initParameters.WebServerFileSystemParameters = webServerFileSystemParams;
+                initParameters.WebRemoteFileSystemParameters = webRemoteFileSystemParams;
+                initializationOperation = package.InitializeAsync(initParameters);
+
+                //原生资源(webgl官方，不支持原生包构建，参考bytes解决方案)
+                if (_manager._isIncludeRawFile)
+                {
+                    var initParameters2 = new WebPlayModeParameters();
+                    initParameters2.WebServerFileSystemParameters = webServerFileSystemParams;
+                    initParameters2.WebRemoteFileSystemParameters = webRemoteFileSystemParams;
+                    //initParameters2.WebServerFileSystemParameters = WechatFileSystemCreater.CreateWechatFileSystemParameters(packageRoot, remoteServices);
+                    initRawFileOperation = _rawFilePackage.InitializeAsync(initParameters2);
+                }
             }
 
             yield return initializationOperation;
+            if (_manager._isIncludeRawFile)
+                yield return initRawFileOperation;
 
             // 如果初始化失败弹出提示界面
             if (initializationOperation.Status != EOperationStatus.Succeed)
@@ -92,6 +153,7 @@ namespace MsbFramework.Procedure
             }
             else
             {
+                Debug.Log("资源包初始化成功！");
                 _fsm.ChangeState(ResPackageStates.RequestPackageVersion);
             }
         }
@@ -112,7 +174,7 @@ namespace MsbFramework.Procedure
         private string GetHostServerURL()
         {
             //string hostServerIP = "http://10.0.2.2"; //安卓模拟器地址
-            string hostServerIP = "http://127.0.0.1:8080/TestProject/PC";
+            string hostServerIP = "http://127.0.0.1:8080/TestProject/PC";//192.168.125.148
             //            string appVersion = "v1.0";
 
             //#if UNITY_EDITOR

@@ -23,7 +23,7 @@ namespace MsbFramework.Procedure
 
         protected override void OnEnter()
         {
-            LogKit.I("开始游戏！");
+            //LogKit.I("开始游戏！");
             LogKit.I("处理开始逻辑！");
             mTarget.SetFinish();
         }

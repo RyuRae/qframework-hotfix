@@ -40,7 +40,8 @@ namespace MsbFramework.Procedure
         }
 
         public void OnClearCacheFilesCompleted(AsyncOperationBase obj)
-        { 
+        {
+            LogKit.I("资源清理完成");
             mFSM.ChangeState(ResPackageStates.StartGame);
         }
     }

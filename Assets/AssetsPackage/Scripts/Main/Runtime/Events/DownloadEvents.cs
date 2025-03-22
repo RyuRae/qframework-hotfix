@@ -53,6 +53,10 @@ namespace MsbFramework.Events
         /// 加载进度
         /// </summary>
         public float progress;
+        /// <summary>
+        /// 描述信息
+        /// </summary>
+        public string desc;
     }
 
     /// <summary>
@@ -72,5 +76,20 @@ namespace MsbFramework.Events
         /// 信息确认回调
         /// </summary>
         public Action confirmCallBack;
+    }
+
+    /// <summary>
+    /// 资源加载进度
+    /// </summary>
+    public struct OnAssetloadProgressEvent
+    {
+        /// <summary>
+        /// 当前加载进度
+        /// </summary>
+        public float progress;
+        /// <summary>
+        /// 描述信息
+        /// </summary>
+        public string desc;
     }
 }

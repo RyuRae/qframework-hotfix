@@ -40,7 +40,7 @@ MonoBehaviour:
     - TypeName: UnityEngine.UI.Button
       PathToRoot: UISceneMessageBox/ShowBox/Button_Confirm
       MemberName: Button_Confirm
-    ScriptsFolder: Assets/AssetsPackage/Scripts/Runtime/UI
+    ScriptsFolder: Assets\AssetsPackage\Scripts\Main\Runtime\UI
     ClassName: UIPanelRoot
     Namespace: MsbFramework.UI
     MainCode: 
