@@ -1,21 +1,8 @@
 # yooasset_qframework_hybridclr_master
 这是一套基于 Unity3D 实现的热更新开发框架，使用 YooAsset 实现资源打包及热更新管理，使用 HybridCLR 实现逻辑热更新管理，逻辑开发基于 QFramework 实现的开发工具。
 
-//文件目录设计
-Assets/AssetsPackage
-├── AssetsHotfix				// 热更新资源目录
-|   ├── AOTCodes				// AOT元数据代码目录
-|   ├── BaseAssets				// 基础通用资源目录
-|   ├── Configs					// 热更新代码记录文件
-|   ├── HotfixCodes				// 热更新程序集目录
-|   ├── HotfixDemo				// 热更新项目资源目录
-|           ├── Entities		// 预制件目录
-|           ├── Scenes		    // 场景目录，其他资源可新建文件夹       
-|   ├── Resources				// 资源配置记录文件
-|   ├── Scripts                 // 程序编写目录
-|           ├── Hotfix          // 需要热更的代码
-|           ├── Main            // 框架公共代码
-└── 
+![image](https://github.com/user-attachments/assets/25ce0e8d-74fc-4463-867d-d590285133a1)
+
 
 
 
