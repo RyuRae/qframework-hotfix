@@ -16,8 +16,8 @@ namespace MsbFramework.Procedure
 
         protected override bool OnCondition()
         {
-            if(mTarget._playMode == EPlayMode.OfflinePlayMode)
-                return mFSM.CurrentStateId == ResPackageStates.CreateDownloader;
+            //if(mTarget._playMode == EPlayMode.OfflinePlayMode)
+            //    return mFSM.CurrentStateId == ResPackageStates.CreateDownloader;
             return mFSM.CurrentStateId == ResPackageStates.ClearCacheBundle;
         }
 
