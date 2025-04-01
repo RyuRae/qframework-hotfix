@@ -9,24 +9,41 @@
 
 1）找到工具栏-->HybridCLR-->Installer-->Install，安装HybridCLR，确认已安装；
 
-<img width="88" alt="image" src="https://github.com/user-attachments/assets/625aeabc-011f-4f43-9d2e-d5c5920196c2" />
-
 2）初始化生成框架数据 HybridCLR -->Generate-->All;
 
 3）生成link.xml链接文件，避免代码过度裁剪，HybridCLR-->Generate-->LinkXml;
 
 4）配置初始热更资源包（必须），可根据需要设置空包，初始包等；工具栏YooAsset-->AssetBundle Collector，根据需要配置初始资源包；
 
-<img width="277" alt="image" src="https://github.com/user-attachments/assets/0078e9bd-435f-4767-8b66-a044fc849504" />
-
 5）资源打包，工具栏YooAsset-->AssetBundle Builder，打包管线推荐使用ScriptableBuildPipeline；初始需要拷贝资源到StreamingAssets，CopyBuildinFileOption设置为ClearAndCopyAll，然后打包；
-
-<img width="288" alt="image" src="https://github.com/user-attachments/assets/65077c0c-8c5d-463a-b160-abb62b869bd5" />
 
 6）发布框架包，选择发布平台（和打包资源匹配），Build；
 
-<img width="233" alt="image" src="https://github.com/user-attachments/assets/c138fdf0-f95e-44d4-b6f0-9ebf343ee6ce" />
+2.发布热更资源包
 
+1）需要热更的代码生成Assembly Definition，在代码文件夹右键Create-->Assembly Definition;
+
+2）配置需要热更的代码，HybridCLR-->Setting-->Hot Update Assembly Definitions;
+
+3）配置热更新资源（代码和需要热更的prefab/UI/Shder/Sound等），YooAsset-->AssetBundle Collector；
+
+上述为资源文件夹分类，分别为AOT元数据，通用素材文件，代码数据记录配置文件，热更代码文件，HotfixMain为更新的主资源包括场景/prefab/UI/shader和shader变体等；
+
+根据需要可自定义文件夹及资源设置；
+
+PS：Shader变体收集，可使用YooAsset官方提供的工具，在Package Manager中找到YooAsset包导入Sample；
+
+友情提示:资源包和执行程序包可以分为两个工程，避免混乱；
+
+4）着色器变体收集，工具栏Tools-->着色器变种收集器，将收集好的shader变体配置在上述资源包；
+
+5）热更新代码配置，HybridCLR-->CompileDll-->发布的目标平台，执行代码生成；
+
+6）热更代码收集，工具栏Build-->BuildAssetsAndCopyToAssetsPackage;代码收集完成，确认步骤3中有收集代码文件夹；
+
+7）打资源包，打包完成后将资源包放在cdn服务器，完成！
+
+详情请查看Docs文件夹-->快速开始
 
 
 
