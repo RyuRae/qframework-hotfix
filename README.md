@@ -70,4 +70,4 @@ PS：Shader变体收集，可使用YooAsset官方提供的工具，在Package Ma
   
 [YooAsset](https://github.com/tuyoogame/YooAsset)：一套用于Unity3D的资源管理系统，用于帮助研发团队快速部署和交付游戏。它可以满足商业化游戏的各类需求，并且经历多款百万DAU游戏产品的验证。  
   
-[HyBridCLR](https://github.com/focus-creative-games/hybridclr)：HybridCLR是一个特性完整、零成本、高性能、低内存的近乎完美的Unity全平台原生c#热更新解决方案。  
+[HybridCLR](https://github.com/focus-creative-games/hybridclr)：HybridCLR是一个特性完整、零成本、高性能、低内存的近乎完美的Unity全平台原生c#热更新解决方案。  
