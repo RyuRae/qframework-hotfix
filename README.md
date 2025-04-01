@@ -27,8 +27,6 @@
 
 3）配置热更新资源（代码和需要热更的prefab/UI/Shder/Sound等），YooAsset-->AssetBundle Collector；
 
-上述为资源文件夹分类，分别为AOT元数据，通用素材文件，代码数据记录配置文件，热更代码文件，HotfixMain为更新的主资源包括场景/prefab/UI/shader和shader变体等；
-
 根据需要可自定义文件夹及资源设置；
 
 PS：Shader变体收集，可使用YooAsset官方提供的工具，在Package Manager中找到YooAsset包导入Sample；
