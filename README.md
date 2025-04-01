@@ -6,17 +6,21 @@
 快速开始
 1.发布执行程序（热更基础包）
 1）找到工具栏-->HybridCLR-->Installer-->Install，安装HybridCLR，确认已安装；
+
 <img width="88" alt="image" src="https://github.com/user-attachments/assets/625aeabc-011f-4f43-9d2e-d5c5920196c2" />
 
 2）初始化生成框架数据 HybridCLR -->Generate-->All;
 3）生成link.xml链接文件，避免代码过度裁剪，HybridCLR-->Generate-->LinkXml;
 4）配置初始热更资源包（必须），可根据需要设置空包，初始包等；工具栏YooAsset-->AssetBundle Collector，根据需要配置初始资源包；
+
 <img width="277" alt="image" src="https://github.com/user-attachments/assets/0078e9bd-435f-4767-8b66-a044fc849504" />
 
 5）资源打包，工具栏YooAsset-->AssetBundle Builder，打包管线推荐使用ScriptableBuildPipeline；初始需要拷贝资源到StreamingAssets，CopyBuildinFileOption设置为ClearAndCopyAll，然后打包；
+
 <img width="288" alt="image" src="https://github.com/user-attachments/assets/65077c0c-8c5d-463a-b160-abb62b869bd5" />
 
 6）发布框架包，选择发布平台（和打包资源匹配），Build；
+
 <img width="233" alt="image" src="https://github.com/user-attachments/assets/c138fdf0-f95e-44d4-b6f0-9ebf343ee6ce" />
 
 
