@@ -76,6 +76,7 @@ namespace QFramework
             handle.Completed += (assetHandle) => 
             {
                 onLoad?.Invoke(assetHandle.AssetObject as T);
+                handle.Release();
             };
         }
 
@@ -91,6 +92,7 @@ namespace QFramework
             handle.Completed += (assetHandle) => 
             {
                 onLoad?.Invoke(assetHandle.AssetObject as T);
+                handle.Release();
             };
         }
 
@@ -107,6 +109,7 @@ namespace QFramework
             handle.Completed += (assetHanlde) => 
             {
                 onLoad?.Invoke(assetHanlde.InstantiateSync());
+                handle.Release();
             };
         }
 
@@ -121,6 +124,7 @@ namespace QFramework
             handle.Completed += (assetHanlde) =>
             {
                 onLoad?.Invoke(assetHanlde.InstantiateSync());
+                handle.Release();
             };
         }
 
@@ -139,6 +143,7 @@ namespace QFramework
             handle.Completed += (assetHandle) => 
             {
                 onLoad?.Invoke(assetHandle.GetSubAssetObject<T>(subAssetName));
+                handle.Release();
             };
         }
 
@@ -155,6 +160,7 @@ namespace QFramework
             handle.Completed += (assetHandle) =>
             {
                 onLoad?.Invoke(assetHandle.GetSubAssetObject<T>(subAssetName));
+                handle.Release();
             };
         }
 
@@ -172,6 +178,7 @@ namespace QFramework
             handle.Completed += (assetHandle) => 
             {
                 onLoad?.Invoke(assetHandle.GetRawFileData());
+                handle.Release();
             };
         }
 
@@ -186,6 +193,7 @@ namespace QFramework
             handle.Completed += (assetHandle) =>
             {
                 onLoad?.Invoke(assetHandle.GetRawFileData());
+                handle.Release();
             };
         }
 
@@ -203,6 +211,7 @@ namespace QFramework
             handle.Completed += (assetHandle) => 
             {
                 onLoad?.Invoke(assetHandle.GetRawFileText());
+                handle.Release();
             };
         }
 
@@ -217,6 +226,7 @@ namespace QFramework
             handle.Completed += (assetHandle) =>
             {
                 onLoad?.Invoke(assetHandle.GetRawFileText());
+                handle.Release();
             };
         }
 
@@ -323,6 +333,7 @@ namespace QFramework
             }
             yield return handle;
             onCompleted?.Invoke(handle);
+            handle.Release();
         }
 
 
@@ -359,6 +370,7 @@ namespace QFramework
             //yield return new WaitUntil(() => displayBar == 100);
             yield return handle;
             onCompleted?.Invoke(handle);
+            handle.Release();
         }
     }
 }

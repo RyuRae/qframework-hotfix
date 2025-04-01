@@ -41,7 +41,6 @@ namespace MsbFramework
 
         IEnumerator Start()
         {
-            //LogKit.I(Application.persistentDataPath);
             //初始化资源系统
             YooAssets.Initialize();
 
@@ -50,19 +49,15 @@ namespace MsbFramework
             YooAssets.StartOperation(operation);
             yield return operation;
 
-            //LogKit.I("资源检查完毕！！！");
-
-            //YooAssetKit.SetDefaultPackage();
             string location = "main";
-            LogKit.I("加载场景");
-            //YooAssets.LoadSceneAsync(location, LoadSceneMode.Single, LocalPhysicsMode.None,false);
+            //加载场景
             YooAssetKit.LoadSceneAsync(location, LoadSceneMode.Single, LocalPhysicsMode.None, false, (progress) =>
             {
-                //LogKit.I("更新进度");
+                //更新进度
                 TypeEventSystem.Global.Send(new OnSceneloadUpdateEvent() { progress = progress, desc = "场景加载中" });
             }, (sceneHandle) =>
             {
-                //LogKit.I("加载完成");
+                //加载完成
                 ActionKit.Delay(0.2f, () =>
                 {
                     UIPanelRoot.Instance.CloseLoadingPanel();

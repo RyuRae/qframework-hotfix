@@ -7,14 +7,20 @@ public class Test : MonoBehaviour
 {
 
     GameObject go = null;
-    IEnumerator Start()
+    void Start()
     {
-        Debug.Log("Hello, 自动旋转测试！");
-        var package = YooAssets.GetPackage("DefaultPackage");
-        var handle = package.LoadAssetAsync<GameObject>("Cube");
-        yield return handle;
-        go = handle.InstantiateSync();
-        LogKit.I(go.name);
+        //Debug.Log("Hello, 自动旋转测试！");
+        //var package = YooAssets.GetPackage("DefaultPackage");
+        //var handle = package.LoadAssetAsync<GameObject>("Cube");
+        //yield return handle;
+        //go = handle.InstantiateSync();
+        //LogKit.I(go.name);
+
+        YooAssetKit.LoadAssetAsync<GameObject>("Cube", obj => 
+        {
+            go = Instantiate(obj);
+            LogKit.I(go.name);
+        });
     }
 
     private void Update()

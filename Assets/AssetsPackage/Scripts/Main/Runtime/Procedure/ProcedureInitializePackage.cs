@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using QFramework;
 using YooAsset;
@@ -130,7 +129,7 @@ namespace MsbFramework.Procedure
                 initParameters.WebRemoteFileSystemParameters = webRemoteFileSystemParams;
                 initializationOperation = package.InitializeAsync(initParameters);
 
-                //原生资源(webgl官方，不支持原生包构建，参考bytes解决方案)
+                //原生资源(webgl,官方不支持原生包构建，参考bytes解决方案)
                 if (_manager._isIncludeRawFile)
                 {
                     var initParameters2 = new WebPlayModeParameters();
