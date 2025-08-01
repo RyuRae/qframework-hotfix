@@ -48,7 +48,8 @@ PS：Shader变体收集，可使用YooAsset官方提供的工具，在Package Ma
 
 
 
-报错处理
+**报错处理**
+
 此版本Unity编辑器版本为2021.3.41f1，利用编辑器打开项目时报错，如下：
 
 1.D3DComplier_47.dll缺失
