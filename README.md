@@ -48,6 +48,24 @@ PS：Shader变体收集，可使用YooAsset官方提供的工具，在Package Ma
 
 
 
+报错处理
+此版本Unity编辑器版本为2021.3.41f1，利用编辑器打开项目时报错，如下：
+
+1.D3DComplier_47.dll缺失
+
+<img width="381" height="173" alt="2A16A2B7-BFEE-4673-8703-4A505C903696" src="https://github.com/user-attachments/assets/27569e89-f5c4-454c-8412-2b709e0ab1fc" />
+
+解决方案：
+卸载编辑器后，重新安装，安装时一定要关闭杀毒软件！！！
+
+2.进入项目后报错，No ‘git‘ executable was found. Please install Git on your system then restart
+
+解决方案：
+
+https://blog.csdn.net/Ling_SevoL_Y/article/details/124403207?fromshare=blogdetail&sharetype=blogdetail&sharerId=124403207&sharerefer=PC&sharesource=Little_Crayon&sharefrom=from_link
+
+安装git，并给git配置环境变量，具体操作步骤见上述链接。
+
 
 
 
