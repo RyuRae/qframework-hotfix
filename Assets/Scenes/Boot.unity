@@ -502,7 +502,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 004249862520f4740999d1782f7bd9e0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  playMode: 0
+  playMode: 1
   targetFrame: 45
   mCamera: {fileID: 1811961668}
 --- !u!114 &846121295

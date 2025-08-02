@@ -37,12 +37,12 @@ namespace QFramework
                 {
                     mCurrOpenPanelName = panelSearchKeys.PanelType.Name;
                     assetHandle = mPackage.LoadAssetSync<GameObject>(mCurrOpenPanelName);
-                    return assetHandle.InstantiateSync();
+                    return assetHandle.AssetObject as GameObject;
                 }
 
                 mCurrOpenPanelName = panelSearchKeys.GameObjName;
                 assetHandle = mPackage.LoadAssetSync<GameObject>(mCurrOpenPanelName);
-                return assetHandle.InstantiateSync();
+                return assetHandle.AssetObject as GameObject;
             }
 
             public void LoadPanelPrefabAsync(PanelSearchKeys panelSearchKeys, Action<GameObject> onLoad)
@@ -55,7 +55,7 @@ namespace QFramework
                     handle = mPackage.LoadAssetSync<GameObject>(mCurrOpenPanelName);
                     handle.Completed += (assetHandle) =>
                     {
-                        onLoad(assetHandle.InstantiateSync());
+                        onLoad(assetHandle.AssetObject as GameObject);
                     };
                     return;
                 }
@@ -65,7 +65,7 @@ namespace QFramework
                 handle = mPackage.LoadAssetSync<GameObject>(mCurrOpenPanelName);
                 handle.Completed += (assetHandle) =>
                 {
-                    onLoad(assetHandle.InstantiateSync());
+                    onLoad(assetHandle.AssetObject as GameObject);
                 };
             }
 

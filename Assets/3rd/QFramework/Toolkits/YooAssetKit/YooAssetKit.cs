@@ -108,7 +108,7 @@ namespace QFramework
             AssetHandle handle = package.LoadAssetAsync<GameObject>(assetName);
             handle.Completed += (assetHanlde) => 
             {
-                onLoad?.Invoke(assetHanlde.InstantiateSync());
+                onLoad?.Invoke(assetHanlde.AssetObject as GameObject);
                 handle.Release();
             };
         }
@@ -123,7 +123,7 @@ namespace QFramework
             AssetHandle handle = YooAssets.LoadAssetAsync<GameObject>(assetName);
             handle.Completed += (assetHanlde) =>
             {
-                onLoad?.Invoke(assetHanlde.InstantiateSync());
+                onLoad?.Invoke(assetHanlde.AssetObject as GameObject);
                 handle.Release();
             };
         }
