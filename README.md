@@ -1,4 +1,4 @@
-# yooasset_qframework_hybridclr_master
+# qframework-hotfix
 这是一套基于 Unity3D 实现的热更新开发框架，使用 YooAsset 实现资源打包及热更新管理，使用 HybridCLR 实现逻辑热更新管理，逻辑开发基于 QFramework 实现的开发工具。
 
 **热更目录结构说明**
