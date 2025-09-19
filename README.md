@@ -1,5 +1,5 @@
 # qframework-hotfix
-这是热更版qframework开发框架，使用 YooAsset 实现资源打包及热更新管理，使用 HybridCLR 实现逻辑热更新管理。
+热更版qframework开发框架，使用 YooAsset 实现资源打包及热更新管理，使用 HybridCLR 实现逻辑热更新管理。
 
 **热更目录结构说明**
 
