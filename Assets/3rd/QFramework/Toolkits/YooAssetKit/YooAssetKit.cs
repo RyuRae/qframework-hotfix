@@ -1,8 +1,11 @@
+using Cysharp.Threading.Tasks;
 using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using YooAsset;
+using Luban;
+
 
 namespace QFramework
 {
@@ -95,6 +98,33 @@ namespace QFramework
                 handle.Release();
             };
         }
+
+        /// <summary>
+        /// 加载资源（异步转同步）
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="assetName"></param>
+        /// <returns></returns>
+        public static async UniTask<T> LoadAssetAsync<T>(string assetName) where T : UnityEngine.Object
+        {
+            AssetHandle handle = YooAssets.LoadAssetAsync<T>(assetName);
+            await handle.Task;
+            T asset = handle.AssetObject as T;
+            handle.Release();
+            return asset;
+        }
+
+
+        //public static async UniTask<T> LoadTableAsync<T>(string assetName) where T : class, new()
+        //{
+        //    AssetHandle handle = YooAssets.LoadAssetAsync<TextAsset>(assetName);
+        //    await handle.Task;
+        //    handle.Release();
+        //    var textAsset = handle.AssetObject as TextAsset;
+        //    //var config = new T();
+        //    //config._LoadData(textAsset.bytes);
+        //    return config;
+        //}
 
         /// <summary>
         /// 通过包名异步加载预制体
@@ -372,5 +402,6 @@ namespace QFramework
             onCompleted?.Invoke(handle);
             handle.Release();
         }
+
     }
 }

@@ -47,7 +47,7 @@ namespace MsbFramework.Procedure
 
         protected override bool OnCondition()
         {
-            return mFSM.CurrentStateId == ResPackageStates.CreateDownloader || mFSM.CurrentStateId == ResPackageStates.DownloadPackageOver;
+            return mFSM.CurrentStateId == ResPackageStates.LoadConfig;
         }
 
         protected override void OnEnter()

@@ -41,7 +41,7 @@ PS：Shader变体收集，可使用YooAsset官方提供的工具，在Package Ma
 
 6）热更代码收集，工具栏Build-->BuildAssetsAndCopyToAssetsPackage;代码收集完成，确认步骤3中有收集代码文件夹；
 
-7）打资源包，打包完成后将资源包放在cdn服务器，完成！
+7）使用YooAsset打资源包，打包完成后将资源包放在cdn服务器，完成！
 
 详情请查看Docs文件夹-->快速开始
 

@@ -2,7 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
-
+using Cysharp.Threading.Tasks;
+using QFramework;
 
 namespace Main.Editor
 {
@@ -60,9 +61,10 @@ namespace Main.Editor
 
         public static YooAssetHybridCLRSetting Instance
         {
-            set { _instance = value;  }
+            //set { _instance = value;  }
             get
             {
+#if UNITY_EDITOR
                 if (_instance == null)
                     _instance = Resources.Load<YooAssetHybridCLRSetting>(YooAssetHybridCLRSettingsPath);
                 if (_instance == null)
@@ -70,9 +72,24 @@ namespace Main.Editor
                     Debug.LogError($"没找到 {typeof(YooAssetHybridCLRSetting)} asset，请先创建一个:{YooAssetHybridCLRSettingsPath}.");
                     return null;
                 }
-
+#endif
                 return _instance;
             }
         }
+
+        public static async UniTask<YooAssetHybridCLRSetting> GetInstanceAsync()
+        {
+            if (_instance == null)
+            {
+                _instance = await YooAssetKit.LoadAssetAsync<YooAssetHybridCLRSetting>(YooAssetHybridCLRSettingsPath);
+                if (_instance == null)
+                {
+                    Debug.LogError($"未找到资源: {YooAssetHybridCLRSettingsPath}");
+                }
+            }
+
+            return _instance;
+        }
+
     }
 }

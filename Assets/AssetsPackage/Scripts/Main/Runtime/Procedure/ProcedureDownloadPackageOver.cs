@@ -20,7 +20,7 @@ namespace MsbFramework.Procedure
         protected override void OnEnter()
         {
             LogKit.I("资源文件下载完成！");
-            mFSM.ChangeState(ResPackageStates.LoadAssemblies);
+            mFSM.ChangeState(ResPackageStates.LoadConfig);
         }
 
         protected override void OnExit()
