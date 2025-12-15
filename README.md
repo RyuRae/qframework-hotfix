@@ -39,9 +39,11 @@ PS：Shader变体收集，可使用YooAsset官方提供的工具，在Package Ma
 
 5）热更新代码配置，HybridCLR-->CompileDll-->发布的目标平台，执行代码生成；
 
-6）热更代码收集，工具栏Build-->BuildAssetsAndCopyToAssetsPackage;代码收集完成，确认步骤3中有收集代码文件夹；
+6）使用luban配表工具生成配置文件，找到LubanConfig/Datatables/gen.bat或gen.sh,根据自己项目路径修改生成路径（需在YooAsset里收集配置文件）
 
-7）使用YooAsset打资源包，打包完成后将资源包放在cdn服务器，完成！
+7）热更代码收集，工具栏Build-->BuildAssetsAndCopyToAssetsPackage;代码收集完成，确认步骤3中有收集代码文件夹；
+
+8）使用YooAsset打资源包，打包完成后将资源包放在cdn服务器，完成！
 
 详情请查看Docs文件夹-->快速开始
 
