@@ -13,63 +13,14 @@ MonoBehaviour:
   m_Name: YooAssetHybridCLRSetting
   m_EditorClassIdentifier: 
   AOTMetaAssemblies:
-  - Assembly-CSharp.dll
-  - AudioKit.dll
-  - HybridCLR.Runtime.dll
-  - Main.Editor.dll
-  - Main.Runtime.dll
-  - Mono.Security.dll
-  - mscorlib.dll
   - QFramework.CoreKit.dll
   - QFramework.dll
-  - ResKit.dll
-  - SupportOldQF.dll
-  - System.Configuration.dll
   - System.Core.dll
-  - System.dll
-  - System.Numerics.dll
-  - System.Xml.dll
-  - UIKit.dll
-  - Unity.TextMeshPro.dll
-  - UnityEngine.AIModule.dll
-  - UnityEngine.AndroidJNIModule.dll
-  - UnityEngine.AnimationModule.dll
-  - UnityEngine.AssetBundleModule.dll
-  - UnityEngine.AudioModule.dll
+  - UniTask.dll
   - UnityEngine.CoreModule.dll
-  - UnityEngine.DirectorModule.dll
-  - UnityEngine.dll
-  - UnityEngine.GridModule.dll
-  - UnityEngine.ImageConversionModule.dll
-  - UnityEngine.IMGUIModule.dll
-  - UnityEngine.InputLegacyModule.dll
-  - UnityEngine.InputModule.dll
-  - UnityEngine.JSONSerializeModule.dll
-  - UnityEngine.ParticleSystemModule.dll
-  - UnityEngine.Physics2DModule.dll
-  - UnityEngine.PhysicsModule.dll
-  - UnityEngine.SharedInternalsModule.dll
-  - UnityEngine.SpriteShapeModule.dll
-  - UnityEngine.SubsystemsModule.dll
-  - UnityEngine.TerrainModule.dll
-  - UnityEngine.TextCoreFontEngineModule.dll
-  - UnityEngine.TextCoreTextEngineModule.dll
-  - UnityEngine.TextRenderingModule.dll
-  - UnityEngine.TilemapModule.dll
-  - UnityEngine.UI.dll
-  - UnityEngine.UIElementsModule.dll
-  - UnityEngine.UIElementsNativeModule.dll
-  - UnityEngine.UIModule.dll
-  - UnityEngine.UnityAnalyticsModule.dll
-  - UnityEngine.UnityWebRequestAssetBundleModule.dll
-  - UnityEngine.UnityWebRequestModule.dll
-  - UnityEngine.UnityWebRequestWWWModule.dll
-  - UnityEngine.VFXModule.dll
-  - UnityEngine.VideoModule.dll
-  - UnityEngine.VRModule.dll
-  - UnityEngine.XRModule.dll
   - YooAsset.dll
   - YooAssetKit.dll
+  - mscorlib.dll
   HotfixAssemblies:
   - HotfixCommon.dll
   - HotfixDemo.dll

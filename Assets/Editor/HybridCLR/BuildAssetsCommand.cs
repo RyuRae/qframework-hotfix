@@ -49,7 +49,7 @@ namespace HybridCLR.Editor
         {
             Directory.CreateDirectory(tempDir);
             Directory.CreateDirectory(outputDir);
-            
+
             List<AssetBundleBuild> abs = new List<AssetBundleBuild>();
 
             {
@@ -73,16 +73,33 @@ namespace HybridCLR.Editor
             BuildAssetBundles(GetAssetBundleTempDirByTarget(target), GetAssetBundleOutputDirByTarget(target), target);
         }
 
-        [MenuItem("Build/BuildAssetsAndCopyToAssetsPackage")]
+        [MenuItem("Build/CopyAotDllsToAssetsPackage")]
         public static void BuildAndCopyAOTHotUpdateDlls()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
             //BuildAssetBundleByTarget(target);
             CompileDllCommand.CompileDll(target);
-            CopyAOTHotUpdateDlls(target);
+            CopyAotMetaDataDlls(target);
             AssetDatabase.Refresh();
         }
 
+        [MenuItem("Build/CopyHotUpdateDllsToAssetsPackage")]
+        public static void BuildAndCopyHotUpdateDlls()
+        {
+            BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+             CompileDllCommand.CompileDll(target);
+             CopyHotUpdateDlls();
+             AssetDatabase.Refresh();
+        }
+
+        public static void CopyHotUpdateDlls()
+        {
+            //复制hotupdate Dlls到目标目录
+            CopyHotUpdateAssembliesToTargetPath();
+            //复制程序集设置到目标目录
+            CopyAssembiesSettingToTargetPath();
+
+        }
 
 
         [MenuItem("Build/BuildAssetsAndCopyToStreamingAssets")]
@@ -95,11 +112,14 @@ namespace HybridCLR.Editor
             AssetDatabase.Refresh();
         }
 
-        public static void CopyAOTHotUpdateDlls(BuildTarget target)
+        public static void CopyAotMetaDataDlls(BuildTarget target)
         {
             //CopyAssetBundlesToStreamingAssets(target);
+            //复制AOT Dlls到目标目录
             CopyAOTAssembliesToTargetPath();
-            CopyHotUpdateAssembliesToTargetPath();
+            //复制hotupdate Dlls到目标目录
+            //CopyHotUpdateAssembliesToTargetPath();
+            //复制程序集设置到目标目录
             CopyAssembiesSettingToTargetPath();
         }
 
@@ -230,21 +250,28 @@ namespace HybridCLR.Editor
         public static void FindAllAOTMetaAssemblies(BuildTarget buildTarget)
         {
             string folder = $"{SettingsUtil.GetAssembliesPostIl2CppStripDir(buildTarget)}";
-            //SettingsUtil.AOTAssemblyNames.Clear();
             YooAssetHybridCLRSetting.Instance.AOTMetaAssemblies.Clear();
             if (!Directory.Exists(folder))
             {
 #if UNITY_EDITOR_WIN
                 LogKit.E($"AOTMetaAssemblies文件夹不存在，因此需要你先在菜单栏中(HybridCLR>>Generate>>All)操作。FolderPath:{folder}");
 #elif UNITY_EDITOR_OSX
-            Logger.Error($"AOTMetaAssemblies文件夹不存在，请检查是否制作UnityEditor.CoreModule.dll,并修改覆盖Unity安装路径，然后需要你先在菜单栏中(HybridCLR>>Generate>>All)操作。FolderPath:{folder}");
+                //Logger.LogError("", $"AOTMetaAssemblies文件夹不存在，请检查是否制作UnityEditor.CoreModule.dll,并修改覆盖Unity安装路径，然后需要你先在菜单栏中(HybridCLR>>Generate>>All)操作。FolderPath:{folder}");
+                Debug.LogError($"AOTMetaAssemblies文件夹不存在，请检查是否制作UnityEditor.CoreModule.dll,并修改覆盖Unity安装路径，然后需要你先在菜单栏中(HybridCLR>>Generate>>All)操作。FolderPath:{folder}");
 #endif
                 return;
             }
-            DirectoryInfo root = new DirectoryInfo(folder);
-            foreach (var fileInfo in root.GetFiles("*dll", SearchOption.AllDirectories))
+
+            foreach (var dll in AOTGenericReferences.PatchedAOTAssemblyList.Distinct())
             {
-                string fileName = fileInfo.Name;
+                string fileName = dll.EndsWith(".dll") ? dll : $"{dll}.dll";
+                string dllPath = Path.Combine(folder, fileName);
+                if (!File.Exists(dllPath))
+                {
+                    Debug.LogError($"AOT补充元数据dll不存在: {dllPath}");
+                    continue;
+                }
+
                 YooAssetHybridCLRSetting.Instance.AOTMetaAssemblies.Add(fileName);
             }
             EditorUtility.SetDirty(YooAssetHybridCLRSetting.Instance);

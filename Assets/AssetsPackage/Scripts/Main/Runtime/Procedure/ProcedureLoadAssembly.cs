@@ -26,7 +26,7 @@ namespace MsbFramework.Procedure
     /// </summary>
     public class ProcedureLoadAssembly : AbstractState<ResPackageStates, ProcedureManager>
     {
-       
+
         //资产配置文件
         private string location = "YooAssetHybridCLRSetting";
 
@@ -136,6 +136,12 @@ namespace MsbFramework.Procedure
             foreach (var aotDllName in mAotMetaAssemblies)
             {
                 byte[] dllBytes = ReadBytesFromStreamingAssets(aotDllName);
+                if (dllBytes.Length == 0)
+                {
+                    Debug.LogError($"AOT元数据资源为空或未加载: {aotDllName}");
+                    continue;
+                }
+
                 // 加载assembly对应的dll，会自动为它hook。一旦aot泛型函数的native函数不存在，用解释器版本代码
                 LoadImageErrorCode err = RuntimeApi.LoadMetadataForAOTAssembly(dllBytes, mode);
                 Debug.Log($"LoadMetadataForAOTAssembly:{aotDllName}. mode:{mode} ret:{err}");
@@ -174,7 +180,7 @@ namespace MsbFramework.Procedure
 
         protected override void OnExit()
         {
-            
+
         }
 
         protected override void OnUpdate()
@@ -190,6 +196,6 @@ namespace MsbFramework.Procedure
             mFSM.ChangeState(ResPackageStates.ClearCacheBundle);
         }
 
-        
+
     }
 }

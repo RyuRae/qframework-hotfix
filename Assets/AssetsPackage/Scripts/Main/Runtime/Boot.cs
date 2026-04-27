@@ -13,10 +13,10 @@ namespace MsbFramework
 {
     public class Boot : MonoBehaviour
     {
-        [Header("×ÊÔ´ÏµÍ³ÔËĞĞÄ£Ê½")]
+        [Header("èµ„æºç³»ç»Ÿè¿è¡Œæ¨¡å¼")]
         public EPlayMode playMode;
 
-        [Header("ÓÎÏ·ÔËĞĞÖ¡ÂÊ")]
+        [Header("æ¸¸æˆè¿è¡Œå¸§ç‡")]
         [SerializeField]
         private int targetFrame = 45;
 
@@ -24,40 +24,40 @@ namespace MsbFramework
         private Camera mCamera;
 
         /// <summary>
-		/// Ö÷°üÃû³Æ£¬¸ù¾İ´ò°üÉèÖÃ±ä»¯
+		/// ä¸»åŒ…åç§°ï¼Œæ ¹æ®æ‰“åŒ…è®¾ç½®å˜åŒ–
 		/// </summary>
 		public static string mainPackageName = "DefaultPackage";
         /// <summary>
-        /// Ô­ÉúÎÄ¼ş°üÃû³Æ£¬¸ù¾İ´ò°üÉèÖÃ±ä»¯
+        /// åŸç”Ÿæ–‡ä»¶åŒ…åç§°ï¼Œæ ¹æ®æ‰“åŒ…è®¾ç½®å˜åŒ–
         /// </summary>
         public static string rawfilePackageName = "RawFilePackage";
 
         void Awake()
         {
-            Application.targetFrameRate = targetFrame;//ÉèÖÃÄ¿±êÖ¡ÂÊ
-            Application.runInBackground = true;//ÉèÖÃºóÌ¨ÔËĞĞ
+            Application.targetFrameRate = targetFrame;//è®¾ç½®ç›®æ ‡å¸§ç‡
+            Application.runInBackground = true;//è®¾ç½®åå°è¿è¡Œ
             DontDestroyOnLoad(gameObject);
         }
 
         IEnumerator Start()
         {
-            //³õÊ¼»¯×ÊÔ´ÏµÍ³
+            //åˆå§‹åŒ–èµ„æºç³»ç»Ÿ
             YooAssets.Initialize();
 
-            //½øÈë×ÊÔ´¼ì²é¼°¸üĞÂ×´Ì¬
+            //è¿›å…¥èµ„æºæ£€æŸ¥åŠæ›´æ–°çŠ¶æ€
             var operation = new ProcedureManager(mainPackageName, playMode);
             YooAssets.StartOperation(operation);
             yield return operation;
 
             string location = "main";
-            //¼ÓÔØ³¡¾°
+            //åŠ è½½åœºæ™¯
             YooAssetKit.LoadSceneAsync(location, LoadSceneMode.Single, LocalPhysicsMode.None, false, (progress) =>
             {
-                //¸üĞÂ½ø¶È
-                TypeEventSystem.Global.Send(new OnSceneloadUpdateEvent() { progress = progress, desc = "³¡¾°¼ÓÔØÖĞ" });
+                //æ›´æ–°è¿›åº¦
+                TypeEventSystem.Global.Send(new OnSceneloadUpdateEvent() { progress = progress, desc = "åœºæ™¯åŠ è½½ä¸­" });
             }, (sceneHandle) =>
             {
-                //¼ÓÔØÍê³É
+                //åŠ è½½å®Œæˆ
                 ActionKit.Delay(0.2f, () =>
                 {
                     UIPanelRoot.Instance.CloseLoadingPanel();

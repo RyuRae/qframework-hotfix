@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using Unity.Plastic.Newtonsoft.Json;
+using UnityEngine;
+
 
 public static class AOTMetaAssembliesHelper
 {
@@ -68,17 +70,30 @@ public static class AOTMetaAssembliesHelper
 #if UNITY_EDITOR_WIN
             LogKit.E($"AOTMetaAssemblies文件夹不存在，因此需要你先在菜单栏中(HybridCLR>>Generate>>All)操作。FolderPath:{folder}");
 #elif UNITY_EDITOR_OSX
-            Logger.Error($"AOTMetaAssemblies文件夹不存在，请检查是否制作UnityEditor.CoreModule.dll,并修改覆盖Unity安装路径，然后需要你先在菜单栏中(HybridCLR>>Generate>>All)操作。FolderPath:{folder}");
+            //Logger.LogError("Error", $"AOTMetaAssemblies文件夹不存在，请检查是否制作UnityEditor.CoreModule.dll,并修改覆盖Unity安装路径，然后需要你先在菜单栏中(HybridCLR>>Generate>>All)操作。FolderPath:{folder}");
+            Debug.LogError($"AOTMetaAssemblies文件夹不存在，请检查是否制作UnityEditor.CoreModule.dll,并修改覆盖Unity安装路径，然后需要你先在菜单栏中(HybridCLR>>Generate>>All)操作。FolderPath:{folder}");
 #endif
             return;
         }
-        DirectoryInfo root = new DirectoryInfo(folder);
-        foreach (var fileInfo in root.GetFiles("*dll", SearchOption.AllDirectories))
+
+        foreach (var dll in AOTGenericReferences.PatchedAOTAssemblyList)
         {
-            string fileName = fileInfo.Name;
+            string fileName = dll.EndsWith(".dll") ? dll : $"{dll}.dll";
+            string dllPath = Path.Combine(folder, fileName);
+            if (!File.Exists(dllPath))
+            {
+                LogKit.E($"AOT补充元数据dll不存在: {dllPath}");
+                continue;
+            }
+
+            if (AOTMetaAssemblies.Contains(fileName))
+            {
+                continue;
+            }
+
             AOTMetaAssemblies.Add(fileName);
         }
-        
+
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
     }

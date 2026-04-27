@@ -24,7 +24,7 @@ namespace MsbFramework.Procedure
 
         protected override void OnEnter()
         {
-            LogKit.I("µ±Ç°×´Ì¬£ºProcedureInitializePackage");
+            LogKit.I("å½“å‰çŠ¶æ€ï¼šProcedureInitializePackage");
             CoroutineController.manager.StartCoroutine(InitPackage());
         }
 
@@ -35,27 +35,27 @@ namespace MsbFramework.Procedure
             var playMode = _manager._playMode;
             var packageName = _manager._packageName;
 
-            // ´´½¨Ö÷×ÊÔ´°ü¹üÀà
+            // åˆ›å»ºä¸»èµ„æºåŒ…ç±»
             var package = YooAssets.TryGetPackage(packageName) ?? YooAssets.CreatePackage(packageName);
             YooAssets.SetDefaultPackage(package);
             InitializationOperation initializationOperation = null;
 
             if(_manager._isIncludeRawFile)
-                //´´½¨Ô­ÉúÎÄ¼ş°ü¹üÀà
+                //åˆ›å»ºåŸç”Ÿæ–‡ä»¶åŒ…ç±»
                 _rawFilePackage = YooAssets.TryGetPackage(_manager._rawfilwPkgName) ?? YooAssets.CreatePackage(_manager._rawfilwPkgName);
            
 
-            // ±à¼­Æ÷ÏÂµÄÄ£ÄâÄ£Ê½
+            // ç¼–è¾‘å™¨ä¸‹çš„æ¨¡æ‹Ÿæ¨¡å¼
             if (playMode == EPlayMode.EditorSimulateMode)
             {
-                //Ö÷×ÊÔ´°ü
+                //ä¸»èµ„æºåŒ…
                 var buildResult = EditorSimulateModeHelper.SimulateBuild(packageName);
                 var packageRoot = buildResult.PackageRootDirectory;
                 var createParameters = new EditorSimulateModeParameters();
                 createParameters.EditorFileSystemParameters = FileSystemParameters.CreateDefaultEditorFileSystemParameters(packageRoot);
                 initializationOperation = package.InitializeAsync(createParameters);
 
-                //Ô­Éú×ÊÔ´°ü
+                //åŸç”Ÿèµ„æºåŒ…
                 if (_manager._isIncludeRawFile)
                 {
                     var rawfileBuildResult = EditorSimulateModeHelper.SimulateBuild(packageName);
@@ -65,15 +65,15 @@ namespace MsbFramework.Procedure
                     initRawFileOperation = _rawFilePackage.InitializeAsync(createParameters2);
                 }
             }
-            // µ¥»úÔËĞĞÄ£Ê½
+            //å•æœºè¿è¡Œæ¨¡å¼
             else if (playMode == EPlayMode.OfflinePlayMode)
             {
-                //Ö÷ÎÄ¼ş³õÊ¼»¯
+                //ä¸»æ–‡ä»¶åˆå§‹åŒ–
                 var createParameters = new OfflinePlayModeParameters();
                 createParameters.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
                 initializationOperation = package.InitializeAsync(createParameters);
 
-                //Ô­ÉúÎÄ¼ş³õÊ¼»¯
+                //åŸç”Ÿæ–‡ä»¶åˆå§‹åŒ–
                 if (_manager._isIncludeRawFile)
                 {
                     var createParameters2 = new OfflinePlayModeParameters();
@@ -81,19 +81,19 @@ namespace MsbFramework.Procedure
                     initRawFileOperation = _rawFilePackage.InitializeAsync(createParameters2);
                 }
             }
-            // Áª»úÔËĞĞÄ£Ê½
+            //è”æœºè¿è¡Œæ¨¡å¼
             else if (playMode == EPlayMode.HostPlayMode)
             {
                 string defaultHostServer = GetHostServerURL();
                 string fallbackHostServer = GetHostServerURL();
                 IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
-                //Ö÷×ÊÔ´°ü
+                //ä¸»èµ„æºåŒ…
                 var createParameters = new HostPlayModeParameters();
                 createParameters.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
                 createParameters.CacheFileSystemParameters = FileSystemParameters.CreateDefaultCacheFileSystemParameters(remoteServices);
                 initializationOperation = package.InitializeAsync(createParameters);
 
-                //Ô­Éú×ÊÔ´°ü
+                //åŸç”Ÿèµ„æºåŒ…
                 if (_manager._isIncludeRawFile)
                 {
                     var createParameters2 = new HostPlayModeParameters();
@@ -102,17 +102,17 @@ namespace MsbFramework.Procedure
                     initRawFileOperation = _rawFilePackage.InitializeAsync(createParameters2);
                 }
             }
-            // WebGLÔËĞĞÄ£Ê½
+            // WebGLè¿è¡Œæ¨¡å¼
             else if (playMode == EPlayMode.WebPlayMode)
             {
 //                var createParameters = new WebPlayModeParameters();
 //#if UNITY_WEBGL && WEIXINMINIGAME && !UNITY_EDITOR
 //			string defaultHostServer = GetHostServerURL();
 //            string fallbackHostServer = GetHostServerURL();
-//            string packageRoot = $"{WeChatWASM.WX.env.USER_DATA_PATH}/__GAME_FILE_CACHE"; //×¢Òâ£ºÈç¹ûÓĞ×ÓÄ¿Â¼£¬ÇëĞŞ¸Ä´Ë´¦£¡
+//            string packageRoot = $"{WeChatWASM.WX.env.USER_DATA_PATH}/__GAME_FILE_CACHE"; //×¢ï¿½â£ºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Â¼ï¿½ï¿½ï¿½ï¿½ï¿½Ş¸Ä´Ë´ï¿½ï¿½ï¿½
 //            IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
 //            createParameters.WebServerFileSystemParameters = WechatFileSystemCreater.CreateWechatFileSystemParameters(packageRoot, remoteServices);
-//            LogKit.I("×ÊÔ´°ü³õÊ¼»¯³É¹¦£¡");
+//            LogKit.I("ï¿½ï¿½Ô´ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½É¹ï¿½ï¿½ï¿½");
 //#else
 //                createParameters.WebServerFileSystemParameters = FileSystemParameters.CreateDefaultWebServerFileSystemParameters(new WebDecryption());
 //#endif
@@ -122,14 +122,14 @@ namespace MsbFramework.Procedure
                 string fallbackHostServer = GetHostServerURL();
                 IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
                 var webServerFileSystemParams = FileSystemParameters.CreateDefaultWebServerFileSystemParameters();
-                var webRemoteFileSystemParams = FileSystemParameters.CreateDefaultWebRemoteFileSystemParameters(remoteServices); //Ö§³Ö¿çÓòÏÂÔØ
-                //Ö÷×ÊÔ´°ü
+                var webRemoteFileSystemParams = FileSystemParameters.CreateDefaultWebRemoteFileSystemParameters(remoteServices); //Ö§ï¿½Ö¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+                //ä¸»èµ„æºåŒ…
                 var initParameters = new WebPlayModeParameters();
                 initParameters.WebServerFileSystemParameters = webServerFileSystemParams;
                 initParameters.WebRemoteFileSystemParameters = webRemoteFileSystemParams;
                 initializationOperation = package.InitializeAsync(initParameters);
 
-                //Ô­Éú×ÊÔ´(webgl,¹Ù·½²»Ö§³ÖÔ­Éú°ü¹¹½¨£¬²Î¿¼bytes½â¾ö·½°¸)
+                //åŸç”Ÿèµ„æºï¼ˆwebglï¼Œå®˜æ–¹ä¸æ”¯æŒåŸç”ŸåŒ…æ„å»ºï¼Œå‚è€ƒbytesè§£å†³æ–¹æ¡ˆï¼‰
                 if (_manager._isIncludeRawFile)
                 {
                     var initParameters2 = new WebPlayModeParameters();
@@ -144,15 +144,15 @@ namespace MsbFramework.Procedure
             if (_manager._isIncludeRawFile)
                 yield return initRawFileOperation;
 
-            // Èç¹û³õÊ¼»¯Ê§°Üµ¯³öÌáÊ¾½çÃæ
+            //å¦‚æœåˆå§‹åŒ–å¤±è´¥å¼¹å‡ºæç¤ºç•Œé¢
             if (initializationOperation.Status != EOperationStatus.Succeed)
             {
                 Debug.LogWarning($"{initializationOperation.Error}");
-                UIPanelRoot.Instance.ShowMessage("³õÊ¼»¯Ê§°Ü£¡");
+                UIPanelRoot.Instance.ShowMessage("åˆå§‹åŒ–å¤±è´¥ï¼");
             }
             else
             {
-                Debug.Log("×ÊÔ´°ü³õÊ¼»¯³É¹¦£¡");
+                Debug.Log("èµ„æºåŒ…åˆå§‹åŒ–æˆåŠŸï¼");
                 _fsm.ChangeState(ResPackageStates.RequestPackageVersion);
             }
         }
@@ -168,11 +168,11 @@ namespace MsbFramework.Procedure
         }
 
         /// <summary>
-        /// »ñÈ¡×ÊÔ´·şÎñÆ÷µØÖ·
+        /// è·å–èµ„æºæœåŠ¡å™¨åœ°å€
         /// </summary>
         private string GetHostServerURL()
         {
-            //string hostServerIP = "http://10.0.2.2"; //°²×¿Ä£ÄâÆ÷µØÖ·
+            //string hostServerIP = "http://10.0.2.2"; //å®‰å“æ¨¡æ‹Ÿå™¨åœ°å€
             string hostServerIP = "http://127.0.0.1:8080/TestProject/PC";//192.168.125.148
             //            string appVersion = "v1.0";
 
@@ -200,7 +200,7 @@ namespace MsbFramework.Procedure
         }
 
         /// <summary>
-        /// Ô¶¶Ë×ÊÔ´µØÖ·²éÑ¯·şÎñÀà
+        /// è¿œç«¯èµ„æºåœ°å€æŸ¥è¯¢æœåŠ¡ç±»
         /// </summary>
         private class RemoteServices : IRemoteServices
         {
