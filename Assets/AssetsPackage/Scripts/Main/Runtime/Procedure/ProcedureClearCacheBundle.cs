@@ -41,7 +41,13 @@ namespace Framework.Procedure
 
         public void OnClearCacheFilesCompleted(AsyncOperationBase obj)
         {
-            LogKit.I("资源清理完成");
+            if (obj.Status != EOperationStatus.Succeed)
+            {
+                mTarget.SetFailed(obj.Error);
+                return;
+            }
+
+            LogKit.I("Clear cache files completed.");
             mFSM.ChangeState(ResPackageStates.StartGame);
         }
     }

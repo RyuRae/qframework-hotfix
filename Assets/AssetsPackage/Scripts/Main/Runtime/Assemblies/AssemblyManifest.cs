@@ -11,6 +11,7 @@ namespace Framework.Assemblies
         public List<string> AotMetadataAssemblies = new List<string>();
         public List<string> HotUpdateAssemblies = new List<string>();
 
+        public string EntrySceneAddress = "main";
         public string EntryPrefabAddress = string.Empty;
         public string EntryTypeName = string.Empty;
         public string EntryMethodName = string.Empty;

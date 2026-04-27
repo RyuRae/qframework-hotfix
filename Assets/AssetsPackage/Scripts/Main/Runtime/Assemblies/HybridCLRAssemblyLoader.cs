@@ -20,11 +20,17 @@ namespace Framework.Assemblies
         public IReadOnlyList<Assembly> HotUpdateAssemblies => mHotUpdateAssemblies;
         public bool Succeeded { get; private set; }
         public string Error { get; private set; }
+        public string EntrySceneAddress { get; private set; } = "main";
+        public string EntryTypeName { get; private set; } = string.Empty;
+        public string EntryMethodName { get; private set; } = string.Empty;
 
         public IEnumerator Load(ResourcePackage package, Action<float> onProgress = null)
         {
             Succeeded = false;
             Error = string.Empty;
+            EntrySceneAddress = "main";
+            EntryTypeName = string.Empty;
+            EntryMethodName = string.Empty;
             mHotUpdateAssemblies.Clear();
 
             if (package == null)
@@ -35,6 +41,12 @@ namespace Framework.Assemblies
 
             var manifestHandle = package.LoadAssetAsync<AssemblyManifest>(AssemblyManifest.AssetName);
             yield return manifestHandle;
+            if (manifestHandle.Status != EOperationStatus.Succeed)
+            {
+                Fail($"Assembly manifest load failed: {AssemblyManifest.AssetName}. {manifestHandle.LastError}");
+                manifestHandle.Release();
+                yield break;
+            }
 
             var manifest = manifestHandle.AssetObject as AssemblyManifest;
             if (manifest == null)
@@ -46,6 +58,9 @@ namespace Framework.Assemblies
 
             var aotAssemblies = NormalizeAssemblyNames(manifest.AotMetadataAssemblies);
             var hotUpdateAssemblies = NormalizeAssemblyNames(manifest.HotUpdateAssemblies);
+            EntrySceneAddress = string.IsNullOrWhiteSpace(manifest.EntrySceneAddress) ? "main" : manifest.EntrySceneAddress;
+            EntryTypeName = manifest.EntryTypeName ?? string.Empty;
+            EntryMethodName = manifest.EntryMethodName ?? string.Empty;
             manifestHandle.Release();
 
             int totalCount = aotAssemblies.Count + hotUpdateAssemblies.Count;
@@ -82,6 +97,12 @@ namespace Framework.Assemblies
                 onProgress?.Invoke(GetProgress(loadedCount, totalCount));
             }
 
+            InvokeEntryMethodIfConfigured();
+            if (!string.IsNullOrEmpty(Error))
+            {
+                yield break;
+            }
+
             Succeeded = true;
             onProgress?.Invoke(1f);
         }
@@ -98,6 +119,11 @@ namespace Framework.Assemblies
 #if ENABLE_HYBRID_CLR_UNITY
             var errorCode = RuntimeApi.LoadMetadataForAOTAssembly(bytes, HomologousImageMode.SuperSet);
             Debug.Log($"LoadMetadataForAOTAssembly:{dllName}. mode:{HomologousImageMode.SuperSet} ret:{errorCode}");
+            if (errorCode != LoadImageErrorCode.OK &&
+                errorCode != LoadImageErrorCode.HOMOLOGOUS_ASSEMBLY_HAS_LOADED)
+            {
+                Fail($"Load metadata for AOT assembly failed: {dllName}, error: {errorCode}");
+            }
 #endif
         }
 
@@ -124,7 +150,16 @@ namespace Framework.Assemblies
                 yield break;
             }
 
-            assembly = Assembly.Load(bytes);
+            try
+            {
+                assembly = Assembly.Load(bytes);
+            }
+            catch (Exception exception)
+            {
+                Fail($"Load hot update assembly failed: {dllName}. {exception}");
+                yield break;
+            }
+
             CacheHotUpdateAssembly(dllName, assembly);
             Debug.Log($"LoadHotfixAssembly:{assembly.GetName().Name}");
         }
@@ -133,6 +168,12 @@ namespace Framework.Assemblies
         {
             var handle = package.LoadAssetAsync<TextAsset>(dllName);
             yield return handle;
+            if (handle.Status != EOperationStatus.Succeed)
+            {
+                Fail($"Assembly asset load failed: {dllName}. {handle.LastError}");
+                handle.Release();
+                yield break;
+            }
 
             var textAsset = handle.AssetObject as TextAsset;
             if (textAsset == null || textAsset.bytes == null || textAsset.bytes.Length == 0)
@@ -162,6 +203,42 @@ namespace Framework.Assemblies
                 .FirstOrDefault(assembly => assembly.GetName().Name == assemblyName);
         }
 
+        private void InvokeEntryMethodIfConfigured()
+        {
+            if (string.IsNullOrWhiteSpace(EntryTypeName) ||
+                string.IsNullOrWhiteSpace(EntryMethodName))
+            {
+                return;
+            }
+
+            var entryType = mHotUpdateAssemblies
+                .Select(assembly => assembly.GetType(EntryTypeName))
+                .FirstOrDefault(type => type != null) ?? Type.GetType(EntryTypeName);
+            if (entryType == null)
+            {
+                Fail($"Hotfix entry type not found: {EntryTypeName}");
+                return;
+            }
+
+            var entryMethod = entryType.GetMethod(
+                EntryMethodName,
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+            if (entryMethod == null)
+            {
+                Fail($"Hotfix entry method not found: {EntryTypeName}.{EntryMethodName}");
+                return;
+            }
+
+            try
+            {
+                entryMethod.Invoke(null, null);
+            }
+            catch (Exception exception)
+            {
+                Fail($"Invoke hotfix entry method failed: {EntryTypeName}.{EntryMethodName}. {exception}");
+            }
+        }
+
         private static List<string> NormalizeAssemblyNames(IEnumerable<string> assemblyNames)
         {
             if (assemblyNames == null)
@@ -171,8 +248,8 @@ namespace Framework.Assemblies
 
             return assemblyNames
                 .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(name => name.EndsWith(".dll") ? name : $"{name}.dll")
-                .Distinct()
+                .Select(name => name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? name : $"{name}.dll")
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
 

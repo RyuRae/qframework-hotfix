@@ -342,12 +342,12 @@ namespace QFramework
             {
                 while (handle.Progress < 0.9f)
                 {
-                    targetBar = (int)handle.Progress * 100;
+                    targetBar = (int)(handle.Progress * 100);
                     while (displayBar < targetBar)
                     {
                         ++displayBar;
                         currProgress = displayBar / 100.0f;
-                        onUpdateProgress.Invoke(currProgress);
+                        onUpdateProgress?.Invoke(currProgress);
                         yield return new WaitForEndOfFrame();
                     }
                     yield return null;
@@ -357,11 +357,18 @@ namespace QFramework
                 {
                     ++displayBar;
                     currProgress = displayBar / 100.0f;
-                    onUpdateProgress.Invoke(currProgress);
+                    onUpdateProgress?.Invoke(currProgress);
                     yield return new WaitForEndOfFrame();
                 }
             }
             yield return handle;
+            if (handle.Status != EOperationStatus.Succeed)
+            {
+                Debug.LogError(handle.LastError);
+                handle.Release();
+                yield break;
+            }
+
             onCompleted?.Invoke(handle);
             handle.Release();
         }
@@ -378,7 +385,7 @@ namespace QFramework
             {
                 while (handle.Progress < 0.9f)
                 {
-                    targetBar = (int)handle.Progress * 100;
+                    targetBar = (int)(handle.Progress * 100);
                     while (displayBar < targetBar)
                     {
                         ++displayBar;
@@ -399,6 +406,13 @@ namespace QFramework
             }
             //yield return new WaitUntil(() => displayBar == 100);
             yield return handle;
+            if (handle.Status != EOperationStatus.Succeed)
+            {
+                Debug.LogError(handle.LastError);
+                handle.Release();
+                yield break;
+            }
+
             onCompleted?.Invoke(handle);
             handle.Release();
         }

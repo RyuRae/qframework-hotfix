@@ -1,96 +1,49 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
 using QFramework;
 using YooAsset;
 
 namespace Framework.Procedure
 {
-    /// <summary>
-    /// 资源状态
-    /// </summary>
     public enum ResPackageStates
-    { 
-        /// <summary>
-        /// 初始化资源包
-        /// </summary>
+    {
         InitializePackage,
-        /// <summary>
-        /// 检查资源版本
-        /// </summary>
         RequestPackageVersion,
-        /// <summary>
-        /// 更新资源包清单
-        /// </summary>
         UpdatePackageManifest,
-        /// <summary>
-        /// 创建下载器
-        /// </summary>
         CreateDownloader,
-        /// <summary>
-        /// 下载文件
-        /// </summary>
         DownloadPackageFiles,
-        /// <summary>
-        /// 下载结束
-        /// </summary>
         DownloadPackageOver,
-        /// <summary>
-        /// 加载程序集
-        /// </summary>
         LoadAssemblies,
-        /// <summary>
-        /// 清理下载缓存
-        /// </summary>
         ClearCacheBundle,
-        /// <summary>
-        /// 开始游戏
-        /// </summary>
         StartGame
     }
 
     public class ProcedureManager : GameAsyncOperation
     {
-        /// <summary>
-        /// 资源包名
-        /// </summary>
-        public readonly string _packageName;
-        /// <summary>
-        /// 原生文件资源包名
-        /// </summary>
-        public readonly string _rawfilwPkgName;
-        /// <summary>
-        /// 播放模式
-        /// </summary>
-        public readonly EPlayMode _playMode;
-        /// <summary>
-        /// 资源包版本信息
-        /// </summary>
-        public string _packageVersion;
-        //是否包含原生资源
-        public bool _isIncludeRawFile;
+        public const string DefaultEntrySceneAddress = "main";
 
-        /// <summary>
-        /// 资源包版本信息
-        /// </summary>
+        public readonly string _packageName;
+        public readonly string _rawfilwPkgName;
+        public readonly EPlayMode _playMode;
+        public string _packageVersion;
+        public bool _isIncludeRawFile;
         public string _rawfilePkgVersion;
-        /// <summary>
-        /// 下载器
-        /// </summary>
         public ResourceDownloaderOperation _downloaderOperation;
-        /// <summary>
-        /// 原生文件下载器
-        /// </summary>
         public ResourceDownloaderOperation _downloaderRawfile;
 
+        public string EntrySceneAddress { get; private set; } = DefaultEntrySceneAddress;
+        public string EntryTypeName { get; private set; } = string.Empty;
+        public string EntryMethodName { get; private set; } = string.Empty;
+
         public FSM<ResPackageStates> _mFSM = new FSM<ResPackageStates>();
+
         public ProcedureManager(string packageName, EPlayMode playMode, bool IsIncludeRawFile = false)
         {
             _packageName = packageName;
             _playMode = playMode;
             _isIncludeRawFile = IsIncludeRawFile;
             if (_isIncludeRawFile)
+            {
                 _rawfilwPkgName = Boot.rawfilePackageName;
+            }
 
             _mFSM.AddState(ResPackageStates.InitializePackage, new ProcedureInitializePackage(_mFSM, this));
             _mFSM.AddState(ResPackageStates.RequestPackageVersion, new ProcedureRequestPackageVersion(_mFSM, this));
@@ -101,12 +54,10 @@ namespace Framework.Procedure
             _mFSM.AddState(ResPackageStates.LoadAssemblies, new ProcedureLoadAssembly(_mFSM, this));
             _mFSM.AddState(ResPackageStates.ClearCacheBundle, new ProcedureClearCacheBundle(_mFSM, this));
             _mFSM.AddState(ResPackageStates.StartGame, new ProcedureStartGame(_mFSM, this));
-
         }
 
         protected override void OnAbort()
         {
-           
         }
 
         protected override void OnStart()
@@ -116,13 +67,36 @@ namespace Framework.Procedure
 
         protected override void OnUpdate()
         {
+            if (IsDone)
+            {
+                return;
+            }
+
             _mFSM.Update();
         }
 
-
         public void SetFinish()
-        { 
+        {
             Status = EOperationStatus.Succeed;
+        }
+
+        public void SetFailed(string error)
+        {
+            if (IsDone)
+            {
+                return;
+            }
+
+            Error = string.IsNullOrEmpty(error) ? "Hot update procedure failed." : error;
+            Status = EOperationStatus.Failed;
+            LogKit.E(Error);
+        }
+
+        public void SetHotfixEntry(string sceneAddress, string typeName, string methodName)
+        {
+            EntrySceneAddress = string.IsNullOrWhiteSpace(sceneAddress) ? DefaultEntrySceneAddress : sceneAddress;
+            EntryTypeName = typeName ?? string.Empty;
+            EntryMethodName = methodName ?? string.Empty;
         }
     }
 }

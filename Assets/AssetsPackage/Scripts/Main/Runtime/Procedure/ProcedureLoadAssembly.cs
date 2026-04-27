@@ -60,10 +60,13 @@ namespace Framework.Procedure
             isLoading = false;
             if (!loader.Succeeded)
             {
-                UIPanelRoot.Instance.ShowMessage("代码加载失败！");
+                var error = string.IsNullOrEmpty(loader.Error) ? "代码加载失败！" : loader.Error;
+                UIPanelRoot.Instance.ShowMessage(error);
+                mTarget.SetFailed(error);
                 yield break;
             }
 
+            mTarget.SetHotfixEntry(loader.EntrySceneAddress, loader.EntryTypeName, loader.EntryMethodName);
             rawProgress = 1f;
             displayProgress = 1f;
             TypeEventSystem.Global.Send(new OnAssetloadProgressEvent { progress = 1f, desc = "资源加载中" });

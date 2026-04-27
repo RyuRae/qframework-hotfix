@@ -55,6 +55,13 @@ namespace Framework.Procedure
             if (operation.Status != EOperationStatus.Succeed)
             {
                 LogKit.W(operation.Error);
+                mTarget.SetFailed(operation.Error);
+                yield break;
+            }
+            else if (mTarget._isIncludeRawFile && rawfileOperation.Status != EOperationStatus.Succeed)
+            {
+                LogKit.W(rawfileOperation.Error);
+                mTarget.SetFailed(rawfileOperation.Error);
                 yield break;
             }
             else

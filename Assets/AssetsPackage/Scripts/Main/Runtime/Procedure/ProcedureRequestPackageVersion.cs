@@ -55,14 +55,20 @@ namespace Framework.Procedure
             {
                 LogKit.W(operation.Error);
                 UIPanelRoot.Instance.ShowMessageBox(operation.Error);
+                mTarget.SetFailed(operation.Error);
+            }
+            else if (mTarget._isIncludeRawFile && rawfileOperation.Status != EOperationStatus.Succeed)
+            {
+                LogKit.W(rawfileOperation.Error);
+                UIPanelRoot.Instance.ShowMessageBox(rawfileOperation.Error);
+                mTarget.SetFailed(rawfileOperation.Error);
             }
             else
             {
                 LogKit.I($"Request package version : {operation.PackageVersion}");
                 if (mTarget._isIncludeRawFile)
                 {
-                    if (rawfileOperation.Status == EOperationStatus.Succeed)
-                        mTarget._rawfilePkgVersion = rawfileOperation.PackageVersion;
+                    mTarget._rawfilePkgVersion = rawfileOperation.PackageVersion;
                 }
                 mTarget._packageVersion = operation.PackageVersion;
                 mFSM.ChangeState(ResPackageStates.UpdatePackageManifest);

@@ -24,6 +24,7 @@ MonoBehaviour:
   HotUpdateAssemblies:
   - HotfixCommon.dll
   - HotfixDemo.dll
+  EntrySceneAddress: main
   EntryPrefabAddress: 
   EntryTypeName: 
   EntryMethodName: 

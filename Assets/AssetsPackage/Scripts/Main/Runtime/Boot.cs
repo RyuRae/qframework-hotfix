@@ -6,8 +6,6 @@ using Framework.Procedure;
 using UnityEngine.SceneManagement;
 using Framework.Events;
 using Framework.UI;
-//using Framework.Events;
-//using Framework.UI;
 
 namespace Framework
 {
@@ -49,7 +47,15 @@ namespace Framework
             YooAssets.StartOperation(operation);
             yield return operation;
 
-            string location = "main";
+            if (operation.Status != EOperationStatus.Succeed)
+            {
+                var error = string.IsNullOrEmpty(operation.Error) ? "热更流程初始化失败！" : operation.Error;
+                Debug.LogError(error);
+                UIPanelRoot.Instance.ShowMessage(error);
+                yield break;
+            }
+
+            string location = operation.EntrySceneAddress;
             //加载场景
             YooAssetKit.LoadSceneAsync(location, LoadSceneMode.Single, LocalPhysicsMode.None, false, (progress) =>
             {

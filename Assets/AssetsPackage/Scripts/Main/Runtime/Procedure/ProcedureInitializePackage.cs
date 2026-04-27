@@ -58,7 +58,7 @@ namespace Framework.Procedure
                 //原生资源包
                 if (_manager._isIncludeRawFile)
                 {
-                    var rawfileBuildResult = EditorSimulateModeHelper.SimulateBuild(packageName);
+                    var rawfileBuildResult = EditorSimulateModeHelper.SimulateBuild(_manager._rawfilwPkgName);
                     var rawfilePkgRoot = rawfileBuildResult.PackageRootDirectory;
                     var createParameters2 = new EditorSimulateModeParameters();
                     createParameters2.EditorFileSystemParameters = FileSystemParameters.CreateDefaultEditorFileSystemParameters(rawfilePkgRoot);
@@ -140,6 +140,12 @@ namespace Framework.Procedure
                 }
             }
 
+            if (initializationOperation == null)
+            {
+                _manager.SetFailed($"不支持的资源运行模式：{playMode}");
+                yield break;
+            }
+
             yield return initializationOperation;
             if (_manager._isIncludeRawFile)
                 yield return initRawFileOperation;
@@ -149,6 +155,13 @@ namespace Framework.Procedure
             {
                 Debug.LogWarning($"{initializationOperation.Error}");
                 UIPanelRoot.Instance.ShowMessage("初始化失败！");
+                _manager.SetFailed(initializationOperation.Error);
+            }
+            else if (_manager._isIncludeRawFile && initRawFileOperation.Status != EOperationStatus.Succeed)
+            {
+                Debug.LogWarning($"{initRawFileOperation.Error}");
+                UIPanelRoot.Instance.ShowMessage("原生资源包初始化失败！");
+                _manager.SetFailed(initRawFileOperation.Error);
             }
             else
             {
