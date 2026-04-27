@@ -1,136 +1,101 @@
-using UnityEngine;
-using QFramework;
-using Framework.Events;
-using YooAsset;
 using System;
+using Framework.Events;
+using QFramework;
+using UnityEngine;
+using YooAsset;
 
 namespace Framework.UI
 {
     public partial class UIPanelRoot : ViewController, ISingleton
     {
-        void Awake()
+        private void Awake()
         {
-            #region ×¢²áÊÂ¼ş
             TypeEventSystem.Global.Register<OnDownloadInfoHandlerEvent>(downloadInfo =>
             {
-                float sizeMB = downloadInfo.totalDownloadBytes / 1048576f;
-                sizeMB = Mathf.Clamp(sizeMB, 0.1f, float.MaxValue);
+                float sizeMB = Mathf.Clamp(downloadInfo.totalDownloadBytes / 1048576f, 0.1f, float.MaxValue);
                 string totalSizeMB = sizeMB.ToString("f1");
-                ShowMessageBox($"·¢ÏÖ¿É¸üĞÂÎÄ¼ş, ×ÜÊıÁ¿ {downloadInfo.totalDownloadCount}£¬ ×Ü´óĞ¡ {totalSizeMB}MB£¬ÇëÈ·ÈÏÊÇ·ñ¸üĞÂ", downloadInfo.confirmCallBack);
+                ShowMessageBox(
+                    $"å‘ç°å¯æ›´æ–°æ–‡ä»¶ï¼š{downloadInfo.totalDownloadCount} ä¸ªï¼Œæ€»å¤§å° {totalSizeMB} MBï¼Œæ˜¯å¦å¼€å§‹ä¸‹è½½ï¼Ÿ",
+                    downloadInfo.confirmCallBack);
             }).UnRegisterWhenGameObjectDestroyed(gameObject);
 
-            //ÏÂÔØ¿ªÊ¼ÊÂ¼ş
             TypeEventSystem.Global.Register<OnDownloadFileBeginEvent>(downloadHandler =>
             {
                 OnDownloadFileBeginHandler(downloadHandler.downloadFileData);
             }).UnRegisterWhenGameObjectDestroyed(gameObject);
 
-            //ÎÄ¼şÏÂÔØ¸üĞÂÊÂ¼ş
             TypeEventSystem.Global.Register<OnDownloadUpdateEvent>(downloadHandler =>
             {
                 OnDownloadUpdateHandler(downloadHandler.downloadUpdateData);
             }).UnRegisterWhenGameObjectDestroyed(gameObject);
 
-            //ÎÄ¼şÏÂÔØÍê³ÉÊÂ¼ş
             TypeEventSystem.Global.Register<OnDownloadFinishEvent>(downloadHandler =>
             {
                 OnDownloadFinishHandler(downloadHandler.downloaderFinishData);
             }).UnRegisterWhenGameObjectDestroyed(gameObject);
 
-            //ÏÂÔØ´íÎóÊÂ¼ş
             TypeEventSystem.Global.Register<OnDownloadErrorEvent>(downloadHandler =>
             {
                 OnDownloadErrorHandler(downloadHandler.errorData);
             }).UnRegisterWhenGameObjectDestroyed(gameObject);
 
-            //³¡¾°¼ÓÔØÊÂ¼ş
             TypeEventSystem.Global.Register<OnSceneloadUpdateEvent>(sceneLoadHandler =>
             {
                 OnSceneLoadUpdateHandler(sceneLoadHandler.progress, sceneLoadHandler.desc);
             }).UnRegisterWhenGameObjectDestroyed(gameObject);
 
-            //×ÊÔ´¼ÓÔØÊÂ¼ş
             TypeEventSystem.Global.Register<OnAssetloadProgressEvent>(assetloadHandler =>
             {
                 OnAssetloadProgressHandler(assetloadHandler.progress, assetloadHandler.desc);
             }).UnRegisterWhenGameObjectDestroyed(gameObject);
-            #endregion
         }
 
-        public static UIPanelRoot Instance
-        {
-            get
-            {
-                return MonoSingletonProperty<UIPanelRoot>.Instance;
-            }
-        }
+        public static UIPanelRoot Instance => MonoSingletonProperty<UIPanelRoot>.Instance;
 
         public void OnSingletonInit()
         {
         }
 
-        void Start()
+        private void Start()
         {
             ActionKit.OnUpdate.Register(() =>
             {
                 if (Application.platform == RuntimePlatform.WindowsPlayer && Input.GetKeyDown(KeyCode.Escape))
+                {
                     Application.Quit();
+                }
             }).UnRegisterWhenGameObjectDestroyed(gameObject);
         }
 
-        /// <summary>
-        /// ÏÂÔØ´íÎó»Øµ÷ÊÂ¼ş
-        /// </summary>
-        /// <param name="data">ÏÂÔØ´íÎóÊı¾İ</param>
         public void OnDownloadErrorHandler(DownloadErrorData data)
         {
-            UISceneHint.ShowMessage("ÏÂÔØ³ö´í£º" + data.PackageName + "\n" + data.FileName + "\n" + data.ErrorInfo);
+            UISceneHint.ShowMessage($"ä¸‹è½½å¤±è´¥ï¼š{data.PackageName}\n{data.FileName}\n{data.ErrorInfo}");
         }
 
-        /// <summary>
-        /// ÏÂÔØ¸üĞÂ»Øµ÷ÊÂ¼ş
-        /// </summary>
-        /// <param name="data">ÏÂÔØ¸üĞÂÊı¾İ</param>
         public void OnDownloadUpdateHandler(DownloadUpdateData data)
         {
-            LogKit.I("×ÊÔ´¸üĞÂÖĞ£º" + data.Progress);
+            LogKit.I($"èµ„æºä¸‹è½½ä¸­ï¼š{data.Progress:P0}");
             UISceneLoading.OnUpdateProgressExcute(data);
         }
 
-        /// <summary>
-        /// ¿ªÊ¼ÏÂÔØÎÄ¼ş»Øµ÷ÊÂ¼ş
-        /// </summary>
-        /// <param name="data">ÎÄ¼şÊı¾İ£¨°üÃû/ÎÄ¼şÃû/´óĞ¡£©</param>
         public void OnDownloadFileBeginHandler(DownloadFileData data)
         {
-            LogKit.I("¿ªÊ¼ÏÂÔØÎÄ¼ş£º" + data.FileName);
+            LogKit.I($"å¼€å§‹ä¸‹è½½æ–‡ä»¶ï¼š{data.FileName}");
         }
 
-        /// <summary>
-        /// ÏÂÔØÍê³É»Øµ÷ÊÂ¼ş
-        /// </summary>
-        /// <param name="data">ÏÂÔØÍê³ÉÊı¾İ£¨°üÃû/ÊÇ·ñÏÂÔØ³É¹¦£©</param>
         public void OnDownloadFinishHandler(DownloaderFinishData data)
         {
-            LogKit.I("ÎÄ¼şÏÂÔØÍê³É£¡");
-            ActionKit.Delay(1, () =>
-            {
-                CloseLoadingPanel();
-            }).Start(this);
+            LogKit.I("æ–‡ä»¶ä¸‹è½½å®Œæˆã€‚");
+            ActionKit.Delay(1, CloseLoadingPanel).Start(this);
         }
 
-        /// <summary>
-        /// ³¡¾°¼ÓÔØ½ø¶È
-        /// </summary>
-        /// <param name="progress">¼ÓÔØ½ø¶È</param>
-        public void OnSceneLoadUpdateHandler(float progress, string desc = "³¡¾°¼ÓÔØÖĞ")
+        public void OnSceneLoadUpdateHandler(float progress, string desc = "åœºæ™¯åŠ è½½ä¸­")
         {
             OpenLoadingPanel();
             UISceneLoading.OnUpdateProgressExcute(progress, desc);
         }
 
-
-        public void OnAssetloadProgressHandler(float progress, string desc = "ÎÄ¼şÏÂÔØÖĞ")
+        public void OnAssetloadProgressHandler(float progress, string desc = "èµ„æºåŠ è½½ä¸­")
         {
             OpenLoadingPanel();
             UISceneLoading.OnUpdateProgressExcute(progress, desc);
@@ -139,45 +104,37 @@ namespace Framework.UI
         public void OpenLoadingPanel()
         {
             if (!UISceneLoading.gameObject.activeSelf)
+            {
                 UISceneLoading.Show();
+            }
         }
 
-        /// <summary>
-        /// ¹Ø±ÕloadingÃæ°æ
-        /// </summary>
         public void CloseLoadingPanel()
         {
             if (UISceneLoading.gameObject.activeSelf)
+            {
                 UISceneLoading.Hide();
+            }
         }
 
-        /// <summary>
-        /// ÏÔÊ¾ÌáÊ¾ÄÚÈİ
-        /// </summary>
         public void ShowMessage(string msg, float seconds = -1)
         {
             UISceneHint.Show();
             UISceneHint.ShowMessage(msg, seconds);
         }
 
-        /// <summary>
-        /// ÏÔÊ¾ÌáÊ¾ĞÅÏ¢
-        /// </summary>
-        /// <param name="msg">ÌáÊ¾ĞÅÏ¢</param>
-        /// <param name="action">È·ÈÏºó»Øµ÷</param>
         public void ShowMessageBox(string msg, Action action = null)
         {
             UISceneMessageBox.Show();
             UISceneMessageBox.ShowMessageBox(msg, action);
         }
 
-        /// <summary>
-        /// Çå¿ÕÆÁÄ»
-        /// </summary>
         public void ClearScreen()
         {
             if (Background.activeSelf)
+            {
                 Background.SetActive(false);
+            }
         }
     }
 }

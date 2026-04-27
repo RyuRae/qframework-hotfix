@@ -1,10 +1,4 @@
-using Framework.Procedure;
 using QFramework;
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-using static UnityEngine.GraphicsBuffer;
-using YooAsset;
 
 namespace Framework.Procedure
 {
@@ -16,26 +10,21 @@ namespace Framework.Procedure
 
         protected override bool OnCondition()
         {
-            //if(mTarget._playMode == EPlayMode.OfflinePlayMode)
-            //    return mFSM.CurrentStateId == ResPackageStates.CreateDownloader;
             return mFSM.CurrentStateId == ResPackageStates.ClearCacheBundle;
         }
 
         protected override void OnEnter()
         {
-            //LogKit.I("开始游戏！");
-            LogKit.I("处理开始逻辑！");
+            LogKit.I("Hot update procedure completed.");
             mTarget.SetFinish();
         }
 
         protected override void OnExit()
         {
-
         }
 
         protected override void OnUpdate()
         {
-
         }
     }
 }

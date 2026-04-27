@@ -6,6 +6,7 @@ namespace Framework.Procedure
     public enum ResPackageStates
     {
         InitializePackage,
+        LoadAOTMetadata,
         RequestPackageVersion,
         UpdatePackageManifest,
         CreateDownloader,
@@ -46,6 +47,7 @@ namespace Framework.Procedure
             }
 
             _mFSM.AddState(ResPackageStates.InitializePackage, new ProcedureInitializePackage(_mFSM, this));
+            _mFSM.AddState(ResPackageStates.LoadAOTMetadata, new ProcedureLoadAOTMetadata(_mFSM, this));
             _mFSM.AddState(ResPackageStates.RequestPackageVersion, new ProcedureRequestPackageVersion(_mFSM, this));
             _mFSM.AddState(ResPackageStates.UpdatePackageManifest, new ProcedureUpdatePackageManifest(_mFSM, this));
             _mFSM.AddState(ResPackageStates.CreateDownloader, new ProcedureCreateDownloader(_mFSM, this));

@@ -13,32 +13,25 @@ namespace Framework.UI
 		protected override void OnInit(IUIData uiData = null)
 		{
 			mData = uiData as UISceneLoadingData ?? new UISceneLoadingData();
-			// please add init code here
-
 		}
 
 		/// <summary>
-		/// ¸üĞÂ½ø¶ÈÊı¾İ£¨ÏÂÔØ¸üĞÂ£©
+		/// æ›´æ–°ä¸‹è½½è¿›åº¦ã€‚
 		/// </summary>
-		/// <param name="data">ÏÂÔØ¸üĞÂÊı¾İ</param>
-		public void OnUpdateProgressExcute(DownloadUpdateData data, string desc = "ÎÄ¼şÏÂÔØÖĞ")
+		/// <param name="data">ä¸‹è½½è¿›åº¦æ•°æ®ã€‚</param>
+		public void OnUpdateProgressExcute(DownloadUpdateData data, string desc = "æ–‡ä»¶ä¸‹è½½ä¸­")
 		{
-			//float progress = data.CurrentDownloadBytes / (float)data.TotalDownloadBytes;
-			//LogKit.I("ÏÂÔØ½ø¶È¶Ô±È£º" + "\n" +progress + "\n" + data.Progress);
-			LogKit.I(data.Progress);
 			Slider_Progress.value = data.Progress;
 			Text_Hint.text = desc;
 			Text_Progress.text = data.Progress.ToString("0.0%");
-
 		}
 
 		/// <summary>
-		/// ¸üĞÂ½ø¶ÈÊı¾İ£¨¼ÓÔØ³¡¾°¸üĞÂ£©
+		/// æ›´æ–°èµ„æºæˆ–åœºæ™¯åŠ è½½è¿›åº¦ã€‚
 		/// </summary>
 		/// <param name="progress"></param>
-		public void OnUpdateProgressExcute(float progress, string desc = "ÎÄ¼şÏÂÔØÖĞ")
+		public void OnUpdateProgressExcute(float progress, string desc = "èµ„æºåŠ è½½ä¸­")
 		{
-			//LogKit.I("µ±Ç°½ø¶È:" + progress);
 			Slider_Progress.value = progress;
 			Text_Hint.text = desc;
 			Text_Progress.text = progress.ToString("0.0%");

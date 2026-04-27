@@ -1,5 +1,5 @@
-using QFramework;
 using System.Collections;
+using QFramework;
 using YooAsset;
 
 namespace Framework.Procedure
@@ -8,7 +8,6 @@ namespace Framework.Procedure
     {
         public ProcedureUpdatePackageManifest(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)
         {
-           
         }
 
         protected override bool OnCondition()
@@ -18,38 +17,31 @@ namespace Framework.Procedure
 
         protected override void OnEnter()
         {
-            LogKit.I("当前状态：请求资源版本！");
+            LogKit.I("Current state: ProcedureUpdatePackageManifest");
             CoroutineController.manager.StartCoroutine(UpdateManifest());
-          
         }
 
         protected override void OnExit()
         {
-
         }
 
         protected override void OnUpdate()
         {
-
         }
-
 
         private IEnumerator UpdateManifest()
         {
-            var packageName = mTarget._packageName;
-            var packageVersion = mTarget._packageVersion;
-            var package = YooAssets.GetPackage(packageName);//待优化
-            var operation = package.UpdatePackageManifestAsync(packageVersion);
-            string rawfilePkgVersion = null;
-            ResourcePackage rawfilePackage = null;
+            var package = YooAssets.GetPackage(mTarget._packageName);
+            var operation = package.UpdatePackageManifestAsync(mTarget._packageVersion);
+
             UpdatePackageManifestOperation rawfileOperation = null;
             if (mTarget._isIncludeRawFile)
             {
-                rawfilePkgVersion = mTarget._rawfilePkgVersion;
-                rawfilePackage = YooAssets.GetPackage(mTarget._rawfilwPkgName);
-                rawfileOperation = rawfilePackage.UpdatePackageManifestAsync(rawfilePkgVersion);
+                var rawfilePackage = YooAssets.GetPackage(mTarget._rawfilwPkgName);
+                rawfileOperation = rawfilePackage.UpdatePackageManifestAsync(mTarget._rawfilePkgVersion);
                 yield return rawfileOperation;
             }
+
             yield return operation;
 
             if (operation.Status != EOperationStatus.Succeed)
@@ -58,16 +50,15 @@ namespace Framework.Procedure
                 mTarget.SetFailed(operation.Error);
                 yield break;
             }
-            else if (mTarget._isIncludeRawFile && rawfileOperation.Status != EOperationStatus.Succeed)
+
+            if (mTarget._isIncludeRawFile && rawfileOperation.Status != EOperationStatus.Succeed)
             {
                 LogKit.W(rawfileOperation.Error);
                 mTarget.SetFailed(rawfileOperation.Error);
                 yield break;
             }
-            else
-            {
-                mFSM.ChangeState(ResPackageStates.CreateDownloader);
-            }
+
+            mFSM.ChangeState(ResPackageStates.CreateDownloader);
         }
     }
 }

@@ -14,28 +14,72 @@ namespace Framework.Assemblies
 {
     public class HybridCLRAssemblyLoader
     {
+        private const string DefaultEntrySceneAddress = "main";
+
         private readonly Dictionary<string, Assembly> mLoadedAssembliesCache = new Dictionary<string, Assembly>();
         private readonly List<Assembly> mHotUpdateAssemblies = new List<Assembly>();
+        private List<string> mAotMetadataAssemblies = new List<string>();
+        private List<string> mHotUpdateAssemblyNames = new List<string>();
 
         public IReadOnlyList<Assembly> HotUpdateAssemblies => mHotUpdateAssemblies;
         public bool Succeeded { get; private set; }
         public string Error { get; private set; }
-        public string EntrySceneAddress { get; private set; } = "main";
+        public string EntrySceneAddress { get; private set; } = DefaultEntrySceneAddress;
         public string EntryTypeName { get; private set; } = string.Empty;
         public string EntryMethodName { get; private set; } = string.Empty;
 
         public IEnumerator Load(ResourcePackage package, Action<float> onProgress = null)
         {
+            yield return LoadManifest(package);
+            if (!string.IsNullOrEmpty(Error))
+            {
+                yield break;
+            }
+
+            yield return LoadAotMetadataAssemblies(package, onProgress);
+            if (!string.IsNullOrEmpty(Error))
+            {
+                yield break;
+            }
+
+            yield return LoadHotUpdateAssembliesFromManifest(package, onProgress);
+        }
+
+        public IEnumerator LoadAotMetadata(ResourcePackage package, Action<float> onProgress = null)
+        {
+            yield return LoadManifest(package);
+            if (!string.IsNullOrEmpty(Error))
+            {
+                yield break;
+            }
+
+            yield return LoadAotMetadataAssemblies(package, onProgress);
+        }
+
+        public IEnumerator LoadHotUpdateAssemblies(ResourcePackage package, Action<float> onProgress = null)
+        {
+            yield return LoadManifest(package);
+            if (!string.IsNullOrEmpty(Error))
+            {
+                yield break;
+            }
+
+            yield return LoadHotUpdateAssembliesFromManifest(package, onProgress);
+        }
+
+        private IEnumerator LoadManifest(ResourcePackage package)
+        {
             Succeeded = false;
             Error = string.Empty;
-            EntrySceneAddress = "main";
+            EntrySceneAddress = DefaultEntrySceneAddress;
             EntryTypeName = string.Empty;
             EntryMethodName = string.Empty;
-            mHotUpdateAssemblies.Clear();
+            mAotMetadataAssemblies = new List<string>();
+            mHotUpdateAssemblyNames = new List<string>();
 
             if (package == null)
             {
-                Fail("YooAsset package is null, cannot load hot update assemblies.");
+                Fail("YooAsset package is null, cannot load assembly manifest.");
                 yield break;
             }
 
@@ -56,22 +100,26 @@ namespace Framework.Assemblies
                 yield break;
             }
 
-            var aotAssemblies = NormalizeAssemblyNames(manifest.AotMetadataAssemblies);
-            var hotUpdateAssemblies = NormalizeAssemblyNames(manifest.HotUpdateAssemblies);
-            EntrySceneAddress = string.IsNullOrWhiteSpace(manifest.EntrySceneAddress) ? "main" : manifest.EntrySceneAddress;
+            mAotMetadataAssemblies = NormalizeAssemblyNames(manifest.AotMetadataAssemblies);
+            mHotUpdateAssemblyNames = NormalizeAssemblyNames(manifest.HotUpdateAssemblies);
+            EntrySceneAddress = string.IsNullOrWhiteSpace(manifest.EntrySceneAddress)
+                ? DefaultEntrySceneAddress
+                : manifest.EntrySceneAddress;
             EntryTypeName = manifest.EntryTypeName ?? string.Empty;
             EntryMethodName = manifest.EntryMethodName ?? string.Empty;
             manifestHandle.Release();
+        }
 
-            int totalCount = aotAssemblies.Count + hotUpdateAssemblies.Count;
+        private IEnumerator LoadAotMetadataAssemblies(ResourcePackage package, Action<float> onProgress)
+        {
+            int totalCount = mAotMetadataAssemblies.Count;
             int loadedCount = 0;
-
             onProgress?.Invoke(0f);
 
 #if ENABLE_HYBRID_CLR_UNITY
-            foreach (var dllName in aotAssemblies)
+            foreach (var dllName in mAotMetadataAssemblies)
             {
-                yield return LoadAotMetadata(package, dllName);
+                yield return LoadAotMetadataAssembly(package, dllName);
                 if (!string.IsNullOrEmpty(Error))
                 {
                     yield break;
@@ -81,11 +129,22 @@ namespace Framework.Assemblies
                 onProgress?.Invoke(GetProgress(loadedCount, totalCount));
             }
 #else
-            loadedCount += aotAssemblies.Count;
+            loadedCount = totalCount;
             onProgress?.Invoke(GetProgress(loadedCount, totalCount));
+            yield return null;
 #endif
 
-            foreach (var dllName in hotUpdateAssemblies)
+            Succeeded = true;
+            onProgress?.Invoke(1f);
+        }
+
+        private IEnumerator LoadHotUpdateAssembliesFromManifest(ResourcePackage package, Action<float> onProgress)
+        {
+            int totalCount = mHotUpdateAssemblyNames.Count;
+            int loadedCount = 0;
+            onProgress?.Invoke(0f);
+
+            foreach (var dllName in mHotUpdateAssemblyNames)
             {
                 yield return LoadHotUpdateAssembly(package, dllName);
                 if (!string.IsNullOrEmpty(Error))
@@ -107,7 +166,7 @@ namespace Framework.Assemblies
             onProgress?.Invoke(1f);
         }
 
-        private IEnumerator LoadAotMetadata(ResourcePackage package, string dllName)
+        private IEnumerator LoadAotMetadataAssembly(ResourcePackage package, string dllName)
         {
             byte[] bytes = null;
             yield return LoadDllBytes(package, dllName, value => bytes = value);
@@ -118,7 +177,7 @@ namespace Framework.Assemblies
 
 #if ENABLE_HYBRID_CLR_UNITY
             var errorCode = RuntimeApi.LoadMetadataForAOTAssembly(bytes, HomologousImageMode.SuperSet);
-            Debug.Log($"LoadMetadataForAOTAssembly:{dllName}. mode:{HomologousImageMode.SuperSet} ret:{errorCode}");
+            Debug.Log($"Load AOT metadata: {dllName}, mode: {HomologousImageMode.SuperSet}, result: {errorCode}");
             if (errorCode != LoadImageErrorCode.OK &&
                 errorCode != LoadImageErrorCode.HOMOLOGOUS_ASSEMBLY_HAS_LOADED)
             {
@@ -139,7 +198,7 @@ namespace Framework.Assemblies
             if (assembly != null)
             {
                 CacheHotUpdateAssembly(dllName, assembly);
-                Debug.Log($"Use loaded hotfix assembly:{assembly.GetName().Name}");
+                Debug.Log($"Use loaded hotfix assembly: {assembly.GetName().Name}");
                 yield break;
             }
 
@@ -161,7 +220,7 @@ namespace Framework.Assemblies
             }
 
             CacheHotUpdateAssembly(dllName, assembly);
-            Debug.Log($"LoadHotfixAssembly:{assembly.GetName().Name}");
+            Debug.Log($"Load hotfix assembly: {assembly.GetName().Name}");
         }
 
         private IEnumerator LoadDllBytes(ResourcePackage package, string dllName, Action<byte[]> onLoaded)
@@ -260,6 +319,7 @@ namespace Framework.Assemblies
 
         private void Fail(string error)
         {
+            Succeeded = false;
             Error = error;
             Debug.LogError(error);
         }

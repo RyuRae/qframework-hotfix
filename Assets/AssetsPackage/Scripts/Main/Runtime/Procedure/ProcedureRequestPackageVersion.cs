@@ -1,78 +1,74 @@
 using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+using Framework.UI;
 using QFramework;
 using YooAsset;
-using Framework.UI;
 
 namespace Framework.Procedure
 {
     public class ProcedureRequestPackageVersion : AbstractState<ResPackageStates, ProcedureManager>
     {
+        private RequestPackageVersionOperation rawfileOperation;
+
         public ProcedureRequestPackageVersion(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)
         {
-
         }
 
         protected override bool OnCondition()
         {
-            return mFSM.CurrentStateId == ResPackageStates.InitializePackage;
+            return mFSM.CurrentStateId == ResPackageStates.LoadAOTMetadata;
         }
 
         protected override void OnEnter()
         {
-            LogKit.I("µ±Ç°×´Ì¬£ºProcedureRequestPackageVersion");
+            LogKit.I("Current state: ProcedureRequestPackageVersion");
             CoroutineController.manager.StartCoroutine(UpdatePackageVersion());
         }
 
         protected override void OnExit()
         {
-
         }
 
         protected override void OnUpdate()
         {
-
         }
 
-        ResourcePackage rawfilePackage;
-        RequestPackageVersionOperation rawfileOperation;
         private IEnumerator UpdatePackageVersion()
         {
-            var packageName = mTarget._packageName;
-            var package = YooAssets.GetPackage(packageName);
+            var package = YooAssets.GetPackage(mTarget._packageName);
             var operation = package.RequestPackageVersionAsync();
             if (mTarget._isIncludeRawFile)
             {
-                rawfilePackage = YooAssets.GetPackage(mTarget._rawfilwPkgName);
+                var rawfilePackage = YooAssets.GetPackage(mTarget._rawfilwPkgName);
                 rawfileOperation = rawfilePackage.RequestPackageVersionAsync();
                 yield return rawfileOperation;
             }
-            yield return operation;
 
+            yield return operation;
 
             if (operation.Status != EOperationStatus.Succeed)
             {
                 LogKit.W(operation.Error);
                 UIPanelRoot.Instance.ShowMessageBox(operation.Error);
                 mTarget.SetFailed(operation.Error);
+                yield break;
             }
-            else if (mTarget._isIncludeRawFile && rawfileOperation.Status != EOperationStatus.Succeed)
+
+            if (mTarget._isIncludeRawFile && rawfileOperation.Status != EOperationStatus.Succeed)
             {
                 LogKit.W(rawfileOperation.Error);
                 UIPanelRoot.Instance.ShowMessageBox(rawfileOperation.Error);
                 mTarget.SetFailed(rawfileOperation.Error);
+                yield break;
             }
-            else
+
+            LogKit.I($"Request package version: {operation.PackageVersion}");
+            if (mTarget._isIncludeRawFile)
             {
-                LogKit.I($"Request package version : {operation.PackageVersion}");
-                if (mTarget._isIncludeRawFile)
-                {
-                    mTarget._rawfilePkgVersion = rawfileOperation.PackageVersion;
-                }
-                mTarget._packageVersion = operation.PackageVersion;
-                mFSM.ChangeState(ResPackageStates.UpdatePackageManifest);
+                mTarget._rawfilePkgVersion = rawfileOperation.PackageVersion;
             }
+
+            mTarget._packageVersion = operation.PackageVersion;
+            mFSM.ChangeState(ResPackageStates.UpdatePackageManifest);
         }
     }
 }

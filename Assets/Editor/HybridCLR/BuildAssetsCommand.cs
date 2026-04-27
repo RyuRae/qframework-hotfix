@@ -21,8 +21,8 @@ namespace HybridCLR.Editor
         public const string ConfigsPath = "Assets/AssetsPackage/AssetsHotFix/Configs";
         public const string AssemblyManifestAssetPath = ConfigsPath + "/AssemblyManifest.asset";
 
-        [MenuItem("Build/Build Hotfix YooAsset Package")]
-        public static void BuildHotfixYooAssetPackage()
+        [MenuItem("Build/Build Initial YooAsset Package")]
+        public static void BuildInitialYooAssetPackage()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
             CompileDllCommand.CompileDll(target);
@@ -33,6 +33,26 @@ namespace HybridCLR.Editor
 
             BuildYooAssetPackage(DefaultPackageName, target, true);
             AssetDatabase.Refresh();
+        }
+
+        [MenuItem("Build/Build Hotfix YooAsset Package")]
+        public static void BuildHotfixYooAssetPackage()
+        {
+            BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+            CompileDllCommand.CompileDll(target);
+
+            var previousAotAssemblies = GetManifestOrConfiguredAOTAssemblies();
+            var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
+            try
+            {
+                CreateOrUpdateAssemblyManifest(new List<string>(), hotfixAssemblies);
+                BuildWithAOTCollectorDisabled(() => BuildYooAssetPackage(DefaultPackageName, target, false));
+            }
+            finally
+            {
+                CreateOrUpdateAssemblyManifest(previousAotAssemblies, hotfixAssemblies);
+                AssetDatabase.Refresh();
+            }
         }
 
         [MenuItem("Build/BuildAssetsAndCopyToAssetsPackage")]
@@ -50,7 +70,7 @@ namespace HybridCLR.Editor
         [MenuItem("Build/BuildAssetsAndCopyToStreamingAssets")]
         public static void BuildAndCopyABAOTHotUpdateDlls()
         {
-            BuildHotfixYooAssetPackage();
+            BuildInitialYooAssetPackage();
         }
 
         [MenuItem("Build/CopyAotDllsToAssetsPackage")]
@@ -168,7 +188,7 @@ namespace HybridCLR.Editor
                     : EBuildinFileCopyOption.None,
                 BuildinFileCopyParams = string.Empty,
                 CompressOption = ECompressOption.LZ4,
-                ClearBuildCacheFiles = true,
+                ClearBuildCacheFiles = copyToStreamingAssets,
                 UseAssetDependencyDB = true
             };
 
@@ -214,7 +234,7 @@ namespace HybridCLR.Editor
                 .ToList();
         }
 
-        public static void CreateOrUpdateAssemblyManifest(List<string> aotAssemblies, List<string> hotfixAssemblies)
+        public static AssemblyManifest CreateOrUpdateAssemblyManifest(List<string> aotAssemblies, List<string> hotfixAssemblies)
         {
             Directory.CreateDirectory(ConfigsPath);
 
@@ -237,9 +257,10 @@ namespace HybridCLR.Editor
             EditorUtility.SetDirty(manifest);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+            return manifest;
         }
 
-        [Obsolete("Use BuildHotfixYooAssetPackage instead.")]
+        [Obsolete("Use BuildInitialYooAssetPackage instead.")]
         public static void CopyABAOTHotUpdateDlls(BuildTarget target)
         {
             CompileDllCommand.CompileDll(target);
@@ -252,7 +273,7 @@ namespace HybridCLR.Editor
         [Obsolete("Use BuildYooAssetPackage instead.")]
         public static void BuildSceneAssetBundleActiveBuildTargetExcludeAOT()
         {
-            BuildYooAssetPackage(DefaultPackageName, EditorUserBuildSettings.activeBuildTarget, false);
+            BuildHotfixYooAssetPackage();
         }
 
         private static List<string> GetConfiguredAOTMetaAssemblies()
@@ -297,6 +318,57 @@ namespace HybridCLR.Editor
         private static string CreatePackageVersion()
         {
             return DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
+        }
+
+        private static void BuildWithAOTCollectorDisabled(Action buildAction)
+        {
+            var package = AssetBundleCollectorSettingData.Setting.GetPackage(DefaultPackageName);
+            var snapshots = new List<CollectorSnapshot>();
+            foreach (var group in package.Groups)
+            {
+                for (int i = group.Collectors.Count - 1; i >= 0; i--)
+                {
+                    if (IsAOTCollector(group.Collectors[i]))
+                    {
+                        snapshots.Add(new CollectorSnapshot(group, i, group.Collectors[i]));
+                        group.Collectors.RemoveAt(i);
+                    }
+                }
+            }
+
+            try
+            {
+                buildAction();
+            }
+            finally
+            {
+                foreach (var snapshot in snapshots.OrderBy(snapshot => snapshot.Index))
+                {
+                    snapshot.Group.Collectors.Insert(snapshot.Index, snapshot.Collector);
+                }
+            }
+        }
+
+        private static bool IsAOTCollector(AssetBundleCollector collector)
+        {
+            return string.Equals(
+                collector.CollectPath.Replace('\\', '/'),
+                AOTCodesPath,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private struct CollectorSnapshot
+        {
+            public readonly AssetBundleCollectorGroup Group;
+            public readonly int Index;
+            public readonly AssetBundleCollector Collector;
+
+            public CollectorSnapshot(AssetBundleCollectorGroup group, int index, AssetBundleCollector collector)
+            {
+                Group = group;
+                Index = index;
+                Collector = collector;
+            }
         }
 
         private static void PrepareDirectory(string path)

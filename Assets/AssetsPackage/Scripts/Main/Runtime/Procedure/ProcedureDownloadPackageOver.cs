@@ -1,6 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
 using QFramework;
 
 namespace Framework.Procedure
@@ -9,7 +6,6 @@ namespace Framework.Procedure
     {
         public ProcedureDownloadPackageOver(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)
         {
-
         }
 
         protected override bool OnCondition()
@@ -19,18 +15,16 @@ namespace Framework.Procedure
 
         protected override void OnEnter()
         {
-            LogKit.I("资源文件下载完成！");
+            LogKit.I("Download package files completed.");
             mFSM.ChangeState(ResPackageStates.LoadAssemblies);
         }
 
         protected override void OnExit()
         {
-
         }
 
         protected override void OnUpdate()
         {
-
         }
     }
 }

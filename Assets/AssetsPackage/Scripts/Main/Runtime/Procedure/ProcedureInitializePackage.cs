@@ -1,20 +1,23 @@
-using System.Collections;
-using UnityEngine;
-using QFramework;
-using YooAsset;
 using System;
+using System.Collections;
 using Framework.UI;
+using QFramework;
+using UnityEngine;
+using YooAsset;
 
 namespace Framework.Procedure
 {
     public class ProcedureInitializePackage : AbstractState<ResPackageStates, ProcedureManager>
     {
-        private ProcedureManager _manager;
-        private FSM<ResPackageStates> _fsm;
+        private readonly ProcedureManager manager;
+        private readonly FSM<ResPackageStates> fsm;
+        private ResourcePackage rawFilePackage;
+        private InitializationOperation initRawFileOperation;
+
         public ProcedureInitializePackage(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)
         {
-            _fsm = fsm;
-            _manager = manager;
+            this.fsm = fsm;
+            this.manager = manager;
         }
 
         protected override bool OnCondition()
@@ -24,214 +27,160 @@ namespace Framework.Procedure
 
         protected override void OnEnter()
         {
-            LogKit.I("当前状态：ProcedureInitializePackage");
+            LogKit.I("Current state: ProcedureInitializePackage");
             CoroutineController.manager.StartCoroutine(InitPackage());
         }
 
-        ResourcePackage _rawFilePackage = null;
-        InitializationOperation initRawFileOperation = null;
-        IEnumerator InitPackage()
+        private IEnumerator InitPackage()
         {
-            var playMode = _manager._playMode;
-            var packageName = _manager._packageName;
-
-            // 创建主资源包类
-            var package = YooAssets.TryGetPackage(packageName) ?? YooAssets.CreatePackage(packageName);
+            var playMode = manager._playMode;
+            var package = YooAssets.TryGetPackage(manager._packageName) ?? YooAssets.CreatePackage(manager._packageName);
             YooAssets.SetDefaultPackage(package);
+
+            if (manager._isIncludeRawFile)
+            {
+                rawFilePackage = YooAssets.TryGetPackage(manager._rawfilwPkgName) ?? YooAssets.CreatePackage(manager._rawfilwPkgName);
+            }
+
             InitializationOperation initializationOperation = null;
-
-            if(_manager._isIncludeRawFile)
-                //创建原生文件包类
-                _rawFilePackage = YooAssets.TryGetPackage(_manager._rawfilwPkgName) ?? YooAssets.CreatePackage(_manager._rawfilwPkgName);
-           
-
-            // 编辑器下的模拟模式
             if (playMode == EPlayMode.EditorSimulateMode)
             {
-                //主资源包
-                var buildResult = EditorSimulateModeHelper.SimulateBuild(packageName);
-                var packageRoot = buildResult.PackageRootDirectory;
-                var createParameters = new EditorSimulateModeParameters();
-                createParameters.EditorFileSystemParameters = FileSystemParameters.CreateDefaultEditorFileSystemParameters(packageRoot);
-                initializationOperation = package.InitializeAsync(createParameters);
-
-                //原生资源包
-                if (_manager._isIncludeRawFile)
+                initializationOperation = InitEditorSimulatePackage(package, manager._packageName);
+                if (manager._isIncludeRawFile)
                 {
-                    var rawfileBuildResult = EditorSimulateModeHelper.SimulateBuild(_manager._rawfilwPkgName);
-                    var rawfilePkgRoot = rawfileBuildResult.PackageRootDirectory;
-                    var createParameters2 = new EditorSimulateModeParameters();
-                    createParameters2.EditorFileSystemParameters = FileSystemParameters.CreateDefaultEditorFileSystemParameters(rawfilePkgRoot);
-                    initRawFileOperation = _rawFilePackage.InitializeAsync(createParameters2);
+                    initRawFileOperation = InitEditorSimulatePackage(rawFilePackage, manager._rawfilwPkgName);
                 }
             }
-            //单机运行模式
             else if (playMode == EPlayMode.OfflinePlayMode)
             {
-                //主文件初始化
-                var createParameters = new OfflinePlayModeParameters();
-                createParameters.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
-                initializationOperation = package.InitializeAsync(createParameters);
-
-                //原生文件初始化
-                if (_manager._isIncludeRawFile)
+                initializationOperation = InitOfflinePackage(package);
+                if (manager._isIncludeRawFile)
                 {
-                    var createParameters2 = new OfflinePlayModeParameters();
-                    createParameters2.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
-                    initRawFileOperation = _rawFilePackage.InitializeAsync(createParameters2);
+                    initRawFileOperation = InitOfflinePackage(rawFilePackage);
                 }
             }
-            //联机运行模式
             else if (playMode == EPlayMode.HostPlayMode)
             {
-                string defaultHostServer = GetHostServerURL();
-                string fallbackHostServer = GetHostServerURL();
-                IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
-                //主资源包
-                var createParameters = new HostPlayModeParameters();
-                createParameters.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
-                createParameters.CacheFileSystemParameters = FileSystemParameters.CreateDefaultCacheFileSystemParameters(remoteServices);
-                initializationOperation = package.InitializeAsync(createParameters);
-
-                //原生资源包
-                if (_manager._isIncludeRawFile)
+                var remoteServices = new RemoteServices(GetHostServerURL(), GetHostServerURL());
+                initializationOperation = InitHostPackage(package, remoteServices);
+                if (manager._isIncludeRawFile)
                 {
-                    var createParameters2 = new HostPlayModeParameters();
-                    createParameters2.BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
-                    createParameters2.CacheFileSystemParameters = FileSystemParameters.CreateDefaultCacheFileSystemParameters(remoteServices);
-                    initRawFileOperation = _rawFilePackage.InitializeAsync(createParameters2);
+                    initRawFileOperation = InitHostPackage(rawFilePackage, remoteServices);
                 }
             }
-            // WebGL运行模式
             else if (playMode == EPlayMode.WebPlayMode)
             {
-//                var createParameters = new WebPlayModeParameters();
-//#if UNITY_WEBGL && WEIXINMINIGAME && !UNITY_EDITOR
-//			string defaultHostServer = GetHostServerURL();
-//            string fallbackHostServer = GetHostServerURL();
-//            string packageRoot = $"{WeChatWASM.WX.env.USER_DATA_PATH}/__GAME_FILE_CACHE"; //ע�⣺�������Ŀ¼�����޸Ĵ˴���
-//            IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
-//            createParameters.WebServerFileSystemParameters = WechatFileSystemCreater.CreateWechatFileSystemParameters(packageRoot, remoteServices);
-//            LogKit.I("��Դ����ʼ���ɹ���");
-//#else
-//                createParameters.WebServerFileSystemParameters = FileSystemParameters.CreateDefaultWebServerFileSystemParameters(new WebDecryption());
-//#endif
-//                initializationOperation = package.InitializeAsync(createParameters);
-
-                string defaultHostServer = GetHostServerURL();
-                string fallbackHostServer = GetHostServerURL();
-                IRemoteServices remoteServices = new RemoteServices(defaultHostServer, fallbackHostServer);
-                var webServerFileSystemParams = FileSystemParameters.CreateDefaultWebServerFileSystemParameters();
-                var webRemoteFileSystemParams = FileSystemParameters.CreateDefaultWebRemoteFileSystemParameters(remoteServices); //֧�ֿ�������
-                //主资源包
-                var initParameters = new WebPlayModeParameters();
-                initParameters.WebServerFileSystemParameters = webServerFileSystemParams;
-                initParameters.WebRemoteFileSystemParameters = webRemoteFileSystemParams;
-                initializationOperation = package.InitializeAsync(initParameters);
-
-                //原生资源（webgl，官方不支持原生包构建，参考bytes解决方案）
-                if (_manager._isIncludeRawFile)
+                var remoteServices = new RemoteServices(GetHostServerURL(), GetHostServerURL());
+                initializationOperation = InitWebPackage(package, remoteServices);
+                if (manager._isIncludeRawFile)
                 {
-                    var initParameters2 = new WebPlayModeParameters();
-                    initParameters2.WebServerFileSystemParameters = webServerFileSystemParams;
-                    initParameters2.WebRemoteFileSystemParameters = webRemoteFileSystemParams;
-                    //initParameters2.WebServerFileSystemParameters = WechatFileSystemCreater.CreateWechatFileSystemParameters(packageRoot, remoteServices);
-                    initRawFileOperation = _rawFilePackage.InitializeAsync(initParameters2);
+                    initRawFileOperation = InitWebPackage(rawFilePackage, remoteServices);
                 }
             }
 
             if (initializationOperation == null)
             {
-                _manager.SetFailed($"不支持的资源运行模式：{playMode}");
+                manager.SetFailed($"Unsupported YooAsset play mode: {playMode}");
                 yield break;
             }
 
             yield return initializationOperation;
-            if (_manager._isIncludeRawFile)
+            if (manager._isIncludeRawFile)
+            {
                 yield return initRawFileOperation;
+            }
 
-            //如果初始化失败弹出提示界面
             if (initializationOperation.Status != EOperationStatus.Succeed)
             {
-                Debug.LogWarning($"{initializationOperation.Error}");
-                UIPanelRoot.Instance.ShowMessage("初始化失败！");
-                _manager.SetFailed(initializationOperation.Error);
+                Debug.LogWarning(initializationOperation.Error);
+                UIPanelRoot.Instance.ShowMessage("资源包初始化失败！");
+                manager.SetFailed(initializationOperation.Error);
+                yield break;
             }
-            else if (_manager._isIncludeRawFile && initRawFileOperation.Status != EOperationStatus.Succeed)
+
+            if (manager._isIncludeRawFile && initRawFileOperation.Status != EOperationStatus.Succeed)
             {
-                Debug.LogWarning($"{initRawFileOperation.Error}");
+                Debug.LogWarning(initRawFileOperation.Error);
                 UIPanelRoot.Instance.ShowMessage("原生资源包初始化失败！");
-                _manager.SetFailed(initRawFileOperation.Error);
+                manager.SetFailed(initRawFileOperation.Error);
+                yield break;
             }
-            else
-            {
-                Debug.Log("资源包初始化成功！");
-                _fsm.ChangeState(ResPackageStates.RequestPackageVersion);
-            }
+
+            Debug.Log("资源包初始化成功！");
+            fsm.ChangeState(ResPackageStates.LoadAOTMetadata);
         }
 
         protected override void OnExit()
         {
-
         }
 
         protected override void OnUpdate()
         {
-
         }
 
-        /// <summary>
-        /// 获取资源服务器地址
-        /// </summary>
+        private static InitializationOperation InitEditorSimulatePackage(ResourcePackage package, string packageName)
+        {
+            var buildResult = EditorSimulateModeHelper.SimulateBuild(packageName);
+            var createParameters = new EditorSimulateModeParameters
+            {
+                EditorFileSystemParameters = FileSystemParameters.CreateDefaultEditorFileSystemParameters(buildResult.PackageRootDirectory)
+            };
+            return package.InitializeAsync(createParameters);
+        }
+
+        private static InitializationOperation InitOfflinePackage(ResourcePackage package)
+        {
+            var createParameters = new OfflinePlayModeParameters
+            {
+                BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters()
+            };
+            return package.InitializeAsync(createParameters);
+        }
+
+        private static InitializationOperation InitHostPackage(ResourcePackage package, IRemoteServices remoteServices)
+        {
+            var createParameters = new HostPlayModeParameters
+            {
+                BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters(),
+                CacheFileSystemParameters = FileSystemParameters.CreateDefaultCacheFileSystemParameters(remoteServices)
+            };
+            return package.InitializeAsync(createParameters);
+        }
+
+        private static InitializationOperation InitWebPackage(ResourcePackage package, IRemoteServices remoteServices)
+        {
+            var createParameters = new WebPlayModeParameters
+            {
+                WebServerFileSystemParameters = FileSystemParameters.CreateDefaultWebServerFileSystemParameters(),
+                WebRemoteFileSystemParameters = FileSystemParameters.CreateDefaultWebRemoteFileSystemParameters(remoteServices)
+            };
+            return package.InitializeAsync(createParameters);
+        }
+
         private string GetHostServerURL()
         {
-            //string hostServerIP = "http://10.0.2.2"; //安卓模拟器地址
-            string hostServerIP = "http://127.0.0.1:8080/TestProject/PC";//192.168.125.148
-            //            string appVersion = "v1.0";
-
-            //#if UNITY_EDITOR
-            //            if (UnityEditor.EditorUserBuildSettings.activeBuildTarget == UnityEditor.BuildTarget.Android)
-            //                return $"{hostServerIP}/CDN/Android/{appVersion}";
-            //            else if (UnityEditor.EditorUserBuildSettings.activeBuildTarget == UnityEditor.BuildTarget.iOS)
-            //                return $"{hostServerIP}/CDN/IPhone/{appVersion}";
-            //            else if (UnityEditor.EditorUserBuildSettings.activeBuildTarget == UnityEditor.BuildTarget.WebGL)
-            //                return $"{hostServerIP}/CDN/WebGL/{appVersion}";
-            //            else
-            //                return $"{hostServerIP}/CDN/PC/{appVersion}";
-            //#else
-            //        if (Application.platform == RuntimePlatform.Android)
-            //            return $"{hostServerIP}/CDN/Android/{appVersion}";
-            //        else if (Application.platform == RuntimePlatform.IPhonePlayer)
-            //            return $"{hostServerIP}/CDN/IPhone/{appVersion}";
-            //        else if (Application.platform == RuntimePlatform.WebGLPlayer)
-            //            return $"{hostServerIP}/CDN/WebGL/{appVersion}";
-            //        else
-            //            return $"{hostServerIP}/CDN/PC/{appVersion}";
-            //#endif
-
-            return hostServerIP;
+            return "http://127.0.0.1:8080/TestProject/PC";
         }
 
-        /// <summary>
-        /// 远端资源地址查询服务类
-        /// </summary>
         private class RemoteServices : IRemoteServices
         {
-            private readonly string _defaultHostServer;
-            private readonly string _fallbackHostServer;
+            private readonly string defaultHostServer;
+            private readonly string fallbackHostServer;
 
             public RemoteServices(string defaultHostServer, string fallbackHostServer)
             {
-                _defaultHostServer = defaultHostServer;
-                _fallbackHostServer = fallbackHostServer;
+                this.defaultHostServer = defaultHostServer;
+                this.fallbackHostServer = fallbackHostServer;
             }
+
             string IRemoteServices.GetRemoteMainURL(string fileName)
             {
-                return $"{_defaultHostServer}/{fileName}";
+                return $"{defaultHostServer}/{fileName}";
             }
+
             string IRemoteServices.GetRemoteFallbackURL(string fileName)
             {
-                return $"{_fallbackHostServer}/{fileName}";
+                return $"{fallbackHostServer}/{fileName}";
             }
         }
 
@@ -243,15 +192,15 @@ namespace Framework.Procedure
             {
                 byte[] copyData = new byte[fileInfo.FileData.Length];
                 Buffer.BlockCopy(fileInfo.FileData, 0, copyData, 0, fileInfo.FileData.Length);
-
                 for (int i = 0; i < copyData.Length; i++)
                 {
                     copyData[i] ^= KEY;
                 }
 
-                WebDecryptResult decryptResult = new WebDecryptResult();
-                decryptResult.Result = AssetBundle.LoadFromMemory(copyData);
-                return decryptResult;
+                return new WebDecryptResult
+                {
+                    Result = AssetBundle.LoadFromMemory(copyData)
+                };
             }
         }
     }

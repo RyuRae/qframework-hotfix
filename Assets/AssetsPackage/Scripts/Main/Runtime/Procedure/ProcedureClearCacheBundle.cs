@@ -1,19 +1,12 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
 using QFramework;
 using YooAsset;
 
 namespace Framework.Procedure
 {
-    /// <summary>
-    /// «Â¿Ìª∫¥Ê
-    /// </summary>
     public class ProcedureClearCacheBundle : AbstractState<ResPackageStates, ProcedureManager>
     {
         public ProcedureClearCacheBundle(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)
         {
-
         }
 
         protected override bool OnCondition()
@@ -23,23 +16,21 @@ namespace Framework.Procedure
 
         protected override void OnEnter()
         {
-            var packageName = mTarget._packageName;
-            var package = YooAssets.GetPackage(packageName);
+            LogKit.I("Current state: ProcedureClearCacheBundle");
+            var package = YooAssets.GetPackage(mTarget._packageName);
             var operation = package.ClearCacheFilesAsync(EFileClearMode.ClearUnusedBundleFiles);
             operation.Completed += OnClearCacheFilesCompleted;
         }
 
         protected override void OnExit()
         {
-
         }
 
         protected override void OnUpdate()
         {
-
         }
 
-        public void OnClearCacheFilesCompleted(AsyncOperationBase obj)
+        private void OnClearCacheFilesCompleted(AsyncOperationBase obj)
         {
             if (obj.Status != EOperationStatus.Succeed)
             {
@@ -47,7 +38,7 @@ namespace Framework.Procedure
                 return;
             }
 
-            LogKit.I("Clear cache files completed.");
+            LogKit.I("Cache cleanup completed.");
             mFSM.ChangeState(ResPackageStates.StartGame);
         }
     }

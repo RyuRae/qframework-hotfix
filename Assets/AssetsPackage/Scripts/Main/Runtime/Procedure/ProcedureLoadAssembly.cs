@@ -30,7 +30,7 @@ namespace Framework.Procedure
 
         protected override void OnEnter()
         {
-            LogKit.I("加载代码文件");
+            LogKit.I("Current state: ProcedureLoadAssembly");
             rawProgress = 0f;
             displayProgress = 0f;
 
@@ -43,7 +43,7 @@ namespace Framework.Procedure
                 else
                     displayProgress = 1f;
 
-                TypeEventSystem.Global.Send(new OnAssetloadProgressEvent { progress = displayProgress, desc = "资源加载中" });
+                TypeEventSystem.Global.Send(new OnAssetloadProgressEvent { progress = displayProgress, desc = "加载热更程序集" });
             }).UnRegisterWhenGameObjectDestroyed(CoroutineController.manager);
 
             CoroutineController.manager.StartCoroutine(LoadAssemblies());
@@ -55,7 +55,7 @@ namespace Framework.Procedure
 
             var package = YooAssets.GetPackage(mTarget._packageName);
             var loader = new HybridCLRAssemblyLoader();
-            yield return loader.Load(package, progress => rawProgress = progress);
+            yield return loader.LoadHotUpdateAssemblies(package, progress => rawProgress = progress);
 
             isLoading = false;
             if (!loader.Succeeded)
@@ -69,8 +69,8 @@ namespace Framework.Procedure
             mTarget.SetHotfixEntry(loader.EntrySceneAddress, loader.EntryTypeName, loader.EntryMethodName);
             rawProgress = 1f;
             displayProgress = 1f;
-            TypeEventSystem.Global.Send(new OnAssetloadProgressEvent { progress = 1f, desc = "资源加载中" });
-            LogKit.I("所有代码加载完成！！！");
+            TypeEventSystem.Global.Send(new OnAssetloadProgressEvent { progress = 1f, desc = "热更程序集加载完成" });
+            LogKit.I("Hot update assemblies loaded.");
             mFSM.ChangeState(ResPackageStates.ClearCacheBundle);
         }
 
