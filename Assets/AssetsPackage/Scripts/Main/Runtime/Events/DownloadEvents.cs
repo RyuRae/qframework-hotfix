@@ -5,7 +5,7 @@ using UnityEngine;
 using YooAsset;
 using static YooAsset.DownloaderOperation;
 
-namespace MsbFramework.Events
+namespace Framework.Events
 {
     /// <summary>
     /// 开始下载文件事件

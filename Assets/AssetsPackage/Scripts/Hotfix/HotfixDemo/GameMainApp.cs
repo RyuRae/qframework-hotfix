@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using QFramework;
 
-namespace MsbFramework
+namespace Framework
 {
     /// <summary>
     /// 架构中心组件负责各模块注册及分发

@@ -1,10 +1,10 @@
 using UnityEngine;
 using QFramework;
-using MsbFramework.Events;
+using Framework.Events;
 using YooAsset;
 using System;
 
-namespace MsbFramework.UI
+namespace Framework.UI
 {
     public partial class UIPanelRoot : ViewController, ISingleton
     {

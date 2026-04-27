@@ -3,9 +3,9 @@ using UnityEngine;
 using QFramework;
 using YooAsset;
 using System;
-using MsbFramework.UI;
+using Framework.UI;
 
-namespace MsbFramework.Procedure
+namespace Framework.Procedure
 {
     public class ProcedureInitializePackage : AbstractState<ResPackageStates, ProcedureManager>
     {

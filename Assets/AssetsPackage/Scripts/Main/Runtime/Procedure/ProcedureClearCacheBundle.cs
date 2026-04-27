@@ -4,7 +4,7 @@ using UnityEngine;
 using QFramework;
 using YooAsset;
 
-namespace MsbFramework.Procedure
+namespace Framework.Procedure
 {
     /// <summary>
     /// «Â¿Ìª∫¥Ê

@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using QFramework;
 
-namespace MsbFramework.UI
+namespace Framework.UI
 {
 	// Generate Id:b49607cd-f093-4791-8e41-61a38d294198
 	public partial class UISceneHint

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace MsbFramework.Assemblies
+namespace Framework.Assemblies
 {
     [CreateAssetMenu(fileName = "AssemblyManifest", menuName = "Hotfix/Assembly Manifest", order = 1)]
     public class AssemblyManifest : ScriptableObject

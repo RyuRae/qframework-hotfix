@@ -2,14 +2,14 @@ using System.Collections;
 using UnityEngine;
 using QFramework;
 using YooAsset;
-using MsbFramework.Procedure;
+using Framework.Procedure;
 using UnityEngine.SceneManagement;
-using MsbFramework.Events;
-using MsbFramework.UI;
-//using MsbFramework.Events;
-//using MsbFramework.UI;
+using Framework.Events;
+using Framework.UI;
+//using Framework.Events;
+//using Framework.UI;
 
-namespace MsbFramework
+namespace Framework
 {
     public class Boot : MonoBehaviour
     {

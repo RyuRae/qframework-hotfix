@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 824e9ce8d0ab4fee90ebfb81f09cdeaf, type: 3}
   m_Name: Setting
   m_EditorClassIdentifier: 
-  Namespace: MsbFramework.UI
+  Namespace: Framework.UI
   ScriptDir: Assets/AssetsPackage/Scripts/Runtime/UI
   PrefabDir: Assets/AssetsPackage/Prefabs/UIScene

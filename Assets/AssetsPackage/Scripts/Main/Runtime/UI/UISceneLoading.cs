@@ -3,7 +3,7 @@ using UnityEngine.UI;
 using QFramework;
 using YooAsset;
 
-namespace MsbFramework.UI
+namespace Framework.UI
 {
 	public class UISceneLoadingData : UIPanelData
 	{

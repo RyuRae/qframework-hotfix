@@ -4,7 +4,7 @@ using System.IO;
 using UnityEngine;
 
 
-namespace MsbFramework.Utils
+namespace Framework.Utils
 {
     public class PathUtils
     {

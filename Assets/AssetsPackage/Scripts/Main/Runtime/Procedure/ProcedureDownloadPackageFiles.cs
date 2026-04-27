@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using QFramework;
 using YooAsset;
-using MsbFramework.Events;
+using Framework.Events;
 
-namespace MsbFramework.Procedure
+namespace Framework.Procedure
 {
     public class ProcedureDownloadPackageFiles : AbstractState<ResPackageStates, ProcedureManager>
     {

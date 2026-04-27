@@ -641,7 +641,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b7aecce322679dd44a47595a7a84e2a2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Namespace: MsbFramework.UI
+  Namespace: Framework.UI
   ScriptName: UIPanelRoot
   ScriptsFolder: Assets\AssetsPackage\Scripts\Main\Runtime\UI
   GeneratePrefab: 0

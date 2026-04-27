@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using QFramework;
 
-namespace MsbFramework.UI
+namespace Framework.UI
 {
 	public class UISceneHintData : UIPanelData
 	{

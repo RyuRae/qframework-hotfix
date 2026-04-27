@@ -3,7 +3,7 @@ using UnityEngine.UI;
 using QFramework;
 using System;
 
-namespace MsbFramework.UI
+namespace Framework.UI
 {
 	public class UISceneMessageBoxData : UIPanelData
 	{

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using QFramework;
 
-namespace MsbFramework.Procedure
+namespace Framework.Procedure
 {
     public class ProcedureDownloadPackageOver : AbstractState<ResPackageStates, ProcedureManager>
     {

@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using QFramework;
 
-namespace MsbFramework.UI
+namespace Framework.UI
 {
 	// Generate Id:3e700dc9-0647-499d-8c42-ad82d3c8d049
 	public partial class UISceneMessageBox

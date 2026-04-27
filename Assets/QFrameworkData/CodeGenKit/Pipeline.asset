@@ -42,6 +42,6 @@ MonoBehaviour:
       MemberName: Button_Confirm
     ScriptsFolder: Assets\AssetsPackage\Scripts\Main\Runtime\UI
     ClassName: UIPanelRoot
-    Namespace: MsbFramework.UI
+    Namespace: Framework.UI
     MainCode: 
     DesignerCode: 

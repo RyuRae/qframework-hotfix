@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using QFramework;
 
-namespace MsbFramework.UI
+namespace Framework.UI
 {
 	// Generate Id:bbfa8cc0-1689-4ee4-a92c-ed917c5e75da
 	public partial class UISceneLoading

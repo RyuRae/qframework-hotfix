@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using QFramework;
 using YooAsset;
-using MsbFramework.UI;
+using Framework.UI;
 
-namespace MsbFramework.Procedure
+namespace Framework.Procedure
 {
     public class ProcedureRequestPackageVersion : AbstractState<ResPackageStates, ProcedureManager>
     {

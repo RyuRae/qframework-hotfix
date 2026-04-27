@@ -1,12 +1,12 @@
-using MsbFramework.Assemblies;
-using MsbFramework.Events;
-using MsbFramework.UI;
+using Framework.Assemblies;
+using Framework.Events;
+using Framework.UI;
 using QFramework;
 using System.Collections;
 using UnityEngine;
 using YooAsset;
 
-namespace MsbFramework.Procedure
+namespace Framework.Procedure
 {
     /// <summary>
     /// 加载热更代码资源

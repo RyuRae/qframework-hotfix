@@ -10,7 +10,7 @@ using YooAsset;
 using HybridCLR;
 #endif
 
-namespace MsbFramework.Assemblies
+namespace Framework.Assemblies
 {
     public class HybridCLRAssemblyLoader
     {

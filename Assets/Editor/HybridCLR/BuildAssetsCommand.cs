@@ -1,6 +1,6 @@
 using HybridCLR.Editor.Commands;
-using MsbFramework.Assemblies;
-using MsbFramework.Utils;
+using Framework.Assemblies;
+using Framework.Utils;
 using QFramework;
 using System.Collections.Generic;
 using System.IO;

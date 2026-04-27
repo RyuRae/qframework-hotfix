@@ -1,4 +1,4 @@
-using MsbFramework.Procedure;
+using Framework.Procedure;
 using QFramework;
 using System.Collections;
 using System.Collections.Generic;
@@ -6,7 +6,7 @@ using UnityEngine;
 using static UnityEngine.GraphicsBuffer;
 using YooAsset;
 
-namespace MsbFramework.Procedure
+namespace Framework.Procedure
 {
     public class ProcedureStartGame : AbstractState<ResPackageStates, ProcedureManager>
     {

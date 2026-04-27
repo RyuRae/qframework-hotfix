@@ -4,7 +4,7 @@ using System;
 using UnityEngine.EventSystems;
 
 
-namespace MsbFramework.UI
+namespace Framework.UI
 {
     /// <summary>
     /// 界面控件基类（单击、双击、长按）

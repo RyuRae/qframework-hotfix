@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using QFramework;
 using YooAsset;
-using MsbFramework.UI;
-using MsbFramework.Events;
+using Framework.UI;
+using Framework.Events;
 
-namespace MsbFramework.Procedure
+namespace Framework.Procedure
 {
     public class ProcedureCreateDownloader : AbstractState<ResPackageStates, ProcedureManager>
     {

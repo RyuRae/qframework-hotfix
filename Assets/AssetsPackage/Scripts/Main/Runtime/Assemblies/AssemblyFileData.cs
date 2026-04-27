@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace MsbFramework.Assemblies
+namespace Framework.Assemblies
 {
 	public class AssemblyFileData
 	{

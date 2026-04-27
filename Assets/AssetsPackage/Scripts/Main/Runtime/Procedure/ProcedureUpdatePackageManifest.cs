@@ -2,7 +2,7 @@ using QFramework;
 using System.Collections;
 using YooAsset;
 
-namespace MsbFramework.Procedure
+namespace Framework.Procedure
 {
     public class ProcedureUpdatePackageManifest : AbstractState<ResPackageStates, ProcedureManager>
     {
