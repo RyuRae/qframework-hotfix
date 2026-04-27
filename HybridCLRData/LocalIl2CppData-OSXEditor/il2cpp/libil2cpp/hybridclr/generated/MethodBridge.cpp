@@ -46566,13 +46566,6 @@ static void __M2N_s0uuu1s3(const MethodInfo* method, uint16_t* argVarIndexs, Sta
 }
 
 
-static void __M2N_s1(const MethodInfo* method, uint16_t* argVarIndexs, StackObject* localVarBase, void* ret)
-{
-    typedef __struct_1__ (*NativeMethod)(const MethodInfo* method);
-    *(__struct_1__*)ret = ((NativeMethod)(method->methodPointerCallByInterp))(method);
-}
-
-
 static void __M2N_s10(const MethodInfo* method, uint16_t* argVarIndexs, StackObject* localVarBase, void* ret)
 {
     typedef __struct_10__ (*NativeMethod)(const MethodInfo* method);
@@ -132086,7 +132079,6 @@ const Managed2NativeMethodInfo hybridclr::interpreter::g_managed2nativeStub[] =
 	{"s0uus3", __M2N_s0uus3},
 	{"s0uuu", __M2N_s0uuu},
 	{"s0uuu1s3", __M2N_s0uuu1s3},
-	{"s1", __M2N_s1},
 	{"s10", __M2N_s10},
 	{"s1000u", __M2N_s1000u},
 	{"s1001u", __M2N_s1001u},

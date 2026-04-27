@@ -1,23 +1,10 @@
-using MsbFramework.Procedure;
-using QFramework;
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-using static UnityEngine.GraphicsBuffer;
-using YooAsset;
-using System.Linq;
-using Newtonsoft.Json;
 using MsbFramework.Assemblies;
-using System.IO;
-using System;
-using Main.Editor;
-using System.Reflection;
-using HybridCLR;
 using MsbFramework.Events;
 using MsbFramework.UI;
-#if ENABLE_HYBRID_CLR_UNITY
-using HybridCLR;
-#endif
+using QFramework;
+using System.Collections;
+using UnityEngine;
+using YooAsset;
 
 namespace MsbFramework.Procedure
 {
@@ -26,176 +13,67 @@ namespace MsbFramework.Procedure
     /// </summary>
     public class ProcedureLoadAssembly : AbstractState<ResPackageStates, ProcedureManager>
     {
-
-        //资产配置文件
-        private string location = "YooAssetHybridCLRSetting";
-
-        private Dictionary<string, Assembly> currLoadedAssembliesCache = new Dictionary<string, Assembly>();
-
-        private List<Assembly> currLoadedAssembliesList = new List<Assembly>();
-
-        private List<Assembly> mHotfixAssemblies;
-
-        private bool mIsHotfixAsmLoadComplete = false;
-        private bool mIsAotMetaAsmLoadComplete = false;
         private float rawProgress;
         private float displayProgress;
-        private bool IsLoading = false;
+        private bool isLoading;
+
         public ProcedureLoadAssembly(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)
         {
         }
 
         protected override bool OnCondition()
         {
-            return mFSM.CurrentStateId == ResPackageStates.LoadConfig;
+            return mFSM.CurrentStateId == ResPackageStates.UpdatePackageManifest
+                   || mFSM.CurrentStateId == ResPackageStates.CreateDownloader
+                   || mFSM.CurrentStateId == ResPackageStates.DownloadPackageOver;
         }
 
         protected override void OnEnter()
         {
             LogKit.I("加载代码文件");
+            rawProgress = 0f;
+            displayProgress = 0f;
 
             ActionKit.OnUpdate.Register(() =>
             {
-                if (!IsLoading) return;
+                if (!isLoading) return;
 
-                // 动态插值平滑进度
                 if (displayProgress < 0.98f)
                     displayProgress = Mathf.Lerp(displayProgress, rawProgress, Time.deltaTime * 10f);
                 else
-                    displayProgress = 1;
-                TypeEventSystem.Global.Send(new OnAssetloadProgressEvent() { progress = displayProgress, desc = "资源加载中" });
+                    displayProgress = 1f;
+
+                TypeEventSystem.Global.Send(new OnAssetloadProgressEvent { progress = displayProgress, desc = "资源加载中" });
             }).UnRegisterWhenGameObjectDestroyed(CoroutineController.manager);
 
-            mIsHotfixAsmLoadComplete = false;
-            mIsAotMetaAsmLoadComplete = false;
-            mHotfixAssemblies = new List<Assembly>();
             CoroutineController.manager.StartCoroutine(LoadAssemblies());
         }
 
-        //hotfix记录文件
-        private List<string> mHotfixAssemblyNames = new List<string>();
-        //aot元数据记录文件
-        private List<string> mAotMetaAssemblies = new List<string>();
-
-        private List<string> mAssetsCache = new List<string>();
-        IEnumerator LoadAssemblies()
+        private IEnumerator LoadAssemblies()
         {
-            IsLoading = true;
-            var packageName = mTarget._packageName;
-            var package = YooAssets.GetPackage(packageName);
-            //加载资产配置文件
-            AssetHandle assetHandle = package.LoadAssetAsync(location);
-            yield return assetHandle;
-            YooAssetHybridCLRSetting yooAssetHybridCLRSetting = assetHandle.AssetObject as YooAssetHybridCLRSetting;
-            mAotMetaAssemblies = yooAssetHybridCLRSetting.AOTMetaAssemblies;
-            mHotfixAssemblyNames = yooAssetHybridCLRSetting.HotfixAssemblies;
-            mAssetsCache.AddRange(mHotfixAssemblyNames);
-            mAssetsCache.AddRange(mAotMetaAssemblies);
+            isLoading = true;
 
-            AssetHandle tempHandle = null;
-            var asset = mAssetsCache.GetEnumerator();
-            while (asset.MoveNext())
+            var package = YooAssets.GetPackage(mTarget._packageName);
+            var loader = new HybridCLRAssemblyLoader();
+            yield return loader.Load(package, progress => rawProgress = progress);
+
+            isLoading = false;
+            if (!loader.Succeeded)
             {
-                tempHandle = package.LoadAssetAsync<TextAsset>(asset.Current);
-                rawProgress = (mAssetsCache.IndexOf(asset.Current) + 1 + tempHandle.Progress) / (float)mAssetsCache.Count;
-                yield return tempHandle;
-                //LogKit.I(asset.Current);
-                var assetObj = tempHandle.AssetObject as TextAsset;
-                mAssetDatas[asset.Current] = assetObj;
-            }
-            IsLoading = false;
-            yield return null;
-            //UIPanelRoot.Instance.CloseLoadingPanel();
-            LoadMetadataForAOTAssemblies();
-            LoadHotfixAssemblies();
-            mAssetDatas.Clear();
-        }
-
-        private static Dictionary<string, TextAsset> mAssetDatas = new Dictionary<string, TextAsset>();
-
-        public static byte[] ReadBytesFromStreamingAssets(string dllName)
-        {
-            if (mAssetDatas.ContainsKey(dllName))
-            {
-                return mAssetDatas[dllName].bytes;
+                UIPanelRoot.Instance.ShowMessage("代码加载失败！");
+                yield break;
             }
 
-            return Array.Empty<byte>();
-        }
-
-        /// <summary>
-        /// 为aot assembly加载原始metadata， 这个代码放aot或者热更新都行。
-        /// 一旦加载后，如果AOT泛型函数对应native实现不存在，则自动替换为解释模式执行
-        /// </summary>
-        private void LoadMetadataForAOTAssemblies()
-        {
-            /// 注意，补充元数据是给AOT dll补充元数据，而不是给热更新dll补充元数据。
-            /// 热更新dll不缺元数据，不需要补充，如果调用LoadMetadataForAOTAssembly会返回错误
-#if ENABLE_HYBRID_CLR_UNITY
-            HomologousImageMode mode = HomologousImageMode.SuperSet;
-            foreach (var aotDllName in mAotMetaAssemblies)
-            {
-                byte[] dllBytes = ReadBytesFromStreamingAssets(aotDllName);
-                if (dllBytes.Length == 0)
-                {
-                    Debug.LogError($"AOT元数据资源为空或未加载: {aotDllName}");
-                    continue;
-                }
-
-                // 加载assembly对应的dll，会自动为它hook。一旦aot泛型函数的native函数不存在，用解释器版本代码
-                LoadImageErrorCode err = RuntimeApi.LoadMetadataForAOTAssembly(dllBytes, mode);
-                Debug.Log($"LoadMetadataForAOTAssembly:{aotDllName}. mode:{mode} ret:{err}");
-                float progress = (mAotMetaAssemblies.IndexOf(aotDllName) + 1) / (float)mAotMetaAssemblies.Count;
-                LogKit.I("加载元数据进度：" + progress);
-            }
-#endif
-            mIsAotMetaAsmLoadComplete = true;
-        }
-
-        /// <summary>
-        /// 加载热更代码
-        /// </summary>
-        private void LoadHotfixAssemblies()
-        {
-            var hotfixAssemblies = mHotfixAssemblyNames.GetEnumerator();
-            while (hotfixAssemblies.MoveNext())
-            {
-                Assembly asm = null;
-#if !UNITY_EDITOR
-                 if (currLoadedAssembliesCache.ContainsKey(hotfixAssemblies.Current))
-                    asm = currLoadedAssembliesCache[hotfixAssemblies.Current];
-                else
-                    asm = Assembly.Load(ReadBytesFromStreamingAssets($"{hotfixAssemblies.Current}"));
-                Debug.Log($"LoadHotfixAssembly:{asm.GetName().Name}. ");
-#else
-                string tempHotfixAssemblyName = hotfixAssemblies.Current.Replace(".dll", "");
-                asm = System.AppDomain.CurrentDomain.GetAssemblies().First(a => a.GetName().Name == $"{tempHotfixAssemblyName}");
-#endif
-                mHotfixAssemblies.Add(asm);
-                mIsHotfixAsmLoadComplete = true;
-            }
-
-        }
-
-
-        protected override void OnExit()
-        {
-
-        }
-
-        protected override void OnUpdate()
-        {
-            if (!mIsAotMetaAsmLoadComplete || !mIsHotfixAsmLoadComplete) return;
-
-            AllAsmLoadComplete();
-        }
-
-        private void AllAsmLoadComplete()
-        {
+            rawProgress = 1f;
+            displayProgress = 1f;
+            TypeEventSystem.Global.Send(new OnAssetloadProgressEvent { progress = 1f, desc = "资源加载中" });
             LogKit.I("所有代码加载完成！！！");
             mFSM.ChangeState(ResPackageStates.ClearCacheBundle);
         }
 
-
+        protected override void OnExit()
+        {
+            isLoading = false;
+        }
     }
 }

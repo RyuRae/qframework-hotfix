@@ -36,10 +36,6 @@ namespace MsbFramework.Procedure
         /// </summary>
         DownloadPackageOver,
         /// <summary>
-        /// 加载配置文件
-        /// </summary>
-        LoadConfig,
-        /// <summary>
         /// 加载程序集
         /// </summary>
         LoadAssemblies,
@@ -102,7 +98,6 @@ namespace MsbFramework.Procedure
             _mFSM.AddState(ResPackageStates.CreateDownloader, new ProcedureCreateDownloader(_mFSM, this));
             _mFSM.AddState(ResPackageStates.DownloadPackageFiles, new ProcedureDownloadPackageFiles(_mFSM, this));
             _mFSM.AddState(ResPackageStates.DownloadPackageOver, new ProcedureDownloadPackageOver(_mFSM, this));
-            _mFSM.AddState(ResPackageStates.LoadConfig, new ProcedureLoadConfig(_mFSM, this));
             _mFSM.AddState(ResPackageStates.LoadAssemblies, new ProcedureLoadAssembly(_mFSM, this));
             _mFSM.AddState(ResPackageStates.ClearCacheBundle, new ProcedureClearCacheBundle(_mFSM, this));
             _mFSM.AddState(ResPackageStates.StartGame, new ProcedureStartGame(_mFSM, this));

@@ -59,7 +59,7 @@ namespace MsbFramework.Procedure
                 //πÿ±’loadingΩÁ√Ê
                 UIPanelRoot.Instance.CloseLoadingPanel();
                 Debug.Log("Not found any download files !");
-                mFSM.ChangeState(ResPackageStates.LoadConfig);
+                mFSM.ChangeState(ResPackageStates.LoadAssemblies);
             }
             else
             {

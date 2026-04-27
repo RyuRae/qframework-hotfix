@@ -9,10 +9,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d776f6918c33fbf4c8636d5de1bffe0e, type: 3}
-  m_Name: YooAssetHybridCLRSetting
+  m_Script: {fileID: 11500000, guid: 5ce3e6e72df84c99b76758cb2bc776b6, type: 3}
+  m_Name: AssemblyManifest
   m_EditorClassIdentifier: 
-  AOTMetaAssemblies:
+  AotMetadataAssemblies:
   - QFramework.CoreKit.dll
   - QFramework.dll
   - System.Core.dll
@@ -21,10 +21,9 @@ MonoBehaviour:
   - YooAsset.dll
   - YooAssetKit.dll
   - mscorlib.dll
-  HotfixAssemblies:
+  HotUpdateAssemblies:
   - HotfixCommon.dll
   - HotfixDemo.dll
-  AOTCodesPath: Assets/AssetsPackage/AssetsHotFix/AOTCodes
-  HotfixCodesPath: Assets/AssetsPackage/AssetsHotFix/HotfixCodes
-  mYooAssetHybridCLRSettingSourcePath: Assets/AssetsPackage/Resources/YooAssetHybridCLRSetting.asset
-  mYooAssetHybridCLRSettingDesPath: Assets/AssetsPackage/AssetsHotFix/Configs/YooAssetHybridCLRSetting.asset
+  EntryPrefabAddress: 
+  EntryTypeName: 
+  EntryMethodName: 

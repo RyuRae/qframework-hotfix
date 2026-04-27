@@ -29,7 +29,7 @@ MonoBehaviour:
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
-      - CollectPath: Assets/AssetsPackage/AssetsHotfix/AOTCodes
+      - CollectPath: Assets/AssetsPackage/AssetsHotFix/AOTCodes
         CollectorGUID: 1b25aa2a815c64848b66d2ebede4a799
         CollectorType: 0
         AddressRuleName: AddressByFileName
@@ -37,7 +37,7 @@ MonoBehaviour:
         FilterRuleName: CollectAll
         AssetTags: 
         UserData: 
-      - CollectPath: Assets/AssetsPackage/AssetsHotfix/HotfixCodes
+      - CollectPath: Assets/AssetsPackage/AssetsHotFix/HotfixCodes
         CollectorGUID: cfd35a095e4476a4d87e9056c4a48d79
         CollectorType: 0
         AddressRuleName: AddressByFileName
@@ -45,7 +45,7 @@ MonoBehaviour:
         FilterRuleName: CollectAll
         AssetTags: 
         UserData: 
-      - CollectPath: Assets/AssetsPackage/AssetsHotfix/Configs
+      - CollectPath: Assets/AssetsPackage/AssetsHotFix/Configs
         CollectorGUID: caa089bdff1a0be409160be80b05ef45
         CollectorType: 0
         AddressRuleName: AddressByFileName
@@ -58,7 +58,7 @@ MonoBehaviour:
       AssetTags: 
       ActiveRuleName: EnableGroup
       Collectors:
-      - CollectPath: Assets/AssetsPackage/AssetsHotfix/HotfixDemo/Entities
+      - CollectPath: Assets/AssetsPackage/AssetsHotFix/HotfixDemo/Entities
         CollectorGUID: 8501752ccc766a54b957e5555b8ecb0d
         CollectorType: 0
         AddressRuleName: AddressByFileName
@@ -66,7 +66,7 @@ MonoBehaviour:
         FilterRuleName: CollectAll
         AssetTags: 
         UserData: 
-      - CollectPath: Assets/AssetsPackage/AssetsHotfix/HotfixDemo/Scenes
+      - CollectPath: Assets/AssetsPackage/AssetsHotFix/HotfixDemo/Scenes
         CollectorGUID: 74b0a4ff0b1438849b127f9a033371c8
         CollectorType: 0
         AddressRuleName: AddressByFileName
@@ -74,7 +74,7 @@ MonoBehaviour:
         FilterRuleName: CollectAll
         AssetTags: 
         UserData: 
-      - CollectPath: Assets/AssetsPackage/AssetsHotfix/Datas
+      - CollectPath: Assets/AssetsPackage/AssetsHotFix/Datas
         CollectorGUID: 3fb84feb07f935349bfa3d347527fb6e
         CollectorType: 0
         AddressRuleName: AddressByFileName

@@ -23,7 +23,6 @@ IL2CPP_EXTERN_C Il2CppInteropData g_Il2CppInteropData[];
 IL2CPP_EXTERN_C_CONST Il2CppCodeGenModule g_AssemblyU2DCSharp_CodeGenModule;
 IL2CPP_EXTERN_C_CONST Il2CppCodeGenModule g_AudioKit_CodeGenModule;
 IL2CPP_EXTERN_C_CONST Il2CppCodeGenModule g_Luban_Runtime_CodeGenModule;
-IL2CPP_EXTERN_C_CONST Il2CppCodeGenModule g_Main_Editor_CodeGenModule;
 IL2CPP_EXTERN_C_CONST Il2CppCodeGenModule g_Main_Runtime_CodeGenModule;
 IL2CPP_EXTERN_C_CONST Il2CppCodeGenModule g_Mono_Security_CodeGenModule;
 IL2CPP_EXTERN_C_CONST Il2CppCodeGenModule g_QFramework_CodeGenModule;
@@ -76,12 +75,11 @@ IL2CPP_EXTERN_C_CONST Il2CppCodeGenModule g_YooAsset_RuntimeExtension_CodeGenMod
 IL2CPP_EXTERN_C_CONST Il2CppCodeGenModule g___Generated_CodeGenModule;
 IL2CPP_EXTERN_C_CONST Il2CppCodeGenModule g_mscorlib_CodeGenModule;
 IL2CPP_EXTERN_C const Il2CppCodeGenModule* g_CodeGenModules[];
-const Il2CppCodeGenModule* g_CodeGenModules[55] = 
+const Il2CppCodeGenModule* g_CodeGenModules[54] = 
 {
 	(&g_AssemblyU2DCSharp_CodeGenModule),
 	(&g_AudioKit_CodeGenModule),
 	(&g_Luban_Runtime_CodeGenModule),
-	(&g_Main_Editor_CodeGenModule),
 	(&g_Main_Runtime_CodeGenModule),
 	(&g_Mono_Security_CodeGenModule),
 	(&g_QFramework_CodeGenModule),
@@ -139,20 +137,20 @@ const Il2CppCodeRegistration g_CodeRegistration =
 {
 	9,
 	g_ReversePInvokeWrapperPointers,
-	75792,
+	75751,
 	g_Il2CppGenericMethodPointers,
 	g_Il2CppGenericAdjustorThunks,
-	12202,
+	12201,
 	g_Il2CppInvokerPointers,
 	2552,
 	g_UnresolvedVirtualMethodPointers,
 	g_UnresolvedInstanceMethodPointers,
 	g_UnresolvedStaticMethodPointers,
-	504,
+	503,
 	g_Il2CppInteropData,
 	0,
 	NULL,
-	55,
+	54,
 	g_CodeGenModules,
 };
 IL2CPP_EXTERN_C_CONST Il2CppMetadataRegistration g_MetadataRegistration;
