@@ -643,7 +643,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Namespace: Framework.UI
   ScriptName: UIPanelRoot
-  ScriptsFolder: Assets\AssetsPackage\Scripts\Main\Runtime\UI
+  ScriptsFolder: Assets/AssetsPackage/Scripts/Main/Runtime/UI
   GeneratePrefab: 0
   PrefabFolder: Assets/AssetsPackage/Prefabs/UIScene
   ArchitectureFullTypeName: 

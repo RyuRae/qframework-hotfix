@@ -20,7 +20,8 @@ namespace Framework.Procedure
 
         protected override bool OnCondition()
         {
-            return mFSM.CurrentStateId == ResPackageStates.InitializePackage;
+            return mFSM.CurrentStateId == ResPackageStates.CreateDownloader
+                   || mFSM.CurrentStateId == ResPackageStates.DownloadPackageOver;
         }
 
         protected override void OnEnter()
@@ -69,7 +70,7 @@ namespace Framework.Procedure
                 progress = 1f,
                 desc = "AOT元数据加载完成"
             });
-            mFSM.ChangeState(ResPackageStates.RequestPackageVersion);
+            mFSM.ChangeState(ResPackageStates.LoadAssemblies);
         }
 
         protected override void OnExit()

@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 25fa8794192e469e92b9d881db3bd705, type: 3}
   m_Name: HotfixBuildProfile
   m_EditorClassIdentifier: 
-  defaultPlayerPlayMode: 2
-  standalonePlayMode: 2
+  defaultPlayerPlayMode: 0
+  standalonePlayMode: 1
   androidPlayMode: 2
   iosPlayMode: 2
   webGLPlayMode: 3

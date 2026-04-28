@@ -6,12 +6,12 @@ namespace Framework.Procedure
     public enum ResPackageStates
     {
         InitializePackage,
-        LoadAOTMetadata,
         RequestPackageVersion,
         UpdatePackageManifest,
         CreateDownloader,
         DownloadPackageFiles,
         DownloadPackageOver,
+        LoadAOTMetadata,
         LoadAssemblies,
         ClearCacheBundle,
         StartGame

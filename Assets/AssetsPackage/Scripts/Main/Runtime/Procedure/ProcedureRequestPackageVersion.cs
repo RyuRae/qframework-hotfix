@@ -15,7 +15,7 @@ namespace Framework.Procedure
 
         protected override bool OnCondition()
         {
-            return mFSM.CurrentStateId == ResPackageStates.LoadAOTMetadata;
+            return mFSM.CurrentStateId == ResPackageStates.InitializePackage;
         }
 
         protected override void OnEnter()

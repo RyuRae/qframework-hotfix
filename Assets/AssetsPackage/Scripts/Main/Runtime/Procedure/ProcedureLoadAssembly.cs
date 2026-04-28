@@ -23,9 +23,7 @@ namespace Framework.Procedure
 
         protected override bool OnCondition()
         {
-            return mFSM.CurrentStateId == ResPackageStates.UpdatePackageManifest
-                   || mFSM.CurrentStateId == ResPackageStates.CreateDownloader
-                   || mFSM.CurrentStateId == ResPackageStates.DownloadPackageOver;
+            return mFSM.CurrentStateId == ResPackageStates.LoadAOTMetadata;
         }
 
         protected override void OnEnter()

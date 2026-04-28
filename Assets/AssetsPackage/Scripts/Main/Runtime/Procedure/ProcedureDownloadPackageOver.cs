@@ -16,7 +16,7 @@ namespace Framework.Procedure
         protected override void OnEnter()
         {
             LogKit.I("Download package files completed.");
-            mFSM.ChangeState(ResPackageStates.LoadAssemblies);
+            mFSM.ChangeState(ResPackageStates.LoadAOTMetadata);
         }
 
         protected override void OnExit()

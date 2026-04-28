@@ -59,43 +59,54 @@ namespace HybridCLR.Editor
 
             string location = $"{outputPath}/HybridCLRTrial.exe";
 
-            if (!PrepareBuildPlayMode(target, exitWhenCompleted))
+            if (!PrepareBuildPlayMode(target, exitWhenCompleted, out var playModeChange))
             {
                 return;
             }
 
-            PrebuildCommand.GenerateAll();
-            Debug.Log("====> Build App");
-            BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions()
-            {
-                scenes = new string[] { "Assets/Scenes/Boot.unity" },
-                locationPathName = location,
-                options = buildOptions,
-                target = target,
-                targetGroup = BuildTargetGroup.Standalone,
-            };
-
-            var report = BuildPipeline.BuildPlayer(buildPlayerOptions);
-            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
-            {
-                Debug.LogError("打包失败");
-                if (exitWhenCompleted)
-                {
-                    EditorApplication.Exit(1);
-                }
-                return;
-            }
-
-            Debug.Log("====> 复制热更新资源和代码");
-            BuildAssetsCommand.BuildAndCopyABAOTHotUpdateDlls();
-            BashUtil.CopyDir(Application.streamingAssetsPath, $"{outputPath}/HybridCLRTrial_Data/StreamingAssets", true);
-        }
-
-        private static bool PrepareBuildPlayMode(BuildTarget target, bool exitWhenCompleted)
-        {
             try
             {
-                HotfixBuildProfileUtility.ApplyPlayModeToBootScene(target);
+                PrebuildCommand.GenerateAll();
+                Debug.Log("====> Build App");
+                BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions()
+                {
+                    scenes = new string[] { "Assets/Scenes/Boot.unity" },
+                    locationPathName = location,
+                    options = buildOptions,
+                    target = target,
+                    targetGroup = BuildTargetGroup.Standalone,
+                };
+
+                var report = BuildPipeline.BuildPlayer(buildPlayerOptions);
+                if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+                {
+                    Debug.LogError("打包失败");
+                    if (exitWhenCompleted)
+                    {
+                        EditorApplication.Exit(1);
+                    }
+                    return;
+                }
+
+                Debug.Log("====> 复制热更新资源和代码");
+                BuildAssetsCommand.BuildAndCopyABAOTHotUpdateDlls();
+                BashUtil.CopyDir(Application.streamingAssetsPath, $"{outputPath}/HybridCLRTrial_Data/StreamingAssets", true);
+            }
+            finally
+            {
+                playModeChange.Restore();
+            }
+        }
+
+        private static bool PrepareBuildPlayMode(
+            BuildTarget target,
+            bool exitWhenCompleted,
+            out HotfixBuildProfileUtility.BootPlayModeChange playModeChange)
+        {
+            playModeChange = default;
+            try
+            {
+                playModeChange = HotfixBuildProfileUtility.ApplyPlayModeToBootSceneForBuild(target);
                 return true;
             }
             catch (Exception exception)

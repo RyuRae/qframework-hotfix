@@ -58,7 +58,7 @@ namespace Framework.Procedure
             if (totalDownloadCount == 0)
             {
                 Debug.Log("Not found any download files.");
-                mFSM.ChangeState(ResPackageStates.LoadAssemblies);
+                mFSM.ChangeState(ResPackageStates.LoadAOTMetadata);
                 return;
             }
 

@@ -15,10 +15,10 @@
 1. `Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs`
 2. `ProcedureManager`
 3. 初始化 YooAsset package
-4. 加载 AOT metadata
-5. 请求远端 package version
-6. 更新 package manifest
-7. 创建 downloader 并下载资源
+4. 请求远端 package version
+5. 更新 package manifest
+6. 创建 downloader 并下载资源
+7. 加载 AOT metadata
 8. 加载热更 DLL
 9. 清理缓存
 10. 加载入口场景 `main`
@@ -168,7 +168,7 @@ public string EntryMethodName;
 - [ ] `HotfixAssemblyManifest.RequiredAotVersion` 必须指向一个明确存在的 AOT 版本。
 - [ ] Runtime 启动时先解析 Hotfix manifest，再根据 `RequiredAotVersion` 查找本地或远端 AOT manifest。
 - [ ] 当 AOT 版本发生变化时，先下载并加载新版 AOT metadata，再加载热更 DLL。
-- [ ] 调整当前 AOT 加载时序，避免在请求远端 Hotfix manifest 前提前加载旧 AOT metadata。
+- [x] 调整当前 AOT 加载时序，避免在请求远端 Hotfix manifest 前提前加载旧 AOT metadata。
 - [ ] 当 AOT 版本未变化时，热更包只更新 Hotfix manifest 和热更 DLL，不重复下载 AOT metadata。
 - [ ] 将 AOT manifest 和 Hotfix manifest 在启动流程中缓存到上下文，避免 `LoadAotMetadata` 和 `LoadHotUpdateAssemblies` 重复加载同一份 manifest。
 - [ ] 校验 `AppVersionMin <= 当前 AppVersion <= AppVersionMax`，不兼容时阻断热更并提示更新 App。

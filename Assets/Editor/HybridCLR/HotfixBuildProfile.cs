@@ -66,6 +66,28 @@ namespace HybridCLR.Editor
     {
         public const string BootScenePath = "Assets/Scenes/Boot.unity";
 
+        public readonly struct BootPlayModeChange
+        {
+            private readonly bool isValid;
+            private readonly EPlayMode previousPlayMode;
+
+            public BootPlayModeChange(EPlayMode previousPlayMode)
+            {
+                isValid = true;
+                this.previousPlayMode = previousPlayMode;
+            }
+
+            public void Restore()
+            {
+                if (!isValid)
+                {
+                    return;
+                }
+
+                SetBootScenePlayMode(previousPlayMode, "restored");
+            }
+        }
+
         [MenuItem("Build/Hotfix/Apply Build Play Mode To Boot Scene")]
         public static void ApplyActiveBuildTargetPlayMode()
         {
@@ -77,7 +99,48 @@ namespace HybridCLR.Editor
             var profile = GetOrCreateProfile();
             var playMode = profile.GetPlayMode(target);
             ValidatePlayerPlayMode(playMode, target);
+            SetBootScenePlayMode(playMode, $"set to {playMode} for {target}");
+            return playMode;
+        }
 
+        public static BootPlayModeChange ApplyPlayModeToBootSceneForBuild(BuildTarget target)
+        {
+            var profile = GetOrCreateProfile();
+            var playMode = profile.GetPlayMode(target);
+            ValidatePlayerPlayMode(playMode, target);
+
+            var scene = OpenBootScene(out bool shouldCloseScene);
+            try
+            {
+                var boot = FindBoot(scene);
+                if (boot == null)
+                {
+                    throw new InvalidOperationException($"Boot component not found in scene: {BootScenePath}");
+                }
+
+                var previousPlayMode = boot.playMode;
+                if (boot.playMode != playMode)
+                {
+                    boot.playMode = playMode;
+                    EditorUtility.SetDirty(boot);
+                    EditorSceneManager.MarkSceneDirty(scene);
+                    EditorSceneManager.SaveScene(scene);
+                }
+
+                Debug.Log($"[HotfixBuildProfile] Boot play mode set to {playMode} for {target}. Previous: {previousPlayMode}.");
+                return new BootPlayModeChange(previousPlayMode);
+            }
+            finally
+            {
+                if (shouldCloseScene)
+                {
+                    EditorSceneManager.CloseScene(scene, true);
+                }
+            }
+        }
+
+        private static void SetBootScenePlayMode(EPlayMode playMode, string logReason)
+        {
             var scene = OpenBootScene(out bool shouldCloseScene);
             try
             {
@@ -95,8 +158,7 @@ namespace HybridCLR.Editor
                     EditorSceneManager.SaveScene(scene);
                 }
 
-                Debug.Log($"[HotfixBuildProfile] Boot play mode set to {playMode} for {target}.");
-                return playMode;
+                Debug.Log($"[HotfixBuildProfile] Boot play mode {logReason}.");
             }
             finally
             {

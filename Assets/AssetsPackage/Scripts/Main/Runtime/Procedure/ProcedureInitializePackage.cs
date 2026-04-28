@@ -107,7 +107,7 @@ namespace Framework.Procedure
             }
 
             Debug.Log("资源包初始化成功！");
-            fsm.ChangeState(ResPackageStates.LoadAOTMetadata);
+            fsm.ChangeState(ResPackageStates.RequestPackageVersion);
         }
 
         protected override void OnExit()
