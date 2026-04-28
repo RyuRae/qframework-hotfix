@@ -54,6 +54,9 @@
 
 - [ ] 为下载确认弹窗增加取消回调。
 - [ ] 用户取消下载时明确进入失败、退出、离线启动或继续使用本地缓存之一。
+- [ ] 下载开始后支持取消下载，并将 downloader、UI、FSM 状态一起收口。
+- [ ] 评估并实现下载暂停 / 继续能力，至少为弱网和大包下载预留状态接口。
+- [ ] 下载失败后提供用户可点击的“重试 / 退出 / 使用本地缓存”路径。
 - [ ] `ProcedureCreateDownloader` 不应只在确认时推进 FSM。
 - [ ] loading 状态、弹窗状态、FSM 状态需要保持一致，避免界面隐藏但流程悬挂。
 
@@ -66,12 +69,15 @@
 验收标准：
 
 - 点击取消后不会无限等待。
+- 下载中取消不会留下未完成状态或卡住协程。
 - 取消路径有明确日志、UI 提示和业务结果。
 
 ### 3. 增加网络失败后的本地缓存兜底
 
 - [ ] `RequestPackageVersionAsync` 失败时允许使用内置 manifest 或上次缓存 manifest 启动。
 - [ ] `UpdatePackageManifestAsync` 失败时允许使用已缓存版本启动。
+- [ ] 版本请求、manifest 更新、资源下载失败时增加业务层重试，不只依赖 YooAsset `failedTryAgain`。
+- [ ] 对服务器不可达、DNS 失败、CDN 404、manifest 损坏等失败类型分别设计恢复路径。
 - [ ] 区分强更资源和弱更资源：强更失败阻断，弱更失败允许进入游戏。
 - [ ] 增加启动策略配置：必须更新 / 可跳过更新 / 仅 Wi-Fi 更新 / 后台下载。
 - [ ] 给所有网络失败路径补充用户可理解的错误提示和重试按钮。
@@ -92,6 +98,7 @@
 - [ ] 将 `http://127.0.0.1:8080/TestProject/PC` 从代码中移除。
 - [ ] 新增热更新配置文件，支持开发、测试、预发、正式环境。
 - [ ] 支持主 CDN 和备用 CDN 使用不同地址。
+- [ ] 启动时校验 main URL 和 fallback URL 不应完全相同，否则给出配置错误提示。
 - [ ] 支持按平台、渠道、地区生成远端资源地址。
 - [ ] 支持 HTTPS，并预留证书、域名、CDN 灰度切换能力。
 
@@ -106,21 +113,28 @@
 
 ### 5. 明确首包和空包启动策略
 
-- [ ] 明确首包是否必须包含 `AssemblyManifest`、AOT metadata、热更 DLL、入口场景。
-- [ ] 如果支持真正空包，需先请求远端 manifest，再下载 AOT metadata 和 DLL。
+- [ ] 明确首包模式：首包是否必须包含启动所需的 manifest、AOT metadata、热更 DLL、入口场景。
+- [ ] 明确空包模式：如果支持真正空包，启动后应先拉取远端热更索引或 Hotfix manifest，再按需下载 AOT metadata、热更 DLL 和入口资源。
+- [ ] 明确离线模式：无网络时是否允许使用内置资源或上次缓存资源进入游戏。
+- [ ] 明确首包资源最小集合：至少包括能展示更新 UI、请求远端配置、处理错误和执行降级的资源。
 - [ ] 如果不支持空包，在构建阶段强校验首包必需资源完整性。
-- [ ] 为 `AssemblyManifest` 缺失、AOT 缺失、DLL 缺失提供明确错误和恢复建议。
+- [ ] 为 manifest 缺失、AOT 缺失、DLL 缺失、入口资源缺失提供明确错误和恢复建议。
+- [ ] 第 6 条的 AOT / Hotfix manifest 拆分是本策略的具体实现基础，避免继续依赖单一 manifest。
 
 相关位置：
 
-- `Assets/AssetsPackage/AssetsHotFix/Configs/AssemblyManifest.asset`
+- `Assets/AssetsPackage/AssetsHotFix/Configs`
 - `Assets/AssetsPackage/Scripts/Main/Runtime/Assemblies/HybridCLRAssemblyLoader.cs`
+- `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureRequestPackageVersion.cs`
+- `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureUpdatePackageManifest.cs`
 - `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureLoadAOTMetadata.cs`
 
 验收标准：
 
-- 首包资源缺失时构建直接失败。
-- 空包方案和首包方案二选一，有清楚的代码路径和文档说明。
+- 首包、空包、离线启动三种策略有明确选择，不再混用。
+- 首包必需资源缺失时构建直接失败。
+- 空包启动能先拿到远端版本信息，再决定下载哪个 AOT 和 Hotfix。
+- 无网络但本地存在可用缓存时，可以按策略进入游戏或给出明确阻断原因。
 
 ### 6. 核心重构：AOT 和 Hotfix Manifest 真正分离
 
@@ -154,7 +168,9 @@ public string EntryMethodName;
 - [ ] `HotfixAssemblyManifest.RequiredAotVersion` 必须指向一个明确存在的 AOT 版本。
 - [ ] Runtime 启动时先解析 Hotfix manifest，再根据 `RequiredAotVersion` 查找本地或远端 AOT manifest。
 - [ ] 当 AOT 版本发生变化时，先下载并加载新版 AOT metadata，再加载热更 DLL。
+- [ ] 调整当前 AOT 加载时序，避免在请求远端 Hotfix manifest 前提前加载旧 AOT metadata。
 - [ ] 当 AOT 版本未变化时，热更包只更新 Hotfix manifest 和热更 DLL，不重复下载 AOT metadata。
+- [ ] 将 AOT manifest 和 Hotfix manifest 在启动流程中缓存到上下文，避免 `LoadAotMetadata` 和 `LoadHotUpdateAssemblies` 重复加载同一份 manifest。
 - [ ] 校验 `AppVersionMin <= 当前 AppVersion <= AppVersionMax`，不兼容时阻断热更并提示更新 App。
 - [ ] 校验 `BuildTarget` 必须和当前运行平台一致，避免跨平台加载错误 DLL。
 - [ ] AOT 缓存和 Hotfix 缓存需要分开记录版本，支持独立清理和回滚。
@@ -200,13 +216,17 @@ public string EntryMethodName;
 
 - [ ] 对资源发布清单增加签名校验。
 - [ ] 对热更 DLL 增加白名单、hash、签名或公钥校验。
+- [ ] 在 `Assembly.Load(bytes)` 之前校验 DLL 的 SHA256 / 签名 / 白名单。
 - [ ] 防止 CDN 被污染后客户端加载未授权 DLL。
 - [ ] 明确测试环境和正式环境的签名密钥隔离策略。
 - [ ] 避免把可逆弱加密当作安全方案。
+- [ ] 移除源码中硬编码的 Web 解密密钥，至少改为环境隔离的配置和构建期注入。
+- [ ] 如果继续使用 Web 解密，补充密钥轮换、版本兼容和泄露后的废弃策略。
 
 相关位置：
 
 - `Assets/AssetsPackage/Scripts/Main/Runtime/Assemblies/HybridCLRAssemblyLoader.cs`
+- `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureInitializePackage.cs`
 - YooAsset manifest 下载和校验流程
 - 资源发布脚本
 
@@ -219,6 +239,8 @@ public string EntryMethodName;
 
 - [ ] 不仅依赖 `AssemblyManifest.HotUpdateAssemblies` 的手工顺序。
 - [ ] 构建阶段分析程序集依赖，生成稳定加载顺序。
+- [ ] 对多个 Hotfix DLL 做依赖拓扑排序，依赖程序集必须先于被依赖程序集加载。
+- [ ] 构建阶段发现循环依赖、缺失依赖、跨平台依赖不一致时直接失败。
 - [ ] 检查热更程序集是否引用了不允许热更或不存在的程序集。
 - [ ] 加载失败时输出具体程序集、依赖名、版本信息。
 - [ ] 处理重复加载、已加载旧版本、跨版本兼容等边界。
@@ -239,6 +261,9 @@ public string EntryMethodName;
 - [ ] 明确热更入口是场景、Prefab、静态方法还是统一 Bootstrap 类。
 - [ ] 实现并使用 `EntryPrefabAddress`，或移除无用字段。
 - [ ] 入口方法支持上下文参数：资源版本、package、启动参数、环境配置。
+- [ ] 反射调用入口前校验方法签名，例如是否 static、参数是否匹配、返回值是否允许。
+- [ ] 入口方法异常要输出类型、方法名、内部异常、堆栈和当前版本信息，方便线上诊断。
+- [ ] 将 `HotfixDemo/GameMainApp` 从空壳补成完整示例，展示 Model / System / Utility 注册和热更业务启动流程。
 - [ ] 热更业务初始化失败时能回到主工程错误页，而不是静默失败。
 - [ ] 增加热更模块的退出、重启、清理策略。
 
@@ -260,6 +285,7 @@ public string EntryMethodName;
 - [ ] 所有加载 API 检查 `handle.Status` 和 `LastError`。
 - [ ] 异步加载失败时不要静默返回 `null`。
 - [ ] 区分短生命周期数据资源和长期持有资源。
+- [ ] `LoadDllBytes` 明确以 byte[] 拷贝作为边界，并在注释或接口上约束不要向外暴露已释放 TextAsset。
 - [ ] 场景加载失败时要把错误传回 `Boot` 或流程管理器。
 
 相关位置：
@@ -278,6 +304,7 @@ public string EntryMethodName;
 - [ ] 不要在每次启动后无条件清理未使用 bundle，需评估启动耗时和复用收益。
 - [ ] 支持按 package、版本、标签、空间阈值清理缓存。
 - [ ] 增加“清理失败不阻断启动”的策略配置。
+- [ ] 至少保留上一组可用 AOT + Hotfix 版本，支持热更失败后回滚。
 - [ ] 支持用户设置页手动清理缓存。
 - [ ] 增加缓存占用统计和日志。
 
@@ -383,9 +410,11 @@ public string EntryMethodName;
 
 ### 18. 改善用户更新体验
 
-- [ ] 下载确认界面展示大小、网络状态、是否建议 Wi-Fi。
+- [ ] 下载确认界面展示格式化后的文件数量和大小，例如“需要更新 15 个文件，共 23.5 MB”。
+- [ ] 下载确认界面展示网络状态、是否建议 Wi-Fi。
 - [ ] 下载失败支持重试、退出、使用本地缓存。
-- [ ] 展示下载速度、剩余时间、当前文件不应暴露过多技术细节。
+- [ ] 展示下载速度、剩余时间、单文件进度、已下载大小 / 总大小。
+- [ ] 当前文件和错误信息不应暴露过多技术细节，面向用户展示友好文案，详细错误写日志。
 - [ ] 支持后台下载或进入大厅后延迟下载非关键资源。
 - [ ] 强更时展示明确提示。
 
@@ -426,6 +455,10 @@ public string EntryMethodName;
 - [ ] 为关键错误补充错误码或统一错误类型。
 - [ ] 将公开字段命名规范化，例如 `_rawfilwPkgName` 拼写。
 - [ ] 避免 public 字段暴露过多内部状态。
+- [ ] 将 `ProcedureManager` 内部状态改为属性或上下文对象，避免所有 Procedure 任意修改 public 字段。
+- [ ] 修正 `_rawfilwPkgName` 拼写，并统一 raw file 相关命名。
+- [ ] 降低 `CoroutineController.manager` 静态耦合，增加 null 检查和生命周期保护。
+- [ ] 评估是否由 `ProcedureManager` 自身承载协程调度，避免所有流程依赖全局 MonoBehaviour。
 
 相关位置：
 
@@ -448,6 +481,7 @@ public string EntryMethodName;
 - [ ] 新增“多 package 拆分原则”。
 - [ ] 新增“HybridCLR AOT metadata 更新规则”。
 - [ ] 新增“AOTAssemblyManifest / HotfixAssemblyManifest 拆分和兼容规则”。
+- [ ] 新增“下载失败、重试、取消、离线降级和回滚流程”。
 
 相关位置：
 
@@ -457,6 +491,46 @@ public string EntryMethodName;
 验收标准：
 
 - 没有接触过项目的人能按文档完成一次完整出包和热更发布。
+
+### 22. 下载能力扩展：差分、后台、带宽和并发
+
+- [ ] 评估是否需要差分更新能力，例如 Delta Patch、二进制补丁或按 bundle 粒度进一步拆分。
+- [ ] 大版本更新时统计全量下载量，决定是否引入差分方案。
+- [ ] 支持后台下载策略，明确 iOS / Android / PC 在切后台后的行为和限制。
+- [ ] 下载并发数不要固定为 10，应支持配置或根据网络条件动态调整。
+- [ ] 增加下载带宽限制能力，避免更新流程抢占业务网络。
+- [ ] 增加按资源重要性分层下载：启动必需资源优先，非关键资源延迟或后台下载。
+
+相关位置：
+
+- `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureCreateDownloader.cs`
+- `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureDownloadPackageFiles.cs`
+- YooAsset downloader 创建和调度策略
+
+验收标准：
+
+- 大包更新时下载量、下载时机和网络占用可控。
+- 弱网环境下可以通过并发、暂停、重试、后台下载策略改善体验。
+
+### 23. Luban 配置热更集成
+
+- [ ] 明确 Luban 配置表属于 Hotfix manifest 管理范围，还是独立 Config manifest 管理。
+- [ ] 热更流程中增加配置表版本、hash、兼容性校验。
+- [ ] 下载 Hotfix 后按版本加载对应配置表，避免 DLL 和配置结构不匹配。
+- [ ] 配置加载失败时支持回滚到上一份可用配置。
+- [ ] 增加配置表 smoke test，覆盖字段新增、删除、类型变化等场景。
+
+相关位置：
+
+- `LubanConfig`
+- `Assets/AssetsPackage/AssetsHotFix/Datas`
+- `Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/GenCodes`
+- `Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs`
+
+验收标准：
+
+- 热更 DLL、配置表和 App 版本之间有明确兼容关系。
+- 配置热更失败不会导致启动期崩溃或业务读取空数据。
 
 ## 建议实施顺序
 
@@ -476,11 +550,13 @@ public string EntryMethodName;
 - [ ] 增加资源和 DLL 安全校验。
 - [ ] 统一构建入口。
 - [ ] 生成发布记录和回滚机制。
+- [ ] 集成 Luban 配置热更兼容校验。
 
 ### 第三阶段：提升长期维护质量
 
 - [ ] 整理 YooAssetKit 资源生命周期。
 - [ ] 完善热更入口生命周期。
+- [ ] 扩展差分、后台、带宽和并发下载能力。
 - [ ] 增加自动化测试。
 - [ ] 清理生成物入库规则。
 - [ ] 更新 README 和 Docs。
