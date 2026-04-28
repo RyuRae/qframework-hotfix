@@ -1,94 +1,273 @@
 # qframework-hotfix
-热更版qframework开发框架，使用 YooAsset 实现资源打包及热更新管理，使用 HybridCLR 实现逻辑热更新管理。
 
-**热更目录结构说明**
+基于 **QFramework + YooAsset + HybridCLR** 的 Unity 热更新示例工程。
 
-![image](https://github.com/user-attachments/assets/25ce0e8d-74fc-4463-867d-d590285133a1)
+当前工程的发布策略是：
 
-**快速开始**
+- **AOT 元数据随首包发布**：首包内置 `AOTCodes`、首版热更 DLL、配置清单和基础资源。
+- **后续热更包增量发布**：远端只发布变更后的热更 DLL、资源、配置清单等内容，不再重复发布 AOT 元数据。
+- **客户端按 YooAsset Manifest 差异下载**：远端构建产物是一个完整版本目录，但运行时 downloader 只会下载本地缺失或 hash 变化的 bundle。
 
-1.发布执行程序（热更基础包）
+## 技术栈
 
-1）找到工具栏-->HybridCLR-->Installer-->Install，安装HybridCLR，确认已安装；
+- [QFramework](https://github.com/liangxiegame/QFramework)：项目框架、事件、状态机、UI 等基础能力。
+- [YooAsset](https://github.com/tuyoogame/YooAsset)：资源打包、内置资源、远端资源、版本清单、差异下载。
+- [HybridCLR](https://github.com/focus-creative-games/hybridclr)：IL2CPP 平台 C# 代码热更新和 AOT 泛型元数据补充。
 
-2）初始化生成框架数据 HybridCLR -->Generate-->All;
+## 目录结构
 
-3）生成link.xml链接文件，避免代码过度裁剪，HybridCLR-->Generate-->LinkXml;
+```text
+Assets/AssetsPackage
+├── AssetsHotFix
+│   ├── AOTCodes          # AOT 元数据 DLL.bytes，首包内置，后续热更默认不发布
+│   ├── HotfixCodes       # 热更新程序集 DLL.bytes
+│   ├── Configs           # AssemblyManifest.asset 等热更配置
+│   ├── HotfixDemo        # 示例热更资源
+│   │   ├── Entities      # 示例预制体
+│   │   └── Scenes        # 示例热更场景，当前入口地址为 main
+│   └── Datas             # 配表等热更数据
+└── Scripts
+    ├── Main              # 首包主工程代码，负责启动、下载、加载热更
+    └── Hotfix            # 热更新业务代码，编译为热更程序集
+```
 
-4）配置初始热更资源包（必须），可根据需要设置空包，初始包等；工具栏YooAsset-->AssetBundle Collector，根据需要配置初始资源包；
+关键配置文件：
 
-5）资源打包，工具栏YooAsset-->AssetBundle Builder，打包管线推荐使用ScriptableBuildPipeline；初始需要拷贝资源到StreamingAssets，CopyBuildinFileOption设置为ClearAndCopyAll，然后打包；
+- `ProjectSettings/HybridCLRSettings.asset`：HybridCLR 热更程序集配置。当前热更程序集来自 asmdef，包括 `HotfixCommon`、`HotfixDemo`。
+- `Assets/Resources/AssetBundleCollectorSetting.asset`：YooAsset 收集器配置。当前 `DefaultPackage` 收集 `AOTCodes`、`HotfixCodes`、`Configs`、示例资源和数据。
+- `Assets/AssetsPackage/AssetsHotFix/Configs/AssemblyManifest.asset`：运行时程序集加载清单，记录 AOT 元数据 DLL、热更 DLL、入口场景和可选入口方法。
 
-6）发布框架包，选择发布平台（和打包资源匹配），Build；
+## 运行时热更流程
 
-2.发布热更资源包
+入口脚本是 `Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs`。
 
-1）需要热更的代码生成Assembly Definition，在代码文件夹右键Create-->Assembly Definition;
+启动后流程如下：
 
-2）配置需要热更的代码，HybridCLR-->Setting-->Hot Update Assembly Definitions;
+1. `YooAssets.Initialize()` 初始化 YooAsset。
+2. 创建 `ProcedureManager(DefaultPackage, playMode)`，进入资源初始化和热更状态机。
+3. `ProcedureInitializePackage` 初始化主资源包。Host/Web 模式会同时配置远端文件系统。
+4. `ProcedureLoadAOTMetadata` 从当前可用包中加载 `AssemblyManifest`，再加载 AOT 元数据并调用 `RuntimeApi.LoadMetadataForAOTAssembly`。
+5. `ProcedureRequestPackageVersion` 请求远端最新包版本。
+6. `ProcedureUpdatePackageManifest` 更新远端 manifest。
+7. `ProcedureCreateDownloader` 根据本地缓存和远端 manifest 创建差异下载器。
+8. 如有差异文件，`ProcedureDownloadPackageFiles` 下载变更 bundle。
+9. `ProcedureLoadAssembly` 根据最新 `AssemblyManifest` 加载热更 DLL。
+10. `ProcedureClearCacheBundle` 清理无用缓存。
+11. 状态机完成后，`Boot` 加载入口场景，默认地址为 `main`。
 
-3）配置热更新资源（代码和需要热更的prefab/UI/Shder/Sound等），YooAsset-->AssetBundle Collector；
+这套顺序的重点是：**AOT 元数据在请求远端版本之前加载**，因此 AOT 可以稳定来自首包；远端更新完成后，再加载最新热更程序集。
 
-根据需要可自定义文件夹及资源设置；
+## 首包发布流程
 
-PS：Shader变体收集，可使用YooAsset官方提供的工具，在Package Manager中找到YooAsset包导入Sample；
+首包用于首次安装，必须包含：
 
-友情提示:资源包和执行程序包可以分为两个工程，避免混乱；
+- HybridCLR 运行环境。
+- 首版 YooAsset 内置资源。
+- AOT 元数据补充 DLL。
+- 首版热更 DLL。
+- `AssemblyManifest.asset`。
+- 启动场景 `Assets/Scenes/Boot.unity`。
 
-4）着色器变体收集，工具栏Tools-->着色器变种收集器，将收集好的shader变体配置在上述资源包；
+推荐步骤：
 
-5）热更新代码配置，HybridCLR-->CompileDll-->发布的目标平台，执行代码生成；
+1. 切换到目标构建平台，例如 Windows、Android、iOS。
+2. 执行 `HybridCLR/Installer/Install`，确保 HybridCLR 已安装。
+3. 执行 `HybridCLR/Generate/All`，生成 AOT 泛型引用、桥接函数、裁剪后的 AOT DLL 等数据。
+4. 检查 `HybridCLR/Settings` 中的 `Hot Update Assembly Definitions`，确保热更 asmdef 已加入。
+5. 检查 `YooAsset/AssetBundle Collector`，确保首包资源和热更资源都被 `DefaultPackage` 收集。
+6. 执行菜单 `Build/Build Initial YooAsset Package`。
+7. 构建 Player。Windows 示例可执行菜单 `Build/Win64`。
 
-6）使用luban配表工具生成配置文件，找到LubanConfig/Datatables/gen.bat或gen.sh,根据自己项目路径修改生成路径（需在YooAsset里收集配置文件）
+`Build/Build Initial YooAsset Package` 会自动完成：
 
-7）热更代码收集，工具栏Build-->BuildAssetsAndCopyToAssetsPackage;代码收集完成，确认步骤3中有收集代码文件夹；
+- 调用 `CompileDllCommand.CompileDll(target)` 编译热更 DLL。
+- 从 `HybridCLRData/AssembliesPostIl2CppStrip` 复制 AOT 元数据 DLL 到 `Assets/AssetsPackage/AssetsHotFix/AOTCodes/*.dll.bytes`。
+- 从 `HybridCLRData/HotUpdateDlls` 复制热更 DLL 到 `Assets/AssetsPackage/AssetsHotFix/HotfixCodes/*.dll.bytes`。
+- 生成或更新 `AssemblyManifest.asset`，写入 AOT DLL 列表和热更 DLL 列表。
+- 构建 YooAsset `DefaultPackage`。
+- 使用 `ClearAndCopyAll` 将构建产物复制到 `StreamingAssets`，作为首包内置资源。
 
-8）使用YooAsset打资源包，打包完成后将资源包放在cdn服务器，完成！
+Windows 的 `Build/Win64` 菜单额外封装了 Player 构建流程：先构建 `Assets/Scenes/Boot.unity`，再构建首包 YooAsset 资源，并把 `StreamingAssets` 复制到 `Release-Win64/HybridCLRTrial_Data/StreamingAssets`。
 
-详情请查看Docs文件夹-->快速开始
+## 热更包发布流程
 
+当只更新热更代码、资源、场景或配置时，走热更包流程。
 
+推荐步骤：
 
+1. 修改 `Assets/AssetsPackage/Scripts/Hotfix` 下的热更代码，或修改 `AssetsHotFix` 下被 YooAsset 收集的资源。
+2. 如新增热更代码模块，先创建 asmdef，并加入 `HybridCLR/Settings -> Hot Update Assembly Definitions`。
+3. 如新增热更资源目录，在 `YooAsset/AssetBundle Collector` 中加入 `DefaultPackage` 收集器。
+4. 执行菜单 `Build/Build Hotfix YooAsset Package`。
+5. 将本次 YooAsset 构建输出目录中的版本文件、manifest 文件和 bundle 文件上传到 CDN/资源服务器。
+6. 客户端重启或进入热更流程后，会请求最新版本并按 manifest 差异下载。
 
-**报错处理**
+`Build/Build Hotfix YooAsset Package` 的行为：
 
-此版本Unity编辑器版本为2021.3.41f1，利用编辑器打开项目时报错，如下：
+- 重新编译热更 DLL。
+- 只复制 `HotfixCodes`。
+- 临时把 `AssemblyManifest.asset` 的 AOT 列表置空，让本次远端 manifest 不要求下载 AOT 元数据。
+- 构建时临时禁用 `AOTCodes` 收集器。
+- YooAsset 构建参数使用 `BuildinFileCopyOption.None`，不会覆盖 `StreamingAssets`。
+- 构建完成后恢复本地 `AssemblyManifest.asset` 中的 AOT 列表，保证工程配置仍可用于下一次首包构建。
 
-1.D3DComplier_47.dll缺失
+因此后续热更包默认只包含：
 
-<img width="381" height="173" alt="2A16A2B7-BFEE-4673-8703-4A505C903696" src="https://github.com/user-attachments/assets/27569e89-f5c4-454c-8412-2b709e0ab1fc" />
+- 变化后的热更 DLL。
+- 变化后的热更资源、场景、配表。
+- 最新 `AssemblyManifest.asset`。
+- YooAsset 版本和 manifest 文件。
 
-解决方案：
-卸载编辑器后，重新安装，安装时一定要关闭杀毒软件！！！
+## 远端资源地址
 
-2.进入项目后报错，No ‘git‘ executable was found. Please install Git on your system then restart
+当前 Host/Web 模式远端地址写在：
 
-解决方案：
+```csharp
+private string GetHostServerURL()
+{
+    return "http://127.0.0.1:8080/TestProject/PC";
+}
+```
 
-https://blog.csdn.net/Ling_SevoL_Y/article/details/124403207?fromshare=blogdetail&sharetype=blogdetail&sharerId=124403207&sharerefer=PC&sharesource=Little_Crayon&sharefrom=from_link
+文件位置：`Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureInitializePackage.cs`。
 
-安装git，并给git配置环境变量，具体操作步骤见上述链接。
+正式项目需要把这里替换成真实 CDN 地址，并按平台区分目录，例如：
 
+```text
+https://cdn.example.com/GameName/Android
+https://cdn.example.com/GameName/iOS
+https://cdn.example.com/GameName/PC
+```
 
+上传远端资源时，服务器目录需要保持 YooAsset 构建输出中的文件结构和文件名不变。
 
+## AOT 元数据策略
 
+当前工程采用“首包固定 AOT 元数据”的策略：
 
+- 首包构建时发布 `AOTCodes`。
+- 热更构建时排除 `AOTCodes`。
+- 运行时先从首包加载 AOT 元数据，再更新远端资源和热更 DLL。
 
+这个策略适合大多数业务热更，但要注意边界：
 
+- 如果后续热更代码只是改业务逻辑、UI、资源、配表，通常只发热更包即可。
+- 如果后续热更引入新的 AOT 泛型需求，且首包 AOT 元数据无法覆盖，可能需要重新发 App 包。
+- 如果希望 AOT 元数据也能远端更新，需要调整当前流程：远端包不能清空 AOT 列表，也不能禁用 `AOTCodes` 收集器，并且运行时加载 AOT 的时机要能使用远端最新 manifest。
 
+## AssemblyManifest 配置
 
+`AssemblyManifest.asset` 字段说明：
 
+- `AotMetadataAssemblies`：需要加载元数据的 AOT DLL 列表。
+- `HotUpdateAssemblies`：需要加载的热更 DLL 列表。
+- `EntrySceneAddress`：热更完成后加载的 YooAsset 场景地址，当前默认 `main`。
+- `EntryTypeName`：可选，热更程序集里的静态入口类型完整名。
+- `EntryMethodName`：可选，热更入口静态方法名。
 
+通常不需要手动维护 DLL 列表，构建菜单会自动写入。入口场景或入口方法可以按项目需要手动配置。
 
+## 按 Tag 下载和加载
 
+当前框架已接入 YooAsset Tag 能力，可用于分阶段下载或按模块加载资源。
 
+使用步骤：
 
+1. 在 `YooAsset/AssetBundle Collector` 中给资源收集器配置 `AssetTags`，例如 `ui`、`battle`、`chapter_1`。
+2. 重新执行 `Build/Build Hotfix YooAsset Package`，让最新 manifest 包含资源 Tag 信息。
+3. 如希望启动热更阶段只下载指定 Tag，在 `Boot` 组件的 `downloadTags` 数组中填写 Tag。数组为空时保持旧行为：下载全部差异资源。
+4. 业务运行时可通过 `YooAssetKit` 按 Tag 下载或加载。
 
+按 Tag 下载：
 
-特别鸣谢
----
-[QFramework](https://github.com/liangxiegame/QFramework)：提供一套简单、强大、易上手、符合 SOLID 原则、支持领域驱动设计（DDD）、事件驱动、数据驱动、分层、MVC 、CQRS、模块化、易扩展的架构。  
-  
-[YooAsset](https://github.com/tuyoogame/YooAsset)：一套用于Unity3D的资源管理系统，用于帮助研发团队快速部署和交付游戏。它可以满足商业化游戏的各类需求，并且经历多款百万DAU游戏产品的验证。  
-  
-[HybridCLR](https://github.com/focus-creative-games/hybridclr)：HybridCLR是一个特性完整、零成本、高性能、低内存的近乎完美的Unity全平台原生c#热更新解决方案。  
+```csharp
+YooAssetKit.DownloadByTagsAsync(
+    new[] { "ui", "battle" },
+    onCompleted: downloader =>
+    {
+        if (downloader.Status != YooAsset.EOperationStatus.Succeed)
+            UnityEngine.Debug.LogError(downloader.Error);
+    },
+    onUpdate: data =>
+    {
+        UnityEngine.Debug.Log($"download progress: {data.Progress}");
+    });
+```
+
+按 Tag 加载：
+
+```csharp
+var prefabs = await YooAssetKit.LoadAssetsByTagAsync<UnityEngine.GameObject>("ui");
+```
+
+也可以只查询资源信息后自行加载：
+
+```csharp
+var assetInfos = YooAssetKit.GetAssetInfosByTag("ui");
+foreach (var assetInfo in assetInfos)
+{
+    var handle = YooAsset.YooAssets.LoadAssetAsync(assetInfo);
+}
+```
+
+注意：按 Tag 加载前，相关 bundle 必须已经在本地可用；如果是远端资源，先调用按 Tag 下载接口。
+
+## 开发注意事项
+
+- 热更代码必须放在热更 asmdef 管理的目录中，例如 `HotfixCommon`、`HotfixDemo`。
+- 主工程代码可以引用稳定基础设施，但不要直接依赖热更业务实现。
+- 热更资源必须被 YooAsset Collector 收集，否则远端 manifest 中不会出现。
+- 需要按 Tag 下载或加载的资源，必须在 YooAsset Collector 中配置 `AssetTags`。
+- 场景、Prefab、材质、Shader、配表等资源改动后，需要重新构建热更包。
+- Shader 相关资源上线前建议做变体收集，避免运行时丢变体。
+- 构建热更包前确保目标平台正确；不同平台的 DLL 和 AssetBundle 不能混用。
+
+## 常用菜单
+
+```text
+HybridCLR/Installer/Install              # 安装 HybridCLR
+HybridCLR/Generate/All                   # 生成 HybridCLR 必要数据
+Build/Build Initial YooAsset Package     # 构建首包内置 YooAsset 包
+Build/Build Hotfix YooAsset Package      # 构建后续远端热更包
+Build/BuildAssetsAndCopyToAssetsPackage  # 只复制 AOT/热更 DLL 并刷新配置
+Build/CopyAotDllsToAssetsPackage         # 只复制 AOT 元数据 DLL
+Build/CopyHotUpdateDllsToAssetsPackage   # 只复制热更 DLL
+Build/Win64                              # Windows 示例 Player 构建
+```
+
+## 常见问题
+
+### 热更包是否是真正增量？
+
+构建目录是完整版本目录，客户端更新是增量。YooAsset 会通过远端 manifest 对比本地缓存，只下载缺失或 hash 变化的 bundle。
+
+### 为什么热更包里不包含 AOTCodes？
+
+这是当前框架的设计：AOT 元数据随首包发布。热更构建时 `BuildHotfixYooAssetPackage` 会临时禁用 `AOTCodes` 收集器，并清空远端 manifest 中的 AOT 列表。
+
+### 新增热更程序集后没有加载？
+
+检查三处：
+
+1. 新 asmdef 是否加入 `HybridCLR/Settings -> Hot Update Assembly Definitions`。
+2. 是否执行了 `Build/Build Hotfix YooAsset Package`。
+3. `AssemblyManifest.asset` 的 `HotUpdateAssemblies` 是否包含新增 DLL。
+
+### 修改了资源但客户端下载不到？
+
+检查资源是否在 `YooAsset/AssetBundle Collector` 中被收集，远端目录是否上传了最新版本文件和 bundle，客户端 `GetHostServerURL()` 是否指向正确平台目录。
+
+### 何时必须重新发 App 包？
+
+以下情况通常需要重新发 App 包：
+
+- 修改了首包主工程代码。
+- HybridCLR、YooAsset、Unity 版本或构建平台配置发生关键变化。
+- 新热更代码需要的 AOT 泛型元数据首包未覆盖。
+- 启动流程、资源包初始化流程或平台原生能力发生变化。
+
+## 致谢
+
+- [QFramework](https://github.com/liangxiegame/QFramework)
+- [YooAsset](https://github.com/tuyoogame/YooAsset)
+- [HybridCLR](https://github.com/focus-creative-games/hybridclr)
