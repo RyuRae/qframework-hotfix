@@ -39,6 +39,11 @@ namespace Framework
 
         IEnumerator Start()
         {
+            if (!ValidatePlayModeForRuntime())
+            {
+                yield break;
+            }
+
             //初始化资源系统
             YooAssets.Initialize();
 
@@ -70,6 +75,42 @@ namespace Framework
                     UIPanelRoot.Instance.ClearScreen();
                 }).Start(this);
             });
+        }
+
+        private bool ValidatePlayModeForRuntime()
+        {
+#if !UNITY_EDITOR
+            if (playMode == EPlayMode.EditorSimulateMode)
+            {
+                ShowStartupError("资源系统运行模式配置错误：Player 环境不能使用 EditorSimulateMode。请检查构建配置。");
+                return false;
+            }
+
+#if UNITY_WEBGL
+            if (playMode != EPlayMode.WebPlayMode)
+            {
+                ShowStartupError($"资源系统运行模式配置错误：WebGL 平台必须使用 WebPlayMode，当前为 {playMode}。");
+                return false;
+            }
+#else
+            if (playMode == EPlayMode.WebPlayMode)
+            {
+                ShowStartupError($"资源系统运行模式配置错误：非 WebGL 平台不能使用 WebPlayMode，当前为 {playMode}。");
+                return false;
+            }
+#endif
+#endif
+            return true;
+        }
+
+        private void ShowStartupError(string error)
+        {
+            Debug.LogError(error);
+            var panelRoot = FindObjectOfType<UIPanelRoot>();
+            if (panelRoot != null)
+            {
+                panelRoot.ShowMessage(error);
+            }
         }
     }
 }

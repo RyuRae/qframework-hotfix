@@ -1,7 +1,6 @@
 using HybridCLR.Editor.Commands;
 using HybridCLR.Editor.Installer;
-using System.Collections;
-using System.Collections.Generic;
+using System;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -46,6 +45,11 @@ namespace HybridCLR.Editor
             if (activeTarget != BuildTarget.StandaloneWindows64 && activeTarget != BuildTarget.StandaloneWindows)
             {
                 Debug.LogError("请先切到Win平台再打包");
+                if (exitWhenCompleted)
+                {
+                    EditorApplication.Exit(1);
+                }
+
                 return;
             }
             // Get filename.
@@ -54,6 +58,11 @@ namespace HybridCLR.Editor
             var buildOptions = BuildOptions.CompressWithLz4;
 
             string location = $"{outputPath}/HybridCLRTrial.exe";
+
+            if (!PrepareBuildPlayMode(target, exitWhenCompleted))
+            {
+                return;
+            }
 
             PrebuildCommand.GenerateAll();
             Debug.Log("====> Build App");
@@ -80,6 +89,25 @@ namespace HybridCLR.Editor
             Debug.Log("====> 复制热更新资源和代码");
             BuildAssetsCommand.BuildAndCopyABAOTHotUpdateDlls();
             BashUtil.CopyDir(Application.streamingAssetsPath, $"{outputPath}/HybridCLRTrial_Data/StreamingAssets", true);
+        }
+
+        private static bool PrepareBuildPlayMode(BuildTarget target, bool exitWhenCompleted)
+        {
+            try
+            {
+                HotfixBuildProfileUtility.ApplyPlayModeToBootScene(target);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError($"Hotfix play mode validation failed: {exception.Message}");
+                if (exitWhenCompleted)
+                {
+                    EditorApplication.Exit(1);
+                }
+
+                return false;
+            }
         }
     }
 }

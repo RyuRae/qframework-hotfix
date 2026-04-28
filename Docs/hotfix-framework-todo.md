@@ -32,12 +32,12 @@
 
 ## P0 必须优先处理
 
-### 1. 修复 Player 环境误用 EditorSimulateMode 的风险
+### 1. 修复 Player 环境误用 EditorSimulateMode 的风险（已完成）
 
-- [ ] 在打包前强制校验 `Boot.playMode`，禁止 Player 使用 `EditorSimulateMode`。
-- [ ] 在 `BuildPlayerCommand` 或统一构建入口中按目标环境自动设置 `HostPlayMode` / `OfflinePlayMode` / `WebPlayMode`。
-- [ ] 增加启动时保护：非 Editor 环境检测到 `EditorSimulateMode` 时给出明确错误并终止流程。
-- [ ] 将运行模式从场景序列化字段迁移到可配置的构建 profile，避免人工改场景。
+- [x] 在打包前强制校验 `Boot.playMode`，禁止 Player 使用 `EditorSimulateMode`。
+- [x] 在 `BuildPlayerCommand` 或统一构建入口中按目标环境自动设置 `HostPlayMode` / `OfflinePlayMode` / `WebPlayMode`。
+- [x] 增加启动时保护：非 Editor 环境检测到 `EditorSimulateMode` 时给出明确错误并终止流程。
+- [x] 将运行模式从场景序列化字段迁移到可配置的构建 profile，避免人工改场景。
 
 相关位置：
 
