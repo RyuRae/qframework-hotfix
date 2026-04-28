@@ -452,6 +452,11 @@ public string EntryMethodName;
 
 - [ ] 修复乱码注释。
 - [ ] 将核心流程日志统一中英文风格。
+- [ ] 增加日志管理模式：开发包 / 测试包默认打印 Debug、Info、Warning、Error、Fatal，正式上线包默认只打印 Error 和 Fatal。
+- [ ] 日志级别由构建环境或运行配置控制，避免手动改代码切换日志输出。
+- [ ] 为热更启动、版本请求、manifest 更新、下载、AOT 加载、DLL 加载、入口调用等核心链路定义统一日志分类。
+- [ ] 正式包避免输出 CDN 地址、文件路径、用户隐私、密钥、签名明文等敏感信息。
+- [ ] 预留线上 Error / Fatal 日志上报能力，附带 AppVersion、HotfixVersion、AotVersion、BuildTarget、设备和网络信息。
 - [ ] 为关键错误补充错误码或统一错误类型。
 - [ ] 将公开字段命名规范化，例如 `_rawfilwPkgName` 拼写。
 - [ ] 避免 public 字段暴露过多内部状态。
