@@ -59,54 +59,45 @@ namespace HybridCLR.Editor
 
             string location = $"{outputPath}/HybridCLRTrial.exe";
 
-            if (!PrepareBuildPlayMode(target, exitWhenCompleted, out var playModeChange))
+            if (!PrepareBuildPlayMode(target, exitWhenCompleted))
             {
                 return;
             }
 
-            try
+            PrebuildCommand.GenerateAll();
+            Debug.Log("====> Build App");
+            BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions()
             {
-                PrebuildCommand.GenerateAll();
-                Debug.Log("====> Build App");
-                BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions()
-                {
-                    scenes = new string[] { "Assets/Scenes/Boot.unity" },
-                    locationPathName = location,
-                    options = buildOptions,
-                    target = target,
-                    targetGroup = BuildTargetGroup.Standalone,
-                };
+                scenes = new string[] { "Assets/Scenes/Boot.unity" },
+                locationPathName = location,
+                options = buildOptions,
+                target = target,
+                targetGroup = BuildTargetGroup.Standalone,
+            };
 
-                var report = BuildPipeline.BuildPlayer(buildPlayerOptions);
-                if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+            var report = BuildPipeline.BuildPlayer(buildPlayerOptions);
+            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+            {
+                Debug.LogError("打包失败");
+                if (exitWhenCompleted)
                 {
-                    Debug.LogError("打包失败");
-                    if (exitWhenCompleted)
-                    {
-                        EditorApplication.Exit(1);
-                    }
-                    return;
+                    EditorApplication.Exit(1);
                 }
+                return;
+            }
 
-                Debug.Log("====> 复制热更新资源和代码");
-                BuildAssetsCommand.BuildAndCopyABAOTHotUpdateDlls();
-                BashUtil.CopyDir(Application.streamingAssetsPath, $"{outputPath}/HybridCLRTrial_Data/StreamingAssets", true);
-            }
-            finally
-            {
-                playModeChange.Restore();
-            }
+            Debug.Log("====> 复制热更新资源和代码");
+            BuildAssetsCommand.BuildAndCopyABAOTHotUpdateDlls();
+            BashUtil.CopyDir(Application.streamingAssetsPath, $"{outputPath}/HybridCLRTrial_Data/StreamingAssets", true);
         }
 
         private static bool PrepareBuildPlayMode(
             BuildTarget target,
-            bool exitWhenCompleted,
-            out HotfixBuildProfileUtility.BootPlayModeChange playModeChange)
+            bool exitWhenCompleted)
         {
-            playModeChange = default;
             try
             {
-                playModeChange = HotfixBuildProfileUtility.ApplyPlayModeToBootSceneForBuild(target);
+                HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild(target);
                 return true;
             }
             catch (Exception exception)

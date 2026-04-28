@@ -11,9 +11,6 @@ namespace Framework
 {
     public class Boot : MonoBehaviour
     {
-        [Header("资源系统运行模式")]
-        public EPlayMode playMode;
-
         [Header("游戏运行帧率")]
         [SerializeField]
         private int targetFrame = 45;
@@ -43,7 +40,15 @@ namespace Framework
 
         IEnumerator Start()
         {
-            if (!ValidatePlayModeForRuntime())
+            var settings = HotfixRuntimeSettings.Load();
+            if (settings == null)
+            {
+                ShowStartupError($"热更新运行配置缺失：Resources/{HotfixRuntimeSettings.AssetName}.asset");
+                yield break;
+            }
+
+            var playMode = settings.PlayMode;
+            if (!ValidatePlayModeForRuntime(playMode))
             {
                 yield break;
             }
@@ -81,7 +86,7 @@ namespace Framework
             });
         }
 
-        private bool ValidatePlayModeForRuntime()
+        private bool ValidatePlayModeForRuntime(EPlayMode playMode)
         {
 #if !UNITY_EDITOR
             if (playMode == EPlayMode.EditorSimulateMode)

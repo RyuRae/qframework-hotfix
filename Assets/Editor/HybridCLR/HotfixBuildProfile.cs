@@ -2,9 +2,9 @@ using System;
 using System.IO;
 using Framework;
 using UnityEditor;
-using UnityEditor.SceneManagement;
+using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using YooAsset;
 
 namespace HybridCLR.Editor
@@ -64,109 +64,43 @@ namespace HybridCLR.Editor
 
     public static class HotfixBuildProfileUtility
     {
-        public const string BootScenePath = "Assets/Scenes/Boot.unity";
+        public const string RuntimeSettingsAssetPath = "Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset";
 
-        public readonly struct BootPlayModeChange
-        {
-            private readonly bool isValid;
-            private readonly EPlayMode previousPlayMode;
-
-            public BootPlayModeChange(EPlayMode previousPlayMode)
-            {
-                isValid = true;
-                this.previousPlayMode = previousPlayMode;
-            }
-
-            public void Restore()
-            {
-                if (!isValid)
-                {
-                    return;
-                }
-
-                SetBootScenePlayMode(previousPlayMode, "restored");
-            }
-        }
-
-        [MenuItem("Build/Hotfix/Apply Build Play Mode To Boot Scene")]
+        [MenuItem("Build/Hotfix/Apply Build Play Mode To Runtime Settings")]
         public static void ApplyActiveBuildTargetPlayMode()
         {
-            ApplyPlayModeToBootScene(EditorUserBuildSettings.activeBuildTarget);
+            ApplyPlayModeToRuntimeSettings(EditorUserBuildSettings.activeBuildTarget);
         }
 
-        public static EPlayMode ApplyPlayModeToBootScene(BuildTarget target)
+        public static EPlayMode ApplyPlayModeToRuntimeSettings(BuildTarget target)
         {
             var profile = GetOrCreateProfile();
             var playMode = profile.GetPlayMode(target);
             ValidatePlayerPlayMode(playMode, target);
-            SetBootScenePlayMode(playMode, $"set to {playMode} for {target}");
+            SetRuntimeSettingsPlayMode(playMode, $"set to {playMode} for {target}");
             return playMode;
         }
 
-        public static BootPlayModeChange ApplyPlayModeToBootSceneForBuild(BuildTarget target)
+        public static EPlayMode ApplyPlayModeToRuntimeSettingsForBuild(BuildTarget target)
         {
             var profile = GetOrCreateProfile();
             var playMode = profile.GetPlayMode(target);
             ValidatePlayerPlayMode(playMode, target);
-
-            var scene = OpenBootScene(out bool shouldCloseScene);
-            try
-            {
-                var boot = FindBoot(scene);
-                if (boot == null)
-                {
-                    throw new InvalidOperationException($"Boot component not found in scene: {BootScenePath}");
-                }
-
-                var previousPlayMode = boot.playMode;
-                if (boot.playMode != playMode)
-                {
-                    boot.playMode = playMode;
-                    EditorUtility.SetDirty(boot);
-                    EditorSceneManager.MarkSceneDirty(scene);
-                    EditorSceneManager.SaveScene(scene);
-                }
-
-                Debug.Log($"[HotfixBuildProfile] Boot play mode set to {playMode} for {target}. Previous: {previousPlayMode}.");
-                return new BootPlayModeChange(previousPlayMode);
-            }
-            finally
-            {
-                if (shouldCloseScene)
-                {
-                    EditorSceneManager.CloseScene(scene, true);
-                }
-            }
+            SetRuntimeSettingsPlayMode(playMode, $"set to {playMode} for {target} build");
+            return playMode;
         }
 
-        private static void SetBootScenePlayMode(EPlayMode playMode, string logReason)
+        private static void SetRuntimeSettingsPlayMode(EPlayMode playMode, string logReason)
         {
-            var scene = OpenBootScene(out bool shouldCloseScene);
-            try
+            var settings = GetOrCreateRuntimeSettings();
+            if (settings.PlayerPlayMode != playMode)
             {
-                var boot = FindBoot(scene);
-                if (boot == null)
-                {
-                    throw new InvalidOperationException($"Boot component not found in scene: {BootScenePath}");
-                }
-
-                if (boot.playMode != playMode)
-                {
-                    boot.playMode = playMode;
-                    EditorUtility.SetDirty(boot);
-                    EditorSceneManager.MarkSceneDirty(scene);
-                    EditorSceneManager.SaveScene(scene);
-                }
-
-                Debug.Log($"[HotfixBuildProfile] Boot play mode {logReason}.");
+                settings.SetPlayerPlayModeForEditor(playMode);
+                EditorUtility.SetDirty(settings);
+                AssetDatabase.SaveAssetIfDirty(settings);
             }
-            finally
-            {
-                if (shouldCloseScene)
-                {
-                    EditorSceneManager.CloseScene(scene, true);
-                }
-            }
+
+            Debug.Log($"[HotfixBuildProfile] Runtime play mode {logReason}.");
         }
 
         private static HotfixBuildProfile GetOrCreateProfile()
@@ -191,7 +125,7 @@ namespace HybridCLR.Editor
             return profile;
         }
 
-        private static void ValidatePlayerPlayMode(EPlayMode playMode, BuildTarget target)
+        public static void ValidatePlayerPlayMode(EPlayMode playMode, BuildTarget target)
         {
             if (playMode == EPlayMode.EditorSimulateMode)
             {
@@ -212,31 +146,36 @@ namespace HybridCLR.Editor
             }
         }
 
-        private static Scene OpenBootScene(out bool shouldCloseScene)
+        private static HotfixRuntimeSettings GetOrCreateRuntimeSettings()
         {
-            var scene = SceneManager.GetSceneByPath(BootScenePath);
-            if (scene.IsValid() && scene.isLoaded)
+            var settings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(RuntimeSettingsAssetPath);
+            if (settings != null)
             {
-                shouldCloseScene = false;
-                return scene;
+                return settings;
             }
 
-            shouldCloseScene = true;
-            return EditorSceneManager.OpenScene(BootScenePath, OpenSceneMode.Additive);
+            string directory = Path.GetDirectoryName(RuntimeSettingsAssetPath);
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            settings = ScriptableObject.CreateInstance<HotfixRuntimeSettings>();
+            AssetDatabase.CreateAsset(settings, RuntimeSettingsAssetPath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            Debug.Log($"[HotfixBuildProfile] Created runtime settings: {RuntimeSettingsAssetPath}");
+            return settings;
         }
+    }
 
-        private static Boot FindBoot(Scene scene)
+    public sealed class HotfixBuildPreprocessor : IPreprocessBuildWithReport
+    {
+        public int callbackOrder => 0;
+
+        public void OnPreprocessBuild(BuildReport report)
         {
-            foreach (var rootGameObject in scene.GetRootGameObjects())
-            {
-                var boot = rootGameObject.GetComponentInChildren<Boot>(true);
-                if (boot != null)
-                {
-                    return boot;
-                }
-            }
-
-            return null;
+            HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild(report.summary.platform);
         }
     }
 }

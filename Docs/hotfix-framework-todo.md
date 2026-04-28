@@ -34,8 +34,8 @@
 
 ### 1. 修复 Player 环境误用 EditorSimulateMode 的风险（已完成）
 
-- [x] 在打包前强制校验 `Boot.playMode`，禁止 Player 使用 `EditorSimulateMode`。
-- [x] 在 `BuildPlayerCommand` 或统一构建入口中按目标环境自动设置 `HostPlayMode` / `OfflinePlayMode` / `WebPlayMode`。
+- [x] 在打包前强制校验 `HotfixRuntimeSettings.PlayerPlayMode`，禁止 Player 使用 `EditorSimulateMode`。
+- [x] 在 `BuildPlayerCommand` 和全局构建预处理器中按目标环境自动设置 `HostPlayMode` / `OfflinePlayMode` / `WebPlayMode`。
 - [x] 增加启动时保护：非 Editor 环境检测到 `EditorSimulateMode` 时给出明确错误并终止流程。
 - [x] 将运行模式从场景序列化字段迁移到可配置的构建 profile，避免人工改场景。
 
@@ -43,7 +43,11 @@
 
 - `Assets/Scenes/Boot.unity`
 - `Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs`
+- `Assets/AssetsPackage/Scripts/Main/Runtime/HotfixRuntimeSettings.cs`
+- `Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset`
 - `Assets/Editor/HybridCLR/BuildPlayerCommand.cs`
+- `Assets/Editor/HybridCLR/HotfixBuildProfile.cs`
+- `Assets/Editor/HybridCLR/HotfixBuildProfile.asset`
 
 验收标准：
 
