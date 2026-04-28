@@ -36,14 +36,14 @@ namespace Framework.Procedure
             int downloadingMaxNum = 10;
             int failedTryAgain = 3;
 
-            var downloader = package.CreateResourceDownloader(downloadingMaxNum, failedTryAgain);
+            var downloader = CreateDownloader(package, mTarget._downloadTags, downloadingMaxNum, failedTryAgain);
             mTarget._downloaderOperation = downloader;
 
             ResourceDownloaderOperation downloaderRawfile = null;
             if (mTarget._isIncludeRawFile)
             {
                 var rawfilePkg = YooAssets.GetPackage(mTarget._rawfilwPkgName);
-                downloaderRawfile = rawfilePkg.CreateResourceDownloader(downloadingMaxNum, failedTryAgain);
+                downloaderRawfile = CreateDownloader(rawfilePkg, mTarget._rawfileDownloadTags, downloadingMaxNum, failedTryAgain);
                 mTarget._downloaderRawfile = downloaderRawfile;
             }
 
@@ -68,6 +68,22 @@ namespace Framework.Procedure
                 totalDownloadBytes = totalDownloadBytes,
                 confirmCallBack = () => mFSM.ChangeState(ResPackageStates.DownloadPackageFiles)
             });
+        }
+
+        private static ResourceDownloaderOperation CreateDownloader(
+            ResourcePackage package,
+            string[] tags,
+            int downloadingMaxNum,
+            int failedTryAgain)
+        {
+            if (tags != null && tags.Length > 0)
+            {
+                Debug.Log($"Create resource downloader by tags: {string.Join(",", tags)}");
+                return package.CreateResourceDownloader(tags, downloadingMaxNum, failedTryAgain);
+            }
+
+            Debug.Log("Create resource downloader by all changed resources.");
+            return package.CreateResourceDownloader(downloadingMaxNum, failedTryAgain);
         }
     }
 }

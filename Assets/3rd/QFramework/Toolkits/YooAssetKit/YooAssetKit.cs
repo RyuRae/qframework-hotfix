@@ -1,6 +1,7 @@
 using Cysharp.Threading.Tasks;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using YooAsset;
@@ -112,6 +113,183 @@ namespace QFramework
             T asset = handle.AssetObject as T;
             handle.Release();
             return asset;
+        }
+
+        /// <summary>
+        /// 获取指定Tag下的资源信息。
+        /// </summary>
+        public static AssetInfo[] GetAssetInfosByTag(string tag, string packageName = "DefaultPackage")
+        {
+            return GetAssetInfosByTags(new[] { tag }, packageName);
+        }
+
+        /// <summary>
+        /// 获取多个Tag下的资源信息。
+        /// </summary>
+        public static AssetInfo[] GetAssetInfosByTags(string[] tags, string packageName = "DefaultPackage")
+        {
+            var normalizedTags = NormalizeTags(tags);
+            if (normalizedTags.Length == 0)
+            {
+                return Array.Empty<AssetInfo>();
+            }
+
+            var package = YooAssets.GetPackage(packageName);
+            return package.GetAssetInfos(normalizedTags);
+        }
+
+        /// <summary>
+        /// 根据Tag创建下载器。Tag为空时创建全部差异资源下载器。
+        /// </summary>
+        public static ResourceDownloaderOperation CreateDownloaderByTag(
+            string tag,
+            int downloadingMaxNum = 10,
+            int failedTryAgain = 3,
+            string packageName = "DefaultPackage")
+        {
+            return CreateDownloaderByTags(new[] { tag }, downloadingMaxNum, failedTryAgain, packageName);
+        }
+
+        /// <summary>
+        /// 根据多个Tag创建下载器。Tags为空时创建全部差异资源下载器。
+        /// </summary>
+        public static ResourceDownloaderOperation CreateDownloaderByTags(
+            string[] tags,
+            int downloadingMaxNum = 10,
+            int failedTryAgain = 3,
+            string packageName = "DefaultPackage")
+        {
+            var package = YooAssets.GetPackage(packageName);
+            var normalizedTags = NormalizeTags(tags);
+            return normalizedTags.Length > 0
+                ? package.CreateResourceDownloader(normalizedTags, downloadingMaxNum, failedTryAgain)
+                : package.CreateResourceDownloader(downloadingMaxNum, failedTryAgain);
+        }
+
+        /// <summary>
+        /// 根据Tag创建并启动下载器。
+        /// </summary>
+        public static ResourceDownloaderOperation DownloadByTagAsync(
+            string tag,
+            Action<ResourceDownloaderOperation> onCompleted = null,
+            Action<DownloadUpdateData> onUpdate = null,
+            Action<DownloadErrorData> onError = null,
+            Action<DownloadFileData> onBeginDownloadFile = null,
+            Action<DownloaderFinishData> onFinish = null,
+            int downloadingMaxNum = 10,
+            int failedTryAgain = 3,
+            string packageName = "DefaultPackage")
+        {
+            return DownloadByTagsAsync(
+                new[] { tag },
+                onCompleted,
+                onUpdate,
+                onError,
+                onBeginDownloadFile,
+                onFinish,
+                downloadingMaxNum,
+                failedTryAgain,
+                packageName);
+        }
+
+        /// <summary>
+        /// 根据多个Tag创建并启动下载器。
+        /// </summary>
+        public static ResourceDownloaderOperation DownloadByTagsAsync(
+            string[] tags,
+            Action<ResourceDownloaderOperation> onCompleted = null,
+            Action<DownloadUpdateData> onUpdate = null,
+            Action<DownloadErrorData> onError = null,
+            Action<DownloadFileData> onBeginDownloadFile = null,
+            Action<DownloaderFinishData> onFinish = null,
+            int downloadingMaxNum = 10,
+            int failedTryAgain = 3,
+            string packageName = "DefaultPackage")
+        {
+            var downloader = CreateDownloaderByTags(tags, downloadingMaxNum, failedTryAgain, packageName);
+            Download(downloader, onCompleted, onUpdate, onError, onBeginDownloadFile, onFinish).ToAction().StartGlobal();
+            return downloader;
+        }
+
+        /// <summary>
+        /// 根据Tag异步加载资源集合。
+        /// </summary>
+        public static void LoadAssetsByTagAsync<T>(
+            string tag,
+            Action<List<T>> onLoad,
+            string packageName = "DefaultPackage") where T : UnityEngine.Object
+        {
+            LoadAssetsByTagsAsync(new[] { tag }, onLoad, packageName);
+        }
+
+        /// <summary>
+        /// 根据多个Tag异步加载资源集合。
+        /// </summary>
+        public static void LoadAssetsByTagsAsync<T>(
+            string[] tags,
+            Action<List<T>> onLoad,
+            string packageName = "DefaultPackage") where T : UnityEngine.Object
+        {
+            var package = YooAssets.GetPackage(packageName);
+            LoadAssetsByTags<T>(package, tags, onLoad).ToAction().StartGlobal();
+        }
+
+        /// <summary>
+        /// 根据Tag异步加载资源集合。
+        /// </summary>
+        public static async UniTask<List<T>> LoadAssetsByTagAsync<T>(
+            string tag,
+            string packageName = "DefaultPackage") where T : UnityEngine.Object
+        {
+            return await LoadAssetsByTagsAsync<T>(new[] { tag }, packageName);
+        }
+
+        /// <summary>
+        /// 根据多个Tag异步加载资源集合。
+        /// </summary>
+        public static async UniTask<List<T>> LoadAssetsByTagsAsync<T>(
+            string[] tags,
+            string packageName = "DefaultPackage") where T : UnityEngine.Object
+        {
+            var package = YooAssets.GetPackage(packageName);
+            var normalizedTags = NormalizeTags(tags);
+            if (normalizedTags.Length == 0)
+            {
+                return new List<T>();
+            }
+
+            var assetInfos = package.GetAssetInfos(normalizedTags);
+            var handles = new List<AssetHandle>(assetInfos.Length);
+            var assets = new List<T>(assetInfos.Length);
+
+            foreach (var assetInfo in assetInfos)
+            {
+                var handle = package.LoadAssetAsync(assetInfo);
+                handles.Add(handle);
+                await handle.Task;
+
+                if (handle.Status != EOperationStatus.Succeed)
+                {
+                    Debug.LogError(handle.LastError);
+                    continue;
+                }
+
+                if (handle.AssetObject is T asset)
+                {
+                    assets.Add(asset);
+                }
+                else
+                {
+                    Debug.LogError($"Asset type cast failed: {assetInfo.Address}");
+                }
+            }
+
+            foreach (var handle in handles)
+            {
+                handle.Release();
+            }
+
+            return assets;
         }
 
 
@@ -328,6 +506,104 @@ namespace QFramework
         {
             var operation = package.UnloadAllAssetsAsync();
             yield return operation;
+        }
+
+        private static IEnumerator Download(
+            ResourceDownloaderOperation downloader,
+            Action<ResourceDownloaderOperation> onCompleted,
+            Action<DownloadUpdateData> onUpdate,
+            Action<DownloadErrorData> onError,
+            Action<DownloadFileData> onBeginDownloadFile,
+            Action<DownloaderFinishData> onFinish)
+        {
+            if (downloader == null)
+            {
+                onCompleted?.Invoke(null);
+                yield break;
+            }
+
+            downloader.DownloadUpdateCallback = data => onUpdate?.Invoke(data);
+            downloader.DownloadErrorCallback = data => onError?.Invoke(data);
+            downloader.DownloadFileBeginCallback = data => onBeginDownloadFile?.Invoke(data);
+            downloader.DownloadFinishCallback = data => onFinish?.Invoke(data);
+            downloader.BeginDownload();
+            yield return downloader;
+            onCompleted?.Invoke(downloader);
+        }
+
+        private static IEnumerator LoadAssetsByTags<T>(
+            ResourcePackage package,
+            string[] tags,
+            Action<List<T>> onLoad) where T : UnityEngine.Object
+        {
+            var normalizedTags = NormalizeTags(tags);
+            if (normalizedTags.Length == 0)
+            {
+                onLoad?.Invoke(new List<T>());
+                yield break;
+            }
+
+            var assetInfos = package.GetAssetInfos(normalizedTags);
+            var handles = new List<AssetHandle>(assetInfos.Length);
+            var assets = new List<T>(assetInfos.Length);
+
+            foreach (var assetInfo in assetInfos)
+            {
+                var handle = package.LoadAssetAsync(assetInfo);
+                handles.Add(handle);
+            }
+
+            foreach (var handle in handles)
+            {
+                yield return handle;
+                if (handle.Status != EOperationStatus.Succeed)
+                {
+                    Debug.LogError(handle.LastError);
+                    continue;
+                }
+
+                if (handle.AssetObject is T asset)
+                {
+                    assets.Add(asset);
+                }
+                else
+                {
+                    Debug.LogError($"Asset type cast failed: {handle.GetAssetInfo().Address}");
+                }
+            }
+
+            foreach (var handle in handles)
+            {
+                handle.Release();
+            }
+
+            onLoad?.Invoke(assets);
+        }
+
+        private static string[] NormalizeTags(string[] tags)
+        {
+            if (tags == null || tags.Length == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var results = new List<string>();
+            var exists = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var tag in tags)
+            {
+                if (string.IsNullOrWhiteSpace(tag))
+                {
+                    continue;
+                }
+
+                var normalizedTag = tag.Trim();
+                if (exists.Add(normalizedTag))
+                {
+                    results.Add(normalizedTag);
+                }
+            }
+
+            return results.ToArray();
         }
 
 

@@ -21,6 +21,10 @@ namespace Framework
         [SerializeField]
         private Camera mCamera;
 
+        [Header("按Tag下载主资源包，为空时下载全部差异资源")]
+        [SerializeField]
+        private string[] downloadTags;
+
         /// <summary>
 		/// 主包名称，根据打包设置变化
 		/// </summary>
@@ -48,7 +52,7 @@ namespace Framework
             YooAssets.Initialize();
 
             //进入资源检查及更新状态
-            var operation = new ProcedureManager(mainPackageName, playMode);
+            var operation = new ProcedureManager(mainPackageName, playMode, false, downloadTags);
             YooAssets.StartOperation(operation);
             yield return operation;
 
