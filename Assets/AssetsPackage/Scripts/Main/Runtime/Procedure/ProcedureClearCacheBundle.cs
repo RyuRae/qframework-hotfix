@@ -34,11 +34,13 @@ namespace Framework.Procedure
         {
             if (obj.Status != EOperationStatus.Succeed)
             {
-                mTarget.SetFailed(obj.Error);
-                return;
+                LogKit.W($"Cache cleanup failed, continue startup. {obj.Error}");
+            }
+            else
+            {
+                LogKit.I("Cache cleanup completed.");
             }
 
-            LogKit.I("Cache cleanup completed.");
             mFSM.ChangeState(ResPackageStates.StartGame);
         }
     }

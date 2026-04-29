@@ -65,6 +65,7 @@ namespace HybridCLR.Editor
     public static class HotfixBuildProfileUtility
     {
         public const string RuntimeSettingsAssetPath = "Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset";
+        public const string RemoteSettingsAssetPath = "Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset";
 
         [MenuItem("Build/Hotfix/Apply Build Play Mode To Runtime Settings")]
         public static void ApplyActiveBuildTargetPlayMode()
@@ -90,9 +91,22 @@ namespace HybridCLR.Editor
 
         public static EPlayMode ApplyPlayModeToRuntimeSettingsForBuild(BuildTarget target)
         {
+            return ApplyPlayModeToRuntimeSettingsForBuild(target, EditorUserBuildSettings.development);
+        }
+
+        public static EPlayMode ApplyPlayModeToRuntimeSettingsForBuild(BuildTarget target, BuildOptions options)
+        {
+            return ApplyPlayModeToRuntimeSettingsForBuild(target, IsDevelopmentBuild(options));
+        }
+
+        private static EPlayMode ApplyPlayModeToRuntimeSettingsForBuild(
+            BuildTarget target,
+            bool allowDevelopmentEnvironment)
+        {
             var profile = GetOrCreateProfile();
             var playMode = profile.GetPlayMode(target);
             ValidatePlayerPlayMode(playMode, target);
+            ValidateRemoteSettingsForBuild(target, allowDevelopmentEnvironment);
             SetRuntimeSettingsPlayMode(playMode, $"set to {playMode} for {target} build");
             SyncPackageNamesFromCollectorSettings();
             return playMode;
@@ -183,6 +197,53 @@ namespace HybridCLR.Editor
             }
         }
 
+        public static void ValidateRemoteSettingsForBuild(BuildTarget target)
+        {
+            ValidateRemoteSettingsForBuild(target, EditorUserBuildSettings.development);
+        }
+
+        public static void ValidateRemoteSettingsForBuild(BuildTarget target, bool allowDevelopmentEnvironment)
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<HotfixRemoteSettings>(RemoteSettingsAssetPath);
+            if (settings == null)
+            {
+                throw new InvalidOperationException($"Hotfix remote settings missing: {RemoteSettingsAssetPath}");
+            }
+
+            string platform = GetRuntimePlatformName(target);
+            if (!settings.TryValidateForPlayerBuild(allowDevelopmentEnvironment, platform, out var error))
+            {
+                throw new InvalidOperationException(error);
+            }
+        }
+
+        private static bool IsDevelopmentBuild(BuildOptions options)
+        {
+            return (options & BuildOptions.Development) == BuildOptions.Development;
+        }
+
+        private static string GetRuntimePlatformName(BuildTarget target)
+        {
+            switch (target)
+            {
+                case BuildTarget.Android:
+                    return "Android";
+                case BuildTarget.iOS:
+                    return "iOS";
+                case BuildTarget.WebGL:
+                    return "WebGL";
+                case BuildTarget.StandaloneWindows:
+                case BuildTarget.StandaloneWindows64:
+                    return "Windows";
+                case BuildTarget.StandaloneOSX:
+                    return "macOS";
+                case BuildTarget.StandaloneLinux64:
+                    return "Linux";
+                default:
+                    return target.ToString();
+            }
+        }
+
         private static HotfixRuntimeSettings GetOrCreateRuntimeSettings()
         {
             var settings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(RuntimeSettingsAssetPath);
@@ -212,7 +273,9 @@ namespace HybridCLR.Editor
 
         public void OnPreprocessBuild(BuildReport report)
         {
-            HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild(report.summary.platform);
+            HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild(
+                report.summary.platform,
+                report.summary.options);
         }
     }
 }

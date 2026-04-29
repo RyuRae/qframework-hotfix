@@ -201,6 +201,66 @@ namespace Framework
             return Resources.Load<HotfixRemoteSettings>(ResourcesPath);
         }
 
+        public bool TryValidateForPlayerBuild(bool allowDevelopmentEnvironment, out string error)
+        {
+            return TryValidateForPlayerBuild(allowDevelopmentEnvironment, GetRuntimePlatformName(), out error);
+        }
+
+        public bool TryValidateForPlayerBuild(bool allowDevelopmentEnvironment, string platform, out string error)
+        {
+            error = string.Empty;
+            string normalizedPlatform = NormalizeSelector(platform);
+
+            var config = FindEnvironmentConfig(defaultEnvironment);
+            if (config == null)
+            {
+                error = $"Hotfix remote environment config missing: {defaultEnvironment}";
+                return false;
+            }
+
+            if (!allowDevelopmentEnvironment && defaultEnvironment == HotfixRemoteEnvironment.Development)
+            {
+                error = "Release player build can not use Development hotfix remote environment.";
+                return false;
+            }
+
+            string mainUrl = NormalizeBaseUrl(ReplaceTokens(
+                config.MainCdnUrlTemplate,
+                defaultEnvironment,
+                normalizedPlatform,
+                NormalizeSelector(defaultChannel),
+                NormalizeSelector(defaultRegion),
+                "DefaultPackage"));
+            string fallbackUrl = NormalizeBaseUrl(ReplaceTokens(
+                config.FallbackCdnUrlTemplate,
+                defaultEnvironment,
+                normalizedPlatform,
+                NormalizeSelector(defaultChannel),
+                NormalizeSelector(defaultRegion),
+                "DefaultPackage"));
+
+            if (!ValidateUrl(config, mainUrl, "main", false, out error) ||
+                !ValidateUrl(config, fallbackUrl, "fallback", false, out error))
+            {
+                return false;
+            }
+
+            if (string.Equals(mainUrl, fallbackUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"Hotfix remote config error: main URL and fallback URL must not be identical. URL: {mainUrl}";
+                return false;
+            }
+
+            if (!allowDevelopmentEnvironment &&
+                (IsLoopbackUrl(mainUrl) || IsLoopbackUrl(fallbackUrl)))
+            {
+                error = $"Release player build can not use loopback hotfix CDN URL. Main: {mainUrl}, Fallback: {fallbackUrl}";
+                return false;
+            }
+
+            return true;
+        }
+
         public bool TryResolve(string packageName, out HotfixRemoteAddress address, out string error)
         {
             address = null;
@@ -432,6 +492,11 @@ namespace Framework
             }
 
             return false;
+        }
+
+        private static bool IsLoopbackUrl(string url)
+        {
+            return Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.IsLoopback;
         }
 
         private static bool ShouldUseGrayRelease(HotfixRemoteEnvironmentConfig config, string channel, string region)

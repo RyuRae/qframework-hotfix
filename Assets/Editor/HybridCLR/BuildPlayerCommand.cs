@@ -59,7 +59,7 @@ namespace HybridCLR.Editor
 
             string location = $"{outputPath}/HybridCLRTrial.exe";
 
-            if (!PrepareBuildPlayMode(target, exitWhenCompleted))
+            if (!PrepareBuildPlayMode(target, buildOptions, exitWhenCompleted))
             {
                 return;
             }
@@ -93,11 +93,12 @@ namespace HybridCLR.Editor
 
         private static bool PrepareBuildPlayMode(
             BuildTarget target,
+            BuildOptions buildOptions,
             bool exitWhenCompleted)
         {
             try
             {
-                HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild(target);
+                HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild(target, buildOptions);
                 return true;
             }
             catch (Exception exception)
