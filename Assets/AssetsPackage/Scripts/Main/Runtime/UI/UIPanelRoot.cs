@@ -15,7 +15,7 @@ namespace Framework.UI
                 float sizeMB = Mathf.Clamp(downloadInfo.totalDownloadBytes / 1048576f, 0.1f, float.MaxValue);
                 string totalSizeMB = sizeMB.ToString("f1");
                 ShowMessageBox(
-                    $"发现可更新文件：{downloadInfo.totalDownloadCount} 个，总大小 {totalSizeMB} MB，是否开始下载？",
+                    HotfixText.Get(HotfixTextKey.DownloadInfoPrompt, downloadInfo.totalDownloadCount, totalSizeMB),
                     downloadInfo.confirmCallBack,
                     downloadInfo.cancelCallBack,
                     true);
@@ -81,47 +81,49 @@ namespace Framework.UI
 
         public void OnDownloadErrorHandler(DownloadErrorData data)
         {
-            UISceneHint.ShowMessage($"下载失败：{data.PackageName}\n{data.FileName}\n{data.ErrorInfo}");
+            UISceneHint.ShowMessage(HotfixText.Get(HotfixTextKey.DownloadFailed, data.PackageName, data.FileName, data.ErrorInfo));
         }
 
         public void OnDownloadCanceledHandler(string reason)
         {
             CloseLoadingPanel();
-            ShowMessage(string.IsNullOrEmpty(reason) ? "资源下载已取消。" : reason);
+            ShowMessage(string.IsNullOrEmpty(reason) ? HotfixText.Get(HotfixTextKey.DownloadCanceledDefault) : reason);
         }
 
         public void OnStartupUsingLocalCacheHandler(string reason)
         {
             CloseLoadingPanel();
-            ShowMessage(string.IsNullOrEmpty(reason) ? "网络异常，已使用本地缓存启动。" : reason);
+            ShowMessage(string.IsNullOrEmpty(reason) ? HotfixText.Get(HotfixTextKey.StartupUsingLocalCacheDefault) : reason);
         }
 
         public void OnDownloadUpdateHandler(DownloadUpdateData data)
         {
-            LogKit.I($"资源下载中：{data.Progress:P0}");
+            LogKit.I(HotfixText.Get(HotfixTextKey.ResourceDownloadingProgress, data.Progress));
             UISceneLoading.OnUpdateProgressExcute(data);
         }
 
         public void OnDownloadFileBeginHandler(DownloadFileData data)
         {
-            LogKit.I($"开始下载文件：{data.FileName}");
+            LogKit.I(HotfixText.Get(HotfixTextKey.DownloadFileBegin, data.FileName));
         }
 
         public void OnDownloadFinishHandler(DownloaderFinishData data)
         {
-            LogKit.I(data.Succeed ? $"文件下载完成：{data.PackageName}" : $"文件下载失败：{data.PackageName}");
+            LogKit.I(data.Succeed
+                ? HotfixText.Get(HotfixTextKey.DownloadFileCompleted, data.PackageName)
+                : HotfixText.Get(HotfixTextKey.DownloadFileFailed, data.PackageName));
         }
 
-        public void OnSceneLoadUpdateHandler(float progress, string desc = "场景加载中")
+        public void OnSceneLoadUpdateHandler(float progress, string desc = null)
         {
             OpenLoadingPanel();
-            UISceneLoading.OnUpdateProgressExcute(progress, desc);
+            UISceneLoading.OnUpdateProgressExcute(progress, desc ?? HotfixText.Get(HotfixTextKey.SceneLoading));
         }
 
-        public void OnAssetloadProgressHandler(float progress, string desc = "资源加载中")
+        public void OnAssetloadProgressHandler(float progress, string desc = null)
         {
             OpenLoadingPanel();
-            UISceneLoading.OnUpdateProgressExcute(progress, desc);
+            UISceneLoading.OnUpdateProgressExcute(progress, desc ?? HotfixText.Get(HotfixTextKey.AssetLoading));
         }
 
         public void OpenLoadingPanel()
@@ -154,7 +156,7 @@ namespace Framework.UI
 
         public void RequestCancelDownload()
         {
-            RequestCancelDownloadWithReason("用户取消资源下载。");
+            RequestCancelDownloadWithReason(HotfixText.Get(HotfixTextKey.UserCanceledResourceDownload));
         }
 
         public void RequestCancelDownloadWithReason(string reason)

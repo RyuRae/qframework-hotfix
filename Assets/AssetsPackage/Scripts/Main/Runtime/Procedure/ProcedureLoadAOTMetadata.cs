@@ -41,7 +41,7 @@ namespace Framework.Procedure
                 TypeEventSystem.Global.Send(new OnAssetloadProgressEvent
                 {
                     progress = displayProgress,
-                    desc = "加载AOT元数据"
+                    desc = HotfixText.Get(HotfixTextKey.LoadingAotMetadata)
                 });
             }).UnRegisterWhenGameObjectDestroyed(CoroutineController.manager);
 
@@ -59,7 +59,9 @@ namespace Framework.Procedure
             isLoading = false;
             if (!loader.Succeeded)
             {
-                var error = string.IsNullOrEmpty(loader.Error) ? "AOT元数据加载失败！" : loader.Error;
+                var error = string.IsNullOrEmpty(loader.Error)
+                    ? HotfixText.Get(HotfixTextKey.AotMetadataLoadFailed)
+                    : loader.Error;
                 UIPanelRoot.Instance.ShowMessage(error);
                 mTarget.SetFailed(error);
                 yield break;
@@ -68,7 +70,7 @@ namespace Framework.Procedure
             TypeEventSystem.Global.Send(new OnAssetloadProgressEvent
             {
                 progress = 1f,
-                desc = "AOT元数据加载完成"
+                desc = HotfixText.Get(HotfixTextKey.AotMetadataLoaded)
             });
             mFSM.ChangeState(ResPackageStates.LoadAssemblies);
         }

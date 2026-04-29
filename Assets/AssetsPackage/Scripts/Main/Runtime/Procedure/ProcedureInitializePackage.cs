@@ -61,20 +61,44 @@ namespace Framework.Procedure
             }
             else if (playMode == EPlayMode.HostPlayMode)
             {
-                var remoteServices = new RemoteServices(GetHostServerURL(), GetHostServerURL());
+                // Host/Web 模式需要远端服务。主包和 RawFile 包分别解析，避免不同包名目录被拼错。
+                if (!TryCreateRemoteServices(manager._packageName, out var remoteServices, out var error))
+                {
+                    FailRemoteConfig(error);
+                    yield break;
+                }
+
                 initializationOperation = InitHostPackage(package, remoteServices);
                 if (manager._isIncludeRawFile)
                 {
-                    initRawFileOperation = InitHostPackage(rawFilePackage, remoteServices);
+                    if (!TryCreateRemoteServices(manager._rawfilwPkgName, out var rawFileRemoteServices, out error))
+                    {
+                        FailRemoteConfig(error);
+                        yield break;
+                    }
+
+                    initRawFileOperation = InitHostPackage(rawFilePackage, rawFileRemoteServices);
                 }
             }
             else if (playMode == EPlayMode.WebPlayMode)
             {
-                var remoteServices = new RemoteServices(GetHostServerURL(), GetHostServerURL());
+                // WebGL 场景也复用同一份远端配置，保证各平台 CDN 地址规则一致。
+                if (!TryCreateRemoteServices(manager._packageName, out var remoteServices, out var error))
+                {
+                    FailRemoteConfig(error);
+                    yield break;
+                }
+
                 initializationOperation = InitWebPackage(package, remoteServices);
                 if (manager._isIncludeRawFile)
                 {
-                    initRawFileOperation = InitWebPackage(rawFilePackage, remoteServices);
+                    if (!TryCreateRemoteServices(manager._rawfilwPkgName, out var rawFileRemoteServices, out error))
+                    {
+                        FailRemoteConfig(error);
+                        yield break;
+                    }
+
+                    initRawFileOperation = InitWebPackage(rawFilePackage, rawFileRemoteServices);
                 }
             }
 
@@ -93,7 +117,7 @@ namespace Framework.Procedure
             if (initializationOperation.Status != EOperationStatus.Succeed)
             {
                 Debug.LogWarning(initializationOperation.Error);
-                UIPanelRoot.Instance.ShowMessage("资源包初始化失败！");
+                UIPanelRoot.Instance.ShowMessage(HotfixText.Get(HotfixTextKey.ResourcePackageInitializeFailed));
                 manager.SetFailed(initializationOperation.Error);
                 yield break;
             }
@@ -101,12 +125,12 @@ namespace Framework.Procedure
             if (manager._isIncludeRawFile && initRawFileOperation.Status != EOperationStatus.Succeed)
             {
                 Debug.LogWarning(initRawFileOperation.Error);
-                UIPanelRoot.Instance.ShowMessage("原生资源包初始化失败！");
+                UIPanelRoot.Instance.ShowMessage(HotfixText.Get(HotfixTextKey.RawFilePackageInitializeFailed));
                 manager.SetFailed(initRawFileOperation.Error);
                 yield break;
             }
 
-            Debug.Log("资源包初始化成功！");
+            Debug.Log(HotfixText.Get(HotfixTextKey.ResourcePackageInitializeSucceed));
             fsm.ChangeState(ResPackageStates.RequestPackageVersion);
         }
 
@@ -162,30 +186,59 @@ namespace Framework.Procedure
             return package.InitializeAsync(createParameters);
         }
 
-        private string GetHostServerURL()
+        private bool TryCreateRemoteServices(string packageName, out RemoteServices remoteServices, out string error)
         {
-            return "http://127.0.0.1:8080/TestProject/PC";
+            remoteServices = null;
+            error = string.Empty;
+
+            // 远端配置放在 Resources 中，包体启动后可直接加载，无需额外异步流程。
+            var settings = HotfixRemoteSettings.Load();
+            if (settings == null)
+            {
+                error = HotfixText.Get(HotfixTextKey.RemoteSettingsMissing, HotfixRemoteSettings.AssetName);
+                return false;
+            }
+
+            if (!settings.TryResolve(packageName, out var address, out error))
+            {
+                return false;
+            }
+
+            LogKit.I($"Hotfix remote resolved. Env:{address.Environment}, Platform:{address.Platform}, Channel:{address.Channel}, Region:{address.Region}, Package:{address.PackageName}");
+            remoteServices = new RemoteServices(address);
+            return true;
+        }
+
+        private void FailRemoteConfig(string error)
+        {
+            Debug.LogError(error);
+            UIPanelRoot.Instance.ShowMessage(error);
+            manager.SetFailed(error);
         }
 
         private class RemoteServices : IRemoteServices
         {
-            private readonly string defaultHostServer;
-            private readonly string fallbackHostServer;
+            private readonly HotfixRemoteAddress address;
 
-            public RemoteServices(string defaultHostServer, string fallbackHostServer)
+            public RemoteServices(HotfixRemoteAddress address)
             {
-                this.defaultHostServer = defaultHostServer;
-                this.fallbackHostServer = fallbackHostServer;
+                this.address = address;
             }
 
             string IRemoteServices.GetRemoteMainURL(string fileName)
             {
-                return $"{defaultHostServer}/{fileName}";
+                return CombineUrl(address.MainUrl, fileName);
             }
 
             string IRemoteServices.GetRemoteFallbackURL(string fileName)
             {
-                return $"{fallbackHostServer}/{fileName}";
+                return CombineUrl(address.FallbackUrl, fileName);
+            }
+
+            private static string CombineUrl(string rootUrl, string fileName)
+            {
+                // 统一处理斜杠，避免配置末尾带 "/" 或 YooAsset 文件名前带 "/" 时拼出双斜杠。
+                return $"{rootUrl.TrimEnd('/')}/{fileName.TrimStart('/')}";
             }
         }
 

@@ -132,7 +132,9 @@ namespace Framework.Procedure
                 return;
             }
 
-            string cancelReason = string.IsNullOrWhiteSpace(reason) ? "用户取消资源更新。" : reason.Trim();
+            string cancelReason = string.IsNullOrWhiteSpace(reason)
+                ? HotfixText.Get(HotfixTextKey.UserCanceledResourceUpdate)
+                : reason.Trim();
             _downloadCancelRequested = true;
             _downloadPaused = false;
 
@@ -155,7 +157,9 @@ namespace Framework.Procedure
             handled |= TryPauseDownloader(_downloaderRawfile);
             _downloadPaused = handled;
 
-            LogKit.I(handled ? "资源下载已暂停。" : "当前没有可暂停的下载任务。");
+            LogKit.I(handled
+                ? HotfixText.Get(HotfixTextKey.DownloadPaused)
+                : HotfixText.Get(HotfixTextKey.NoDownloadTaskToPause));
             return handled;
         }
 
@@ -170,7 +174,9 @@ namespace Framework.Procedure
             handled |= TryResumeDownloader(_downloaderRawfile);
             _downloadPaused = handled ? false : _downloadPaused;
 
-            LogKit.I(handled ? "资源下载已继续。" : "当前没有可继续的下载任务。");
+            LogKit.I(handled
+                ? HotfixText.Get(HotfixTextKey.DownloadResumed)
+                : HotfixText.Get(HotfixTextKey.NoDownloadTaskToResume));
             return handled;
         }
 
@@ -230,7 +236,7 @@ namespace Framework.Procedure
 
             if (!packageResult.Succeeded)
             {
-                onCompleted?.Invoke(false, $"主资源包本地缓存不可用：{packageResult.Error}");
+                onCompleted?.Invoke(false, HotfixText.Get(HotfixTextKey.MainPackageLocalCacheUnavailable, packageResult.Error));
                 yield break;
             }
 
@@ -247,7 +253,7 @@ namespace Framework.Procedure
 
                 if (!rawfileResult.Succeeded)
                 {
-                    onCompleted?.Invoke(false, $"RawFile 资源包本地缓存不可用：{rawfileResult.Error}");
+                    onCompleted?.Invoke(false, HotfixText.Get(HotfixTextKey.RawFilePackageLocalCacheUnavailable, rawfileResult.Error));
                     yield break;
                 }
 

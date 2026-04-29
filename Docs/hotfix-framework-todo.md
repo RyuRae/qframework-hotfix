@@ -102,18 +102,20 @@
 - 断网情况下，只要本地存在可用资源，就可以进入游戏。
 - 远端 manifest 异常不会导致所有用户无法启动。
 
-### 4. 抽离 CDN 地址和环境配置
+### 4. 抽离 CDN 地址和环境配置（已完成）
 
-- [ ] 将 `http://127.0.0.1:8080/TestProject/PC` 从代码中移除。
-- [ ] 新增热更新配置文件，支持开发、测试、预发、正式环境。
-- [ ] 支持主 CDN 和备用 CDN 使用不同地址。
-- [ ] 启动时校验 main URL 和 fallback URL 不应完全相同，否则给出配置错误提示。
-- [ ] 支持按平台、渠道、地区生成远端资源地址。
-- [ ] 支持 HTTPS，并预留证书、域名、CDN 灰度切换能力。
+- [x] 将 `http://127.0.0.1:8080/TestProject/PC` 从代码中移除。
+- [x] 新增热更新配置文件，支持开发、测试、预发、正式环境。
+- [x] 支持主 CDN 和备用 CDN 使用不同地址。
+- [x] 启动时校验 main URL 和 fallback URL 不应完全相同，否则给出配置错误提示。
+- [x] 支持按平台、渠道、地区生成远端资源地址。
+- [x] 支持 HTTPS，并预留证书、域名、CDN 灰度切换能力。
 
 相关位置：
 
 - `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureInitializePackage.cs`
+- `Assets/AssetsPackage/Scripts/Main/Runtime/HotfixRemoteSettings.cs`
+- `Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset`
 
 验收标准：
 

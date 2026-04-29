@@ -98,7 +98,7 @@ namespace Framework.Procedure
                 confirmCallBack = () => mFSM.ChangeState(ResPackageStates.DownloadPackageFiles),
                 cancelCallBack = () => TypeEventSystem.Global.Send(new OnDownloadCancelRequestEvent
                 {
-                    reason = "用户取消资源更新，启动流程终止。"
+                    reason = HotfixText.Get(HotfixTextKey.UserCanceledStartupUpdate)
                 })
             });
         }

@@ -19,10 +19,10 @@ namespace Framework.UI
 		/// 更新下载进度。
 		/// </summary>
 		/// <param name="data">下载进度数据。</param>
-		public void OnUpdateProgressExcute(DownloadUpdateData data, string desc = "文件下载中")
+		public void OnUpdateProgressExcute(DownloadUpdateData data, string desc = null)
 		{
 			Slider_Progress.value = data.Progress;
-			Text_Hint.text = desc;
+			Text_Hint.text = desc ?? HotfixText.Get(HotfixTextKey.FileDownloading);
 			Text_Progress.text = data.Progress.ToString("0.0%");
 		}
 
@@ -30,10 +30,10 @@ namespace Framework.UI
 		/// 更新资源或场景加载进度。
 		/// </summary>
 		/// <param name="progress"></param>
-		public void OnUpdateProgressExcute(float progress, string desc = "资源加载中")
+		public void OnUpdateProgressExcute(float progress, string desc = null)
 		{
 			Slider_Progress.value = progress;
-			Text_Hint.text = desc;
+			Text_Hint.text = desc ?? HotfixText.Get(HotfixTextKey.AssetLoading);
 			Text_Progress.text = progress.ToString("0.0%");
 		}
 

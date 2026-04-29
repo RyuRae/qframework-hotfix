@@ -30,7 +30,7 @@ namespace Framework
             var settings = HotfixRuntimeSettings.Load();
             if (settings == null)
             {
-                ShowStartupError($"热更新运行配置缺失：Resources/{HotfixRuntimeSettings.AssetName}.asset");
+                ShowStartupError(HotfixText.Get(HotfixTextKey.StartupRuntimeConfigMissing, HotfixRuntimeSettings.AssetName));
                 yield break;
             }
 
@@ -60,7 +60,9 @@ namespace Framework
 
             if (operation.Status != EOperationStatus.Succeed)
             {
-                var error = string.IsNullOrEmpty(operation.Error) ? "热更流程初始化失败！" : operation.Error;
+                var error = string.IsNullOrEmpty(operation.Error)
+                    ? HotfixText.Get(HotfixTextKey.HotUpdateProcedureInitializeFailed)
+                    : operation.Error;
                 Debug.LogError(error);
                 UIPanelRoot.Instance.ShowMessage(error);
                 yield break;
@@ -73,7 +75,11 @@ namespace Framework
             YooAssetKit.LoadSceneAsync(location, LoadSceneMode.Single, LocalPhysicsMode.None, false, (progress) =>
             {
                 //更新进度
-                TypeEventSystem.Global.Send(new OnSceneloadUpdateEvent() { progress = progress, desc = "场景加载中" });
+                TypeEventSystem.Global.Send(new OnSceneloadUpdateEvent
+                {
+                    progress = progress,
+                    desc = HotfixText.Get(HotfixTextKey.SceneLoading)
+                });
             }, (sceneHandle) =>
             {
                 //加载完成
@@ -90,20 +96,20 @@ namespace Framework
 #if !UNITY_EDITOR
             if (playMode == EPlayMode.EditorSimulateMode)
             {
-                ShowStartupError("资源系统运行模式配置错误：Player 环境不能使用 EditorSimulateMode。请检查构建配置。");
+                ShowStartupError(HotfixText.Get(HotfixTextKey.InvalidEditorSimulateInPlayer));
                 return false;
             }
 
 #if UNITY_WEBGL
             if (playMode != EPlayMode.WebPlayMode)
             {
-                ShowStartupError($"资源系统运行模式配置错误：WebGL 平台必须使用 WebPlayMode，当前为 {playMode}。");
+                ShowStartupError(HotfixText.Get(HotfixTextKey.InvalidWebGLPlayMode, playMode));
                 return false;
             }
 #else
             if (playMode == EPlayMode.WebPlayMode)
             {
-                ShowStartupError($"资源系统运行模式配置错误：非 WebGL 平台不能使用 WebPlayMode，当前为 {playMode}。");
+                ShowStartupError(HotfixText.Get(HotfixTextKey.InvalidNonWebGLPlayMode, playMode));
                 return false;
             }
 #endif

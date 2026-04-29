@@ -1,0 +1,88 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bab96c53c4a54767aba92a43e3858229, type: 3}
+  m_Name: HotfixRemoteSettings
+  m_EditorClassIdentifier: 
+  defaultEnvironment: 0
+  defaultChannel: default
+  defaultRegion: global
+  enableRuntimeOverride: 1
+  environmentOverrideKey: Hotfix.Remote.Environment
+  channelOverrideKey: Hotfix.Remote.Channel
+  regionOverrideKey: Hotfix.Remote.Region
+  mainUrlOverrideKey: Hotfix.Remote.MainUrl
+  fallbackUrlOverrideKey: Hotfix.Remote.FallbackUrl
+  environmentCommandLineKey: hotfix-env
+  channelCommandLineKey: hotfix-channel
+  regionCommandLineKey: hotfix-region
+  mainUrlCommandLineKey: hotfix-main-url
+  fallbackUrlCommandLineKey: hotfix-fallback-url
+  environments:
+  - environment: 0
+    mainCdnUrlTemplate: http://127.0.0.1:8080/TestProject/{Platform}/{Channel}/{Region}
+    fallbackCdnUrlTemplate: http://127.0.0.1:8081/TestProject/{Platform}/{Channel}/{Region}
+    requireHttps: 0
+    allowedDomains:
+    - 127.0.0.1
+    certificatePinningEnabled: 0
+    certificatePublicKeyPin: 
+    enableGrayRelease: 0
+    grayReleasePercent: 0
+    grayMainCdnUrlTemplate: 
+    grayFallbackCdnUrlTemplate: 
+    grayReleaseSalt: hotfix-dev
+  - environment: 1
+    mainCdnUrlTemplate: https://test-cdn.example.com/TestProject/{Platform}/{Channel}/{Region}
+    fallbackCdnUrlTemplate: https://test-cdn-backup.example.com/TestProject/{Platform}/{Channel}/{Region}
+    requireHttps: 1
+    allowedDomains:
+    - test-cdn.example.com
+    - test-cdn-backup.example.com
+    certificatePinningEnabled: 0
+    certificatePublicKeyPin: 
+    enableGrayRelease: 0
+    grayReleasePercent: 0
+    grayMainCdnUrlTemplate: 
+    grayFallbackCdnUrlTemplate: 
+    grayReleaseSalt: hotfix-test
+  - environment: 2
+    mainCdnUrlTemplate: https://staging-cdn.example.com/TestProject/{Platform}/{Channel}/{Region}
+    fallbackCdnUrlTemplate: https://staging-cdn-backup.example.com/TestProject/{Platform}/{Channel}/{Region}
+    requireHttps: 1
+    allowedDomains:
+    - staging-cdn.example.com
+    - staging-cdn-backup.example.com
+    - staging-gray-cdn.example.com
+    - staging-gray-cdn-backup.example.com
+    certificatePinningEnabled: 0
+    certificatePublicKeyPin: 
+    enableGrayRelease: 1
+    grayReleasePercent: 5
+    grayMainCdnUrlTemplate: https://staging-gray-cdn.example.com/TestProject/{Platform}/{Channel}/{Region}
+    grayFallbackCdnUrlTemplate: https://staging-gray-cdn-backup.example.com/TestProject/{Platform}/{Channel}/{Region}
+    grayReleaseSalt: hotfix-staging
+  - environment: 3
+    mainCdnUrlTemplate: https://cdn.example.com/TestProject/{Platform}/{Channel}/{Region}
+    fallbackCdnUrlTemplate: https://cdn-backup.example.com/TestProject/{Platform}/{Channel}/{Region}
+    requireHttps: 1
+    allowedDomains:
+    - cdn.example.com
+    - cdn-backup.example.com
+    - gray-cdn.example.com
+    - gray-cdn-backup.example.com
+    certificatePinningEnabled: 0
+    certificatePublicKeyPin: 
+    enableGrayRelease: 0
+    grayReleasePercent: 0
+    grayMainCdnUrlTemplate: https://gray-cdn.example.com/TestProject/{Platform}/{Channel}/{Region}
+    grayFallbackCdnUrlTemplate: https://gray-cdn-backup.example.com/TestProject/{Platform}/{Channel}/{Region}
+    grayReleaseSalt: hotfix-production

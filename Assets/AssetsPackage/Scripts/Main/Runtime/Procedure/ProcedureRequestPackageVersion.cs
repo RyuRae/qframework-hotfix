@@ -52,7 +52,7 @@ namespace Framework.Procedure
             {
                 if (mTarget.ShouldUseLocalCacheOnlyAtStartup())
                 {
-                    yield return TryUseLocalManifestFallback("当前启动策略要求使用本地可用资源启动。");
+                    yield return TryUseLocalManifestFallback(HotfixText.Get(HotfixTextKey.StartupLocalCacheOnlyReason));
                     yield break;
                 }
 
@@ -78,12 +78,13 @@ namespace Framework.Procedure
                     yield break;
                 }
 
-                string error = BuildPackageError("请求远端资源版本失败", packageResult, rawfileResult);
+                string title = HotfixText.Get(HotfixTextKey.RequestRemoteVersionFailedTitle);
+                string error = BuildPackageError(title, packageResult, rawfileResult);
                 LogKit.W(error);
 
                 StartupFailureDecision decision = StartupFailureDecision.Retry;
                 yield return WaitForStartupFailureDecision(
-                    "请求远端资源版本失败",
+                    title,
                     error,
                     mTarget.CanUseLocalCacheFallback,
                     value => decision = value);
@@ -95,7 +96,9 @@ namespace Framework.Procedure
 
                 if (decision == StartupFailureDecision.UseLocalCache)
                 {
-                    yield return TryUseLocalManifestFallback($"请求远端资源版本失败，使用本地缓存启动。{GetFailureHint(error)}");
+                    yield return TryUseLocalManifestFallback(HotfixText.Get(
+                        HotfixTextKey.RequestRemoteVersionFailedUseCacheReason,
+                        GetFailureHint(error)));
                     yield break;
                 }
 
@@ -135,7 +138,7 @@ namespace Framework.Procedure
                 yield break;
             }
 
-            mTarget.SetFailed($"本地缓存启动失败：{error}");
+            mTarget.SetFailed(HotfixText.Get(HotfixTextKey.LocalCacheStartupFailed, error));
         }
 
         private IEnumerator WaitForStartupFailureDecision(
@@ -147,12 +150,12 @@ namespace Framework.Procedure
             bool hasDecision = false;
             StartupFailureDecision decision = StartupFailureDecision.Retry;
             string fallbackText = canUseLocalCache
-                ? "点击确定重试，点击取消使用本地缓存启动。"
-                : "点击确定重试，点击取消退出更新。";
+                ? HotfixText.Get(HotfixTextKey.RetryOrUseCachePrompt)
+                : HotfixText.Get(HotfixTextKey.RetryOrExitPrompt);
 
             UIPanelRoot.Instance.CloseLoadingPanel();
             UIPanelRoot.Instance.ShowMessageBox(
-                $"{title}：\n{GetFailureHint(error)}\n{error}\n{fallbackText}",
+                HotfixText.Get(HotfixTextKey.StartupFailurePrompt, title, GetFailureHint(error), error, fallbackText),
                 () =>
                 {
                     decision = StartupFailureDecision.Retry;
@@ -197,25 +200,25 @@ namespace Framework.Procedure
             string lowerError = (error ?? string.Empty).ToLowerInvariant();
             if (lowerError.Contains("404") || lowerError.Contains("not found"))
             {
-                return "CDN 资源不存在或版本文件未上传。";
+                return HotfixText.Get(HotfixTextKey.VersionFileNotFoundHint);
             }
 
             if (lowerError.Contains("resolve") || lowerError.Contains("dns"))
             {
-                return "域名解析失败，请检查网络或 CDN 域名。";
+                return HotfixText.Get(HotfixTextKey.DnsResolveFailedHint);
             }
 
             if (lowerError.Contains("timeout") || lowerError.Contains("connect") || lowerError.Contains("unreachable"))
             {
-                return "服务器不可达或网络超时。";
+                return HotfixText.Get(HotfixTextKey.ServerUnreachableHint);
             }
 
             if (lowerError.Contains("manifest") || lowerError.Contains("verify") || lowerError.Contains("deserialize"))
             {
-                return "远端 manifest 可能损坏或与 hash 不匹配。";
+                return HotfixText.Get(HotfixTextKey.RemoteManifestInvalidHint);
             }
 
-            return "网络或远端资源异常。";
+            return HotfixText.Get(HotfixTextKey.NetworkOrRemoteResourceErrorHint);
         }
     }
 }

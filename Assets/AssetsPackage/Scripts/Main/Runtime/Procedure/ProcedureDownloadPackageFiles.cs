@@ -114,13 +114,15 @@ namespace Framework.Procedure
 
                 if (decision == DownloadFailureDecision.UseLocalCache)
                 {
-                    yield return TryUseLocalManifestFallback($"资源下载失败，使用本地缓存启动。{GetFailureHint(error)}");
+                    yield return TryUseLocalManifestFallback(HotfixText.Get(
+                        HotfixTextKey.DownloadFailedUseLocalCacheReason,
+                        GetFailureHint(error)));
                     yield break;
                 }
 
                 if (decision == DownloadFailureDecision.Exit)
                 {
-                    mTarget.CancelDownload($"下载失败，用户选择退出更新。{error}");
+                    mTarget.CancelDownload(HotfixText.Get(HotfixTextKey.DownloadFailedExitReason, error));
                     yield break;
                 }
 
@@ -155,13 +157,13 @@ namespace Framework.Procedure
             bool hasDecision = false;
             DownloadFailureDecision decision = DownloadFailureDecision.Retry;
             string fallbackText = mTarget.CanUseLocalCacheFallback
-                ? "点击确定重试，点击取消使用本地缓存启动。"
-                : "点击确定重试，点击取消退出更新。";
+                ? HotfixText.Get(HotfixTextKey.RetryOrUseCachePrompt)
+                : HotfixText.Get(HotfixTextKey.RetryOrExitPrompt);
 
             LogKit.E(error);
             UIPanelRoot.Instance.CloseLoadingPanel();
             UIPanelRoot.Instance.ShowMessageBox(
-                $"资源包 {packageName} 下载失败：\n{GetFailureHint(error)}\n{error}\n{fallbackText}",
+                HotfixText.Get(HotfixTextKey.PackageDownloadFailedPrompt, packageName, GetFailureHint(error), error, fallbackText),
                 () =>
                 {
                     decision = DownloadFailureDecision.Retry;
@@ -201,7 +203,7 @@ namespace Framework.Procedure
                 yield break;
             }
 
-            mTarget.SetFailed($"本地缓存启动失败：{error}");
+            mTarget.SetFailed(HotfixText.Get(HotfixTextKey.LocalCacheStartupFailed, error));
         }
 
         private static string GetFailureHint(string error)
@@ -209,25 +211,25 @@ namespace Framework.Procedure
             string lowerError = (error ?? string.Empty).ToLowerInvariant();
             if (lowerError.Contains("404") || lowerError.Contains("not found"))
             {
-                return "CDN bundle 不存在，可能是资源未上传或 manifest 指向了错误版本。";
+                return HotfixText.Get(HotfixTextKey.BundleNotFoundHint);
             }
 
             if (lowerError.Contains("resolve") || lowerError.Contains("dns"))
             {
-                return "域名解析失败，请检查网络或 CDN 域名。";
+                return HotfixText.Get(HotfixTextKey.DnsResolveFailedHint);
             }
 
             if (lowerError.Contains("timeout") || lowerError.Contains("connect") || lowerError.Contains("unreachable"))
             {
-                return "服务器不可达或网络超时。";
+                return HotfixText.Get(HotfixTextKey.ServerUnreachableHint);
             }
 
             if (lowerError.Contains("verify") || lowerError.Contains("crc") || lowerError.Contains("hash"))
             {
-                return "下载文件校验失败，可能是 CDN 文件损坏或缓存污染。";
+                return HotfixText.Get(HotfixTextKey.DownloadVerifyFailedHint);
             }
 
-            return "网络或远端资源异常。";
+            return HotfixText.Get(HotfixTextKey.NetworkOrRemoteResourceErrorHint);
         }
 
         private ResourceDownloaderOperation CreateDownloader(string packageName, bool isRawFilePackage)

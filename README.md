@@ -36,6 +36,8 @@ Assets/AssetsPackage
 - `ProjectSettings/HybridCLRSettings.asset`：HybridCLR 热更程序集配置。当前热更程序集来自 asmdef，包括 `HotfixCommon`、`HotfixDemo`。
 - `Assets/Resources/AssetBundleCollectorSetting.asset`：YooAsset 收集器配置。当前 `DefaultPackage` 收集 `AOTCodes`、`HotfixCodes`、`Configs`、示例资源和数据。
 - `Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset`：热更新运行配置，记录 YooAsset play mode、主资源包名、RawFile 包名和启动阶段下载策略。
+- `Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset`：热更新远端配置，记录开发、测试、预发、正式环境的主/备 CDN 地址和运行时选择规则。
+- `Assets/AssetsPackage/Resources/HotfixLocalizationSettings.asset`：热更新启动阶段本地化文本配置，记录中文、英文提示文案和运行时语言选择规则。
 - `Assets/AssetsPackage/AssetsHotFix/Configs/AssemblyManifest.asset`：运行时程序集加载清单，记录 AOT 元数据 DLL、热更 DLL、入口场景和可选入口方法。
 
 `HotfixRuntimeSettings.asset` 核心字段：
@@ -184,26 +186,78 @@ Windows 的 `Build/Win64` 菜单额外封装了 Player 构建流程：先构建 
 
 ## 远端资源地址
 
-当前 Host/Web 模式远端地址写在：
+Host/Web 模式远端地址由 `Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset` 控制，不再写死在代码里。
 
-```csharp
-private string GetHostServerURL()
-{
-    return "http://127.0.0.1:8080/TestProject/PC";
-}
-```
+每个环境都可以独立配置：
 
-文件位置：`Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureInitializePackage.cs`。
+- `mainCdnUrlTemplate`：主 CDN 地址模板。
+- `fallbackCdnUrlTemplate`：备用 CDN 地址模板，启动时会校验它不能和主 CDN 完全相同。
+- `requireHttps`：是否强制 HTTPS，正式环境建议开启。
+- `allowedDomains`：允许访问的域名白名单，预留域名治理能力。
+- `certificatePinningEnabled` / `certificatePublicKeyPin`：证书 pinning 预留字段。
+- `enableGrayRelease` / `grayReleasePercent` / `grayMainCdnUrlTemplate`：CDN 灰度切换预留字段。
 
-正式项目需要把这里替换成真实 CDN 地址，并按平台区分目录，例如：
+地址模板支持以下 token：
 
 ```text
-https://cdn.example.com/GameName/Android
-https://cdn.example.com/GameName/iOS
-https://cdn.example.com/GameName/PC
+{Environment}  # Development / Testing / Staging / Production
+{Platform}     # Android / iOS / WebGL / Windows / macOS / Linux
+{Channel}      # 渠道，例如 appstore、googleplay、tap、official
+{Region}       # 地区，例如 cn、us、global
+{PackageName}  # YooAsset 包名
 ```
 
-上传远端资源时，服务器目录需要保持 YooAsset 构建输出中的文件结构和文件名不变。
+示例：
+
+```text
+https://cdn.example.com/GameName/{Platform}/{Channel}/{Region}
+https://cdn-backup.example.com/GameName/{Platform}/{Channel}/{Region}
+```
+
+运行时可以通过 PlayerPrefs 或命令行切换环境、渠道和地区，不需要修改代码：
+
+```csharp
+PlayerPrefs.SetString("Hotfix.Remote.Environment", "Production");
+PlayerPrefs.SetString("Hotfix.Remote.Channel", "official");
+PlayerPrefs.SetString("Hotfix.Remote.Region", "cn");
+PlayerPrefs.Save();
+```
+
+也可以直接覆盖本次使用的主/备 CDN 模板：
+
+```csharp
+PlayerPrefs.SetString("Hotfix.Remote.MainUrl", "https://cdn.example.com/GameName/{Platform}/{Channel}/{Region}");
+PlayerPrefs.SetString("Hotfix.Remote.FallbackUrl", "https://cdn-backup.example.com/GameName/{Platform}/{Channel}/{Region}");
+PlayerPrefs.Save();
+```
+
+命令行示例：
+
+```text
+--hotfix-env=Production --hotfix-channel=official --hotfix-region=cn
+--hotfix-main-url=https://cdn.example.com/GameName/{Platform}/{Channel}/{Region}
+--hotfix-fallback-url=https://cdn-backup.example.com/GameName/{Platform}/{Channel}/{Region}
+```
+
+上传远端资源时，服务器目录需要和模板解析后的目录一致，并保持 YooAsset 构建输出中的文件结构和文件名不变。
+
+## 启动阶段多语言
+
+启动、资源检查、下载确认、失败重试、本地缓存降级、AOT 元数据加载和热更程序集加载等提示文案由 `Assets/AssetsPackage/Resources/HotfixLocalizationSettings.asset` 管理。
+
+默认语言为 `FollowSystem`，运行时会跟随系统语言选择简体中文或英文。也可以通过 PlayerPrefs 或命令行覆盖：
+
+```csharp
+PlayerPrefs.SetString("Hotfix.Language", "English");
+PlayerPrefs.Save();
+```
+
+```text
+--hotfix-language=ChineseSimplified
+--hotfix-language=English
+```
+
+新增启动阶段提示时，优先在 `HotfixTextKey` 中添加 key，并在 `HotfixLocalizationSettings.asset` 中补齐对应语言文本，再通过 `HotfixText.Get(...)` 使用，避免把用户可见文案继续写死在流程代码里。
 
 ## AOT 元数据策略
 
@@ -326,7 +380,7 @@ Build/Win64                              # Windows 示例 Player 构建
 
 ### 修改了资源但客户端下载不到？
 
-检查资源是否在 `YooAsset/AssetBundle Collector` 中被收集，远端目录是否上传了最新版本文件和 bundle，客户端 `GetHostServerURL()` 是否指向正确平台目录。
+检查资源是否在 `YooAsset/AssetBundle Collector` 中被收集，远端目录是否上传了最新版本文件和 bundle，`HotfixRemoteSettings.asset` 解析出的环境、平台、渠道、地区目录是否正确。
 
 ### 何时必须重新发 App 包？
 

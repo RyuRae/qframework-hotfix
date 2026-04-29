@@ -1,0 +1,205 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fea128c258d941ee8f43387d8014d84a, type: 3}
+  m_Name: HotfixLocalizationSettings
+  m_EditorClassIdentifier: 
+  defaultLanguage: 0
+  enableRuntimeOverride: 1
+  languageOverrideKey: Hotfix.Language
+  languageCommandLineKey: hotfix-language
+  texts:
+  - key: StartupRuntimeConfigMissing
+    chineseSimplified: "热更新运行配置缺失：Resources/{0}.asset"
+    english: "Hotfix runtime settings missing: Resources/{0}.asset"
+  - key: HotUpdateProcedureInitializeFailed
+    chineseSimplified: "热更流程初始化失败！"
+    english: "Hot update procedure initialization failed."
+  - key: SceneLoading
+    chineseSimplified: "场景加载中"
+    english: "Loading scene"
+  - key: InvalidEditorSimulateInPlayer
+    chineseSimplified: "资源系统运行模式配置错误：Player 环境不能使用 EditorSimulateMode。请检查构建配置。"
+    english: "Resource play mode configuration error: Player builds can not use EditorSimulateMode. Please check build settings."
+  - key: InvalidWebGLPlayMode
+    chineseSimplified: "资源系统运行模式配置错误：WebGL 平台必须使用 WebPlayMode，当前为 {0}。"
+    english: "Resource play mode configuration error: WebGL must use WebPlayMode, current mode is {0}."
+  - key: InvalidNonWebGLPlayMode
+    chineseSimplified: "资源系统运行模式配置错误：非 WebGL 平台不能使用 WebPlayMode，当前为 {0}。"
+    english: "Resource play mode configuration error: non-WebGL platforms can not use WebPlayMode, current mode is {0}."
+  - key: RemoteEnvironmentConfigMissing
+    chineseSimplified: "热更新远端配置缺失：{0}"
+    english: "Hotfix remote environment config missing: {0}"
+  - key: RemoteMainFallbackSame
+    chineseSimplified: "热更新远端配置错误：main URL 和 fallback URL 不能完全相同。URL: {0}"
+    english: "Hotfix remote config error: main URL and fallback URL must not be identical. URL: {0}"
+  - key: RemoteUrlEmpty
+    chineseSimplified: "热更新远端配置错误：{0} URL 为空。"
+    english: "Hotfix remote config error: {0} URL is empty."
+  - key: RemoteUrlInvalid
+    chineseSimplified: "热更新远端配置错误：{0} URL 非法。URL: {1}"
+    english: "Hotfix remote config error: {0} URL is invalid. URL: {1}"
+  - key: RemoteUrlSchemeUnsupported
+    chineseSimplified: "热更新远端配置错误：{0} URL 只支持 HTTP/HTTPS。URL: {1}"
+    english: "Hotfix remote config error: {0} URL only supports HTTP/HTTPS. URL: {1}"
+  - key: RemoteUrlRequiresHttps
+    chineseSimplified: "热更新远端配置错误：{0} URL 必须使用 HTTPS。URL: {1}"
+    english: "Hotfix remote config error: {0} URL must use HTTPS. URL: {1}"
+  - key: RemoteUrlDomainNotAllowed
+    chineseSimplified: "热更新远端配置错误：{0} URL 域名未在允许列表中。Host: {1}"
+    english: "Hotfix remote config error: {0} URL host is not allowed. Host: {1}"
+  - key: RemoteSettingsMissing
+    chineseSimplified: "热更新远端配置缺失：Resources/{0}.asset"
+    english: "Hotfix remote settings missing: Resources/{0}.asset"
+  - key: ResourcePackageInitializeFailed
+    chineseSimplified: "资源包初始化失败！"
+    english: "Resource package initialization failed."
+  - key: RawFilePackageInitializeFailed
+    chineseSimplified: "原生资源包初始化失败！"
+    english: "RawFile package initialization failed."
+  - key: ResourcePackageInitializeSucceed
+    chineseSimplified: "资源包初始化成功！"
+    english: "Resource package initialized."
+  - key: DownloadInfoPrompt
+    chineseSimplified: "发现可更新文件：{0} 个，总大小 {1} MB，是否开始下载？"
+    english: "{0} files need to be updated, total size {1} MB. Start downloading?"
+  - key: DownloadFailed
+    chineseSimplified: "下载失败：{0}\n{1}\n{2}"
+    english: "Download failed: {0}\n{1}\n{2}"
+  - key: DownloadCanceledDefault
+    chineseSimplified: "资源下载已取消。"
+    english: "Resource download has been canceled."
+  - key: StartupUsingLocalCacheDefault
+    chineseSimplified: "网络异常，已使用本地缓存启动。"
+    english: "Network error. Started with local cache."
+  - key: ResourceDownloadingProgress
+    chineseSimplified: "资源下载中：{0:P0}"
+    english: "Downloading resources: {0:P0}"
+  - key: DownloadFileBegin
+    chineseSimplified: "开始下载文件：{0}"
+    english: "Start downloading file: {0}"
+  - key: DownloadFileCompleted
+    chineseSimplified: "文件下载完成：{0}"
+    english: "File download completed: {0}"
+  - key: DownloadFileFailed
+    chineseSimplified: "文件下载失败：{0}"
+    english: "File download failed: {0}"
+  - key: AssetLoading
+    chineseSimplified: "资源加载中"
+    english: "Loading assets"
+  - key: FileDownloading
+    chineseSimplified: "文件下载中"
+    english: "Downloading file"
+  - key: UserCanceledResourceDownload
+    chineseSimplified: "用户取消资源下载。"
+    english: "User canceled resource download."
+  - key: UserCanceledResourceUpdate
+    chineseSimplified: "用户取消资源更新。"
+    english: "User canceled resource update."
+  - key: DownloadPaused
+    chineseSimplified: "资源下载已暂停。"
+    english: "Resource download paused."
+  - key: NoDownloadTaskToPause
+    chineseSimplified: "当前没有可暂停的下载任务。"
+    english: "There is no download task to pause."
+  - key: DownloadResumed
+    chineseSimplified: "资源下载已继续。"
+    english: "Resource download resumed."
+  - key: NoDownloadTaskToResume
+    chineseSimplified: "当前没有可继续的下载任务。"
+    english: "There is no download task to resume."
+  - key: MainPackageLocalCacheUnavailable
+    chineseSimplified: "主资源包本地缓存不可用：{0}"
+    english: "Main package local cache unavailable: {0}"
+  - key: RawFilePackageLocalCacheUnavailable
+    chineseSimplified: "RawFile 资源包本地缓存不可用：{0}"
+    english: "RawFile package local cache unavailable: {0}"
+  - key: UserCanceledStartupUpdate
+    chineseSimplified: "用户取消资源更新，启动流程终止。"
+    english: "User canceled resource update. Startup terminated."
+  - key: DownloadFailedUseLocalCacheReason
+    chineseSimplified: "资源下载失败，使用本地缓存启动。{0}"
+    english: "Resource download failed. Starting with local cache. {0}"
+  - key: DownloadFailedExitReason
+    chineseSimplified: "下载失败，用户选择退出更新。{0}"
+    english: "Download failed. User chose to exit update. {0}"
+  - key: RetryOrUseCachePrompt
+    chineseSimplified: "点击确定重试，点击取消使用本地缓存启动。"
+    english: "Confirm to retry, cancel to start with local cache."
+  - key: RetryOrExitPrompt
+    chineseSimplified: "点击确定重试，点击取消退出更新。"
+    english: "Confirm to retry, cancel to exit update."
+  - key: PackageDownloadFailedPrompt
+    chineseSimplified: "资源包 {0} 下载失败：\n{1}\n{2}\n{3}"
+    english: "Package {0} download failed:\n{1}\n{2}\n{3}"
+  - key: LocalCacheStartupFailed
+    chineseSimplified: "本地缓存启动失败：{0}"
+    english: "Failed to start with local cache: {0}"
+  - key: BundleNotFoundHint
+    chineseSimplified: "CDN bundle 不存在，可能是资源未上传或 manifest 指向了错误版本。"
+    english: "CDN bundle does not exist. Resources may not be uploaded, or the manifest points to the wrong version."
+  - key: DnsResolveFailedHint
+    chineseSimplified: "域名解析失败，请检查网络或 CDN 域名。"
+    english: "DNS resolution failed. Please check the network or CDN domain."
+  - key: ServerUnreachableHint
+    chineseSimplified: "服务器不可达或网络超时。"
+    english: "Server is unreachable or the network timed out."
+  - key: DownloadVerifyFailedHint
+    chineseSimplified: "下载文件校验失败，可能是 CDN 文件损坏或缓存污染。"
+    english: "Downloaded file verification failed. The CDN file may be corrupted or cache may be polluted."
+  - key: NetworkOrRemoteResourceErrorHint
+    chineseSimplified: "网络或远端资源异常。"
+    english: "Network or remote resource error."
+  - key: StartupLocalCacheOnlyReason
+    chineseSimplified: "当前启动策略要求使用本地可用资源启动。"
+    english: "The current startup policy requires starting with local available resources."
+  - key: RequestRemoteVersionFailedTitle
+    chineseSimplified: "请求远端资源版本失败"
+    english: "Failed to request remote resource version"
+  - key: RequestRemoteVersionFailedUseCacheReason
+    chineseSimplified: "请求远端资源版本失败，使用本地缓存启动。{0}"
+    english: "Failed to request remote resource version. Starting with local cache. {0}"
+  - key: StartupFailurePrompt
+    chineseSimplified: "{0}：\n{1}\n{2}\n{3}"
+    english: "{0}:\n{1}\n{2}\n{3}"
+  - key: VersionFileNotFoundHint
+    chineseSimplified: "CDN 资源不存在或版本文件未上传。"
+    english: "CDN resource does not exist or version file has not been uploaded."
+  - key: RemoteManifestInvalidHint
+    chineseSimplified: "远端 manifest 可能损坏或与 hash 不匹配。"
+    english: "Remote manifest may be corrupted or mismatched with its hash."
+  - key: UpdateManifestFailedTitle
+    chineseSimplified: "更新远端 manifest 失败"
+    english: "Failed to update remote manifest"
+  - key: UpdateManifestFailedUseCacheReason
+    chineseSimplified: "更新远端 manifest 失败，使用本地缓存启动。{0}"
+    english: "Failed to update remote manifest. Starting with local cache. {0}"
+  - key: ManifestFileNotFoundHint
+    chineseSimplified: "CDN manifest 或 hash 文件不存在。"
+    english: "CDN manifest or hash file does not exist."
+  - key: LoadingHotUpdateAssemblies
+    chineseSimplified: "加载热更程序集"
+    english: "Loading hot update assemblies"
+  - key: HotUpdateAssemblyLoadFailed
+    chineseSimplified: "代码加载失败！"
+    english: "Code loading failed."
+  - key: HotUpdateAssembliesLoaded
+    chineseSimplified: "热更程序集加载完成"
+    english: "Hot update assemblies loaded"
+  - key: LoadingAotMetadata
+    chineseSimplified: "加载AOT元数据"
+    english: "Loading AOT metadata"
+  - key: AotMetadataLoadFailed
+    chineseSimplified: "AOT元数据加载失败！"
+    english: "AOT metadata loading failed."
+  - key: AotMetadataLoaded
+    chineseSimplified: "AOT元数据加载完成"
+    english: "AOT metadata loaded"

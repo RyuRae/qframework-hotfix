@@ -24,7 +24,7 @@ public class Test : MonoBehaviour
 
         TbPerson person = new TbPerson(new ByteBuf(datas));
         var item = person.DataList[1];
-        Person person1 = person.Get("小王");
+        Person person1 = person.Get(item.Name);
         UnityEngine.Debug.LogFormat("item[1]:{0}", item);
         LogKit.I(person1);
 

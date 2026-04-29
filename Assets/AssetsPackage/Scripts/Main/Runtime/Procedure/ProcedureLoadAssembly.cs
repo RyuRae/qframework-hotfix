@@ -41,7 +41,11 @@ namespace Framework.Procedure
                 else
                     displayProgress = 1f;
 
-                TypeEventSystem.Global.Send(new OnAssetloadProgressEvent { progress = displayProgress, desc = "加载热更程序集" });
+                TypeEventSystem.Global.Send(new OnAssetloadProgressEvent
+                {
+                    progress = displayProgress,
+                    desc = HotfixText.Get(HotfixTextKey.LoadingHotUpdateAssemblies)
+                });
             }).UnRegisterWhenGameObjectDestroyed(CoroutineController.manager);
 
             CoroutineController.manager.StartCoroutine(LoadAssemblies());
@@ -58,7 +62,9 @@ namespace Framework.Procedure
             isLoading = false;
             if (!loader.Succeeded)
             {
-                var error = string.IsNullOrEmpty(loader.Error) ? "代码加载失败！" : loader.Error;
+                var error = string.IsNullOrEmpty(loader.Error)
+                    ? HotfixText.Get(HotfixTextKey.HotUpdateAssemblyLoadFailed)
+                    : loader.Error;
                 UIPanelRoot.Instance.ShowMessage(error);
                 mTarget.SetFailed(error);
                 yield break;
@@ -67,7 +73,11 @@ namespace Framework.Procedure
             mTarget.SetHotfixEntry(loader.EntrySceneAddress, loader.EntryTypeName, loader.EntryMethodName);
             rawProgress = 1f;
             displayProgress = 1f;
-            TypeEventSystem.Global.Send(new OnAssetloadProgressEvent { progress = 1f, desc = "热更程序集加载完成" });
+            TypeEventSystem.Global.Send(new OnAssetloadProgressEvent
+            {
+                progress = 1f,
+                desc = HotfixText.Get(HotfixTextKey.HotUpdateAssembliesLoaded)
+            });
             LogKit.I("Hot update assemblies loaded.");
             mFSM.ChangeState(ResPackageStates.ClearCacheBundle);
         }
