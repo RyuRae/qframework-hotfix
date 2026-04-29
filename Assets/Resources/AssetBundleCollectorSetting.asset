@@ -16,7 +16,7 @@ MonoBehaviour:
   ShowEditorAlias: 0
   UniqueBundleName: 0
   Packages:
-  - PackageName: DefaultPackage
+  - PackageName: TestPackage
     PackageDesc: 
     EnableAddressable: 1
     LocationToLower: 0

@@ -14,3 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   editorPlayMode: 0
   playerPlayMode: 2
+  mainPackageName: DefaultPackage
+  includeRawFilePackage: 0
+  rawfilePackageName: RawFilePackage
+  startupDownloadMode: 0
+  startupDownloadTags: []
+  rawfileStartupDownloadTags: []

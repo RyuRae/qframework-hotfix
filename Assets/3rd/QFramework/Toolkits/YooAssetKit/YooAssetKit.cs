@@ -15,14 +15,36 @@ namespace QFramework
     /// </summary>
     public class YooAssetKit
     {
+        private const string DefaultPackageName = "DefaultPackage";
+        private static string sDefaultPackageName = DefaultPackageName;
+
         /// <summary>
         /// 设置默认包
         /// </summary>
         /// <param name="packageName"></param>
-        public static void SetDefaultPackage(string packageName = "DefaultPackage")
+        public static void SetDefaultPackage(string packageName = DefaultPackageName)
         {
-            var package = YooAssets.GetPackage(packageName);
+            sDefaultPackageName = NormalizePackageName(packageName);
+            var package = YooAssets.GetPackage(sDefaultPackageName);
             YooAssets.SetDefaultPackage(package);
+        }
+
+        public static ResourcePackage GetPackageOrDefault(string packageName = null)
+        {
+            var resolvedPackageName = NormalizePackageName(packageName);
+            var package = YooAssets.TryGetPackage(resolvedPackageName);
+            if (package != null)
+            {
+                return package;
+            }
+
+            if (string.Equals(resolvedPackageName, DefaultPackageName, StringComparison.Ordinal) &&
+                !string.Equals(sDefaultPackageName, DefaultPackageName, StringComparison.Ordinal))
+            {
+                return YooAssets.GetPackage(sDefaultPackageName);
+            }
+
+            return YooAssets.GetPackage(resolvedPackageName);
         }
 
         /// <summary>
@@ -30,7 +52,7 @@ namespace QFramework
         /// </summary>
         public static T LoadAssetSync<T>(string assetName, string packageName = "DefaultPackage") where T : UnityEngine.Object
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             return package.LoadAssetSync<T>(assetName).AssetObject as T;
         }
 
@@ -51,7 +73,7 @@ namespace QFramework
         /// <returns></returns>
         public static T LoadSubAssetSync<T>(string assetName, string subAssetName, string packageName = "DefaultPackage") where T : UnityEngine.Object
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             return package.LoadSubAssetsSync<T>(assetName).GetSubAssetObject<T>(subAssetName);
         }
 
@@ -75,9 +97,9 @@ namespace QFramework
         /// <param name="packageName">资源包名</param>
         public static void LoadAssetAsync<T>(string assetName, Action<T> onLoad, string packageName = "DefaultPackage") where T : UnityEngine.Object
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             AssetHandle handle = package.LoadAssetAsync<T>(assetName);
-            handle.Completed += (assetHandle) => 
+            handle.Completed += (assetHandle) =>
             {
                 onLoad?.Invoke(assetHandle.AssetObject as T);
                 handle.Release();
@@ -134,7 +156,7 @@ namespace QFramework
                 return Array.Empty<AssetInfo>();
             }
 
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             return package.GetAssetInfos(normalizedTags);
         }
 
@@ -159,7 +181,7 @@ namespace QFramework
             int failedTryAgain = 3,
             string packageName = "DefaultPackage")
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             var normalizedTags = NormalizeTags(tags);
             return normalizedTags.Length > 0
                 ? package.CreateResourceDownloader(normalizedTags, downloadingMaxNum, failedTryAgain)
@@ -230,7 +252,7 @@ namespace QFramework
             Action<List<T>> onLoad,
             string packageName = "DefaultPackage") where T : UnityEngine.Object
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             LoadAssetsByTags<T>(package, tags, onLoad).ToAction().StartGlobal();
         }
 
@@ -251,7 +273,7 @@ namespace QFramework
             string[] tags,
             string packageName = "DefaultPackage") where T : UnityEngine.Object
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             var normalizedTags = NormalizeTags(tags);
             if (normalizedTags.Length == 0)
             {
@@ -312,9 +334,9 @@ namespace QFramework
         /// <param name="packageName">包名</param>
         public static void LoadGameObjectAsync(string assetName, Action<GameObject> onLoad, string packageName = "DefaultPackage")
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             AssetHandle handle = package.LoadAssetAsync<GameObject>(assetName);
-            handle.Completed += (assetHanlde) => 
+            handle.Completed += (assetHanlde) =>
             {
                 onLoad?.Invoke(assetHanlde.AssetObject as GameObject);
                 handle.Release();
@@ -346,9 +368,9 @@ namespace QFramework
         /// <param name="packageName">包名</param>
         public static void LoadSubAssetAsync<T>(string assetName, string subAssetName, Action<T> onLoad, string packageName = "DefaultPackage") where T : UnityEngine.Object
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             SubAssetsHandle handle = package.LoadSubAssetsAsync<T>(assetName);
-            handle.Completed += (assetHandle) => 
+            handle.Completed += (assetHandle) =>
             {
                 onLoad?.Invoke(assetHandle.GetSubAssetObject<T>(subAssetName));
                 handle.Release();
@@ -381,9 +403,9 @@ namespace QFramework
         /// <param name="packageName">包名</param>
         public static void LoadRawToByteAsync(string assetName, Action<byte[]> onLoad, string packageName = "DefaultPackage")
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             RawFileHandle handle = package.LoadRawFileAsync(assetName);
-            handle.Completed += (assetHandle) => 
+            handle.Completed += (assetHandle) =>
             {
                 onLoad?.Invoke(assetHandle.GetRawFileData());
                 handle.Release();
@@ -414,9 +436,9 @@ namespace QFramework
         /// <param name="packageName">包名</param>
         public static void LoadRawToStringAsync(string assetName, Action<string> onLoad, string packageName = "DefaultPackage")
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             RawFileHandle handle = package.LoadRawFileAsync(assetName);
-            handle.Completed += (assetHandle) => 
+            handle.Completed += (assetHandle) =>
             {
                 onLoad?.Invoke(assetHandle.GetRawFileText());
                 handle.Release();
@@ -448,7 +470,7 @@ namespace QFramework
         /// <param name="packageName">包名</param>
         public static void LoadSceneAsync(string sceneName, LoadSceneMode loadSceneMode = LoadSceneMode.Single, LocalPhysicsMode physicsMode = LocalPhysicsMode.None, bool suspendLoad = true, Action<float> onUpdateProgress = null, Action<SceneHandle> onCompleted = null, string packageName = "DefaultPackage")
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             LoadScene(package, sceneName, loadSceneMode, physicsMode, suspendLoad, onUpdateProgress, onCompleted).ToAction().StartGlobal();
         }
 
@@ -470,7 +492,7 @@ namespace QFramework
         /// <param name="packageName"></param>
         public static void UnloadUnusedAssets(string packageName = "DefaultPackage")
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             UnloadUnusedAssets(package).ToAction().StartGlobal();
         }
 
@@ -481,7 +503,7 @@ namespace QFramework
         /// <param name="packageName">包名</param>
         public static void TryUnloadUnusedAsset(string assetName, string packageName = "DefaultPackage")
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             package.TryUnloadUnusedAsset(assetName);
         }
 
@@ -490,7 +512,7 @@ namespace QFramework
         /// </summary>
         public static void ForceUnloadAllAssets(string packageName = "DefaultPackage")
         {
-            var package = YooAssets.GetPackage(packageName);
+            var package = GetPackageOrDefault(packageName);
             UnloadAllAssets(package).ToAction().StartGlobal();
         }
 
@@ -506,6 +528,11 @@ namespace QFramework
         {
             var operation = package.UnloadAllAssetsAsync();
             yield return operation;
+        }
+
+        private static string NormalizePackageName(string packageName)
+        {
+            return string.IsNullOrWhiteSpace(packageName) ? sDefaultPackageName : packageName.Trim();
         }
 
         private static IEnumerator Download(

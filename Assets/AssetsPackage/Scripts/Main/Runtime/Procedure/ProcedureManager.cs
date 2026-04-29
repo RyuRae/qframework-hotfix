@@ -31,6 +31,7 @@ namespace Framework.Procedure
         public string _rawfilePkgVersion;
         public ResourceDownloaderOperation _downloaderOperation;
         public ResourceDownloaderOperation _downloaderRawfile;
+        public readonly StartupDownloadMode _startupDownloadMode;
         public readonly string[] _downloadTags;
         public readonly string[] _rawfileDownloadTags;
 
@@ -44,18 +45,18 @@ namespace Framework.Procedure
             string packageName,
             EPlayMode playMode,
             bool IsIncludeRawFile = false,
+            StartupDownloadMode startupDownloadMode = StartupDownloadMode.DownloadAll,
             string[] downloadTags = null,
-            string[] rawfileDownloadTags = null)
+            string[] rawfileDownloadTags = null,
+            string rawfilePackageName = null)
         {
-            _packageName = packageName;
+            _packageName = NormalizePackageName(packageName, HotfixRuntimeSettings.DefaultMainPackageName);
             _playMode = playMode;
             _isIncludeRawFile = IsIncludeRawFile;
+            _startupDownloadMode = startupDownloadMode;
             _downloadTags = NormalizeTags(downloadTags);
             _rawfileDownloadTags = NormalizeTags(rawfileDownloadTags);
-            if (_isIncludeRawFile)
-            {
-                _rawfilwPkgName = Boot.rawfilePackageName;
-            }
+            _rawfilwPkgName = NormalizePackageName(rawfilePackageName, HotfixRuntimeSettings.DefaultRawFilePackageName);
 
             _mFSM.AddState(ResPackageStates.InitializePackage, new ProcedureInitializePackage(_mFSM, this));
             _mFSM.AddState(ResPackageStates.LoadAOTMetadata, new ProcedureLoadAOTMetadata(_mFSM, this));
@@ -136,6 +137,11 @@ namespace Framework.Procedure
             }
 
             return results.ToArray();
+        }
+
+        private static string NormalizePackageName(string packageName, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(packageName) ? fallback : packageName.Trim();
         }
     }
 }

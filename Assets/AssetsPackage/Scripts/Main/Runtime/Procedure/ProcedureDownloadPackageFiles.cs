@@ -33,15 +33,18 @@ namespace Framework.Procedure
 
         private IEnumerator BeginDownload()
         {
-            yield return DownloadPackage(mTarget._downloaderOperation, "DefaultPackage");
-            if (mTarget.IsDone)
+            if (mTarget._downloaderOperation != null)
             {
-                yield break;
+                yield return DownloadPackage(mTarget._downloaderOperation, mTarget._packageName);
+                if (mTarget.IsDone)
+                {
+                    yield break;
+                }
             }
 
-            if (mTarget._isIncludeRawFile)
+            if (mTarget._isIncludeRawFile && mTarget._downloaderRawfile != null)
             {
-                yield return DownloadPackage(mTarget._downloaderRawfile, "RawFilePackage");
+                yield return DownloadPackage(mTarget._downloaderRawfile, mTarget._rawfilwPkgName);
                 if (mTarget.IsDone)
                 {
                     yield break;

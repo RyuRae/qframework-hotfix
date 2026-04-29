@@ -32,27 +32,46 @@ namespace Framework.Procedure
 
         private void CreateDownloader()
         {
+            if (mTarget._startupDownloadMode == StartupDownloadMode.Skip)
+            {
+                Debug.Log("Skip startup resource download.");
+                mFSM.ChangeState(ResPackageStates.LoadAOTMetadata);
+                return;
+            }
+
             var package = YooAssets.GetPackage(mTarget._packageName);
             int downloadingMaxNum = 10;
             int failedTryAgain = 3;
 
-            var downloader = CreateDownloader(package, mTarget._downloadTags, downloadingMaxNum, failedTryAgain);
+            var downloader = CreateDownloader(
+                package,
+                mTarget._packageName,
+                mTarget._startupDownloadMode,
+                mTarget._downloadTags,
+                downloadingMaxNum,
+                failedTryAgain);
             mTarget._downloaderOperation = downloader;
 
             ResourceDownloaderOperation downloaderRawfile = null;
             if (mTarget._isIncludeRawFile)
             {
                 var rawfilePkg = YooAssets.GetPackage(mTarget._rawfilwPkgName);
-                downloaderRawfile = CreateDownloader(rawfilePkg, mTarget._rawfileDownloadTags, downloadingMaxNum, failedTryAgain);
+                downloaderRawfile = CreateDownloader(
+                    rawfilePkg,
+                    mTarget._rawfilwPkgName,
+                    mTarget._startupDownloadMode,
+                    mTarget._rawfileDownloadTags,
+                    downloadingMaxNum,
+                    failedTryAgain);
                 mTarget._downloaderRawfile = downloaderRawfile;
             }
 
-            int totalDownloadCount = downloader.TotalDownloadCount;
-            long totalDownloadBytes = downloader.TotalDownloadBytes;
+            int totalDownloadCount = GetDownloadCount(downloader);
+            long totalDownloadBytes = GetDownloadBytes(downloader);
             if (downloaderRawfile != null)
             {
-                totalDownloadCount += downloaderRawfile.TotalDownloadCount;
-                totalDownloadBytes += downloaderRawfile.TotalDownloadBytes;
+                totalDownloadCount += GetDownloadCount(downloaderRawfile);
+                totalDownloadBytes += GetDownloadBytes(downloaderRawfile);
             }
 
             if (totalDownloadCount == 0)
@@ -72,18 +91,36 @@ namespace Framework.Procedure
 
         private static ResourceDownloaderOperation CreateDownloader(
             ResourcePackage package,
+            string packageName,
+            StartupDownloadMode startupDownloadMode,
             string[] tags,
             int downloadingMaxNum,
             int failedTryAgain)
         {
-            if (tags != null && tags.Length > 0)
+            if (startupDownloadMode == StartupDownloadMode.DownloadAll)
             {
-                Debug.Log($"Create resource downloader by tags: {string.Join(",", tags)}");
+                Debug.Log($"Create resource downloader by all changed resources. Package: {packageName}");
+                return package.CreateResourceDownloader(downloadingMaxNum, failedTryAgain);
+            }
+
+            if (startupDownloadMode == StartupDownloadMode.DownloadByTags && tags != null && tags.Length > 0)
+            {
+                Debug.Log($"Create resource downloader by tags: {string.Join(",", tags)}. Package: {packageName}");
                 return package.CreateResourceDownloader(tags, downloadingMaxNum, failedTryAgain);
             }
 
-            Debug.Log("Create resource downloader by all changed resources.");
-            return package.CreateResourceDownloader(downloadingMaxNum, failedTryAgain);
+            Debug.Log($"No startup download tags configured. Package: {packageName}");
+            return null;
+        }
+
+        private static int GetDownloadCount(ResourceDownloaderOperation downloader)
+        {
+            return downloader == null ? 0 : downloader.TotalDownloadCount;
+        }
+
+        private static long GetDownloadBytes(ResourceDownloaderOperation downloader)
+        {
+            return downloader == null ? 0 : downloader.TotalDownloadBytes;
         }
     }
 }

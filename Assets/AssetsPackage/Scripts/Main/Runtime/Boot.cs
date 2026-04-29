@@ -18,19 +18,6 @@ namespace Framework
         [SerializeField]
         private Camera mCamera;
 
-        [Header("按Tag下载主资源包，为空时下载全部差异资源")]
-        [SerializeField]
-        private string[] downloadTags;
-
-        /// <summary>
-		/// 主包名称，根据打包设置变化
-		/// </summary>
-		public static string mainPackageName = "DefaultPackage";
-        /// <summary>
-        /// 原生文件包名称，根据打包设置变化
-        /// </summary>
-        public static string rawfilePackageName = "RawFilePackage";
-
         void Awake()
         {
             Application.targetFrameRate = targetFrame;//设置目标帧率
@@ -48,6 +35,8 @@ namespace Framework
             }
 
             var playMode = settings.PlayMode;
+            var mainPackageName = settings.MainPackageName;
+            var rawfilePackageName = settings.RawFilePackageName;
             if (!ValidatePlayModeForRuntime(playMode))
             {
                 yield break;
@@ -57,7 +46,14 @@ namespace Framework
             YooAssets.Initialize();
 
             //进入资源检查及更新状态
-            var operation = new ProcedureManager(mainPackageName, playMode, false, downloadTags);
+            var operation = new ProcedureManager(
+                mainPackageName,
+                playMode,
+                settings.IncludeRawFilePackage,
+                settings.StartupDownloadMode,
+                settings.StartupDownloadTags,
+                settings.RawFileStartupDownloadTags,
+                rawfilePackageName);
             YooAssets.StartOperation(operation);
             yield return operation;
 
@@ -68,6 +64,8 @@ namespace Framework
                 UIPanelRoot.Instance.ShowMessage(error);
                 yield break;
             }
+
+            YooAssetKit.SetDefaultPackage(mainPackageName);
 
             string location = operation.EntrySceneAddress;
             //加载场景
@@ -83,7 +81,7 @@ namespace Framework
                     UIPanelRoot.Instance.CloseLoadingPanel();
                     UIPanelRoot.Instance.ClearScreen();
                 }).Start(this);
-            });
+            }, mainPackageName);
         }
 
         private bool ValidatePlayModeForRuntime(EPlayMode playMode)

@@ -50,7 +50,7 @@ namespace QFramework
             //设置当前资源包
             private ResourcePackage SetCurrResPackage()
             {
-                var package = YooAssets.GetPackage("DefaultPackage");//需要获取当前包名，这里暂时用默认包名
+                var package = YooAssetKit.GetPackageOrDefault();
                 return package;
             }
 

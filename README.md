@@ -35,7 +35,19 @@ Assets/AssetsPackage
 
 - `ProjectSettings/HybridCLRSettings.asset`：HybridCLR 热更程序集配置。当前热更程序集来自 asmdef，包括 `HotfixCommon`、`HotfixDemo`。
 - `Assets/Resources/AssetBundleCollectorSetting.asset`：YooAsset 收集器配置。当前 `DefaultPackage` 收集 `AOTCodes`、`HotfixCodes`、`Configs`、示例资源和数据。
+- `Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset`：热更新运行配置，记录 YooAsset play mode、主资源包名、RawFile 包名和启动阶段下载策略。
 - `Assets/AssetsPackage/AssetsHotFix/Configs/AssemblyManifest.asset`：运行时程序集加载清单，记录 AOT 元数据 DLL、热更 DLL、入口场景和可选入口方法。
+
+`HotfixRuntimeSettings.asset` 核心字段：
+
+- `MainPackageName`：主资源包名，默认 `DefaultPackage`。
+- `IncludeRawFilePackage`：是否初始化并更新 RawFile 包。
+- `RawFilePackageName`：RawFile 包名，默认 `RawFilePackage`。
+- `StartupDownloadMode`：启动阶段下载策略，可选 `DownloadAll`、`DownloadByTags`、`Skip`。
+- `StartupDownloadTags`：主资源包启动阶段按 Tag 下载的 Tag 列表。
+- `RawFileStartupDownloadTags`：RawFile 包启动阶段按 Tag 下载的 Tag 列表。
+
+包名可通过菜单 `Build/Hotfix/Sync Package Names From YooAsset Collector` 从 YooAsset Collector 配置同步。常规构建菜单也会在构建前自动同步包名到运行时配置。
 
 ## 运行时热更流程
 
@@ -43,19 +55,24 @@ Assets/AssetsPackage
 
 启动后流程如下：
 
-1. `YooAssets.Initialize()` 初始化 YooAsset。
-2. 创建 `ProcedureManager(DefaultPackage, playMode)`，进入资源初始化和热更状态机。
-3. `ProcedureInitializePackage` 初始化主资源包。Host/Web 模式会同时配置远端文件系统。
-4. `ProcedureLoadAOTMetadata` 从当前可用包中加载 `AssemblyManifest`，再加载 AOT 元数据并调用 `RuntimeApi.LoadMetadataForAOTAssembly`。
+1. `Boot` 从 `HotfixRuntimeSettings.asset` 读取 play mode、package 名称和启动下载策略。
+2. `YooAssets.Initialize()` 初始化 YooAsset。
+3. 创建 `ProcedureManager`，进入资源初始化和热更状态机。
+4. `ProcedureInitializePackage` 初始化主资源包；如启用 RawFile 包，会同时初始化 RawFile 包。Host/Web 模式会配置远端文件系统。
 5. `ProcedureRequestPackageVersion` 请求远端最新包版本。
 6. `ProcedureUpdatePackageManifest` 更新远端 manifest。
-7. `ProcedureCreateDownloader` 根据本地缓存和远端 manifest 创建差异下载器。
+7. `ProcedureCreateDownloader` 根据 `StartupDownloadMode` 创建启动阶段差异下载器。
 8. 如有差异文件，`ProcedureDownloadPackageFiles` 下载变更 bundle。
-9. `ProcedureLoadAssembly` 根据最新 `AssemblyManifest` 加载热更 DLL。
-10. `ProcedureClearCacheBundle` 清理无用缓存。
-11. 状态机完成后，`Boot` 加载入口场景，默认地址为 `main`。
+9. `ProcedureLoadAOTMetadata` 从当前可用包中加载 `AssemblyManifest`，再加载 AOT 元数据并调用 `RuntimeApi.LoadMetadataForAOTAssembly`。
+10. `ProcedureLoadAssembly` 根据最新 `AssemblyManifest` 加载热更 DLL。
+11. `ProcedureClearCacheBundle` 清理无用缓存。
+12. 状态机完成后，`Boot` 设置当前默认 YooAsset 包，并加载入口场景，默认地址为 `main`。
 
-这套顺序的重点是：**AOT 元数据在请求远端版本之前加载**，因此 AOT 可以稳定来自首包；远端更新完成后，再加载最新热更程序集。
+`StartupDownloadMode` 语义：
+
+- `DownloadAll`：启动阶段下载全部差异资源。
+- `DownloadByTags`：启动阶段只下载 `StartupDownloadTags` / `RawFileStartupDownloadTags` 指定的资源；Tag 为空则不创建下载器。
+- `Skip`：跳过启动阶段下载，直接进入 AOT 和热更 DLL 加载流程。
 
 ## 首包发布流程
 
@@ -74,7 +91,7 @@ Assets/AssetsPackage
 2. 执行 `HybridCLR/Installer/Install`，确保 HybridCLR 已安装。
 3. 执行 `HybridCLR/Generate/All`，生成 AOT 泛型引用、桥接函数、裁剪后的 AOT DLL 等数据。
 4. 检查 `HybridCLR/Settings` 中的 `Hot Update Assembly Definitions`，确保热更 asmdef 已加入。
-5. 检查 `YooAsset/AssetBundle Collector`，确保首包资源和热更资源都被 `DefaultPackage` 收集。
+5. 检查 `YooAsset/AssetBundle Collector`，确保首包资源和热更资源都被主资源包收集；默认主包名为 `DefaultPackage`。
 6. 执行菜单 `Build/Build Initial YooAsset Package`。
 7. 构建 Player。Windows 示例可执行菜单 `Build/Win64`。
 
@@ -84,7 +101,7 @@ Assets/AssetsPackage
 - 从 `HybridCLRData/AssembliesPostIl2CppStrip` 复制 AOT 元数据 DLL 到 `Assets/AssetsPackage/AssetsHotFix/AOTCodes/*.dll.bytes`。
 - 从 `HybridCLRData/HotUpdateDlls` 复制热更 DLL 到 `Assets/AssetsPackage/AssetsHotFix/HotfixCodes/*.dll.bytes`。
 - 生成或更新 `AssemblyManifest.asset`，写入 AOT DLL 列表和热更 DLL 列表。
-- 构建 YooAsset `DefaultPackage`。
+- 从 YooAsset Collector 同步运行时包名配置，并构建当前主资源包。
 - 使用 `ClearAndCopyAll` 将构建产物复制到 `StreamingAssets`，作为首包内置资源。
 
 Windows 的 `Build/Win64` 菜单额外封装了 Player 构建流程：先构建 `Assets/Scenes/Boot.unity`，再构建首包 YooAsset 资源，并把 `StreamingAssets` 复制到 `Release-Win64/HybridCLRTrial_Data/StreamingAssets`。
@@ -97,7 +114,7 @@ Windows 的 `Build/Win64` 菜单额外封装了 Player 构建流程：先构建 
 
 1. 修改 `Assets/AssetsPackage/Scripts/Hotfix` 下的热更代码，或修改 `AssetsHotFix` 下被 YooAsset 收集的资源。
 2. 如新增热更代码模块，先创建 asmdef，并加入 `HybridCLR/Settings -> Hot Update Assembly Definitions`。
-3. 如新增热更资源目录，在 `YooAsset/AssetBundle Collector` 中加入 `DefaultPackage` 收集器。
+3. 如新增热更资源目录，在 `YooAsset/AssetBundle Collector` 中加入当前主资源包的收集器。
 4. 执行菜单 `Build/Build Hotfix YooAsset Package`。
 5. 将本次 YooAsset 构建输出目录中的版本文件、manifest 文件和 bundle 文件上传到 CDN/资源服务器。
 6. 客户端重启或进入热更流程后，会请求最新版本并按 manifest 差异下载。
@@ -147,7 +164,7 @@ https://cdn.example.com/GameName/PC
 
 - 首包构建时发布 `AOTCodes`。
 - 热更构建时排除 `AOTCodes`。
-- 运行时先从首包加载 AOT 元数据，再更新远端资源和热更 DLL。
+- 运行时在 manifest 更新和启动下载策略处理后进入 AOT 元数据加载阶段；常规热更包不发布新的 AOT 元数据。
 
 这个策略适合大多数业务热更，但要注意边界：
 
@@ -175,8 +192,14 @@ https://cdn.example.com/GameName/PC
 
 1. 在 `YooAsset/AssetBundle Collector` 中给资源收集器配置 `AssetTags`，例如 `ui`、`battle`、`chapter_1`。
 2. 重新执行 `Build/Build Hotfix YooAsset Package`，让最新 manifest 包含资源 Tag 信息。
-3. 如希望启动热更阶段只下载指定 Tag，在 `Boot` 组件的 `downloadTags` 数组中填写 Tag。数组为空时保持旧行为：下载全部差异资源。
+3. 如希望启动热更阶段按 Tag 下载，在 `HotfixRuntimeSettings.asset` 中设置 `StartupDownloadMode = DownloadByTags`，并填写 `StartupDownloadTags`。
 4. 业务运行时可通过 `YooAssetKit` 按 Tag 下载或加载。
+
+启动阶段下载策略统一由 `HotfixRuntimeSettings.asset` 控制：
+
+- `DownloadAll`：启动阶段下载全部差异资源。
+- `DownloadByTags`：启动阶段只下载配置的 Tag；Tag 为空时不创建启动下载器。
+- `Skip`：跳过启动阶段下载，业务可在进入游戏后按需下载。
 
 按 Tag 下载：
 
@@ -229,6 +252,7 @@ HybridCLR/Installer/Install              # 安装 HybridCLR
 HybridCLR/Generate/All                   # 生成 HybridCLR 必要数据
 Build/Build Initial YooAsset Package     # 构建首包内置 YooAsset 包
 Build/Build Hotfix YooAsset Package      # 构建后续远端热更包
+Build/Hotfix/Sync Package Names From YooAsset Collector # 同步运行时主包和 RawFile 包名
 Build/BuildAssetsAndCopyToAssetsPackage  # 只复制 AOT/热更 DLL 并刷新配置
 Build/CopyAotDllsToAssetsPackage         # 只复制 AOT 元数据 DLL
 Build/CopyHotUpdateDllsToAssetsPackage   # 只复制热更 DLL

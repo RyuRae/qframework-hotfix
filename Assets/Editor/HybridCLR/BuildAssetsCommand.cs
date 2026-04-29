@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Framework;
 using Framework.Assemblies;
 using Framework.Utils;
 using HybridCLR.Editor.Commands;
@@ -14,24 +15,39 @@ namespace HybridCLR.Editor
 {
     public static class BuildAssetsCommand
     {
-        public const string DefaultPackageName = "DefaultPackage";
+        public const string DefaultPackageName = HotfixRuntimeSettings.DefaultMainPackageName;
         public const string DefaultEntrySceneAddress = "main";
         public const string AOTCodesPath = "Assets/AssetsPackage/AssetsHotFix/AOTCodes";
         public const string HotfixCodesPath = "Assets/AssetsPackage/AssetsHotFix/HotfixCodes";
         public const string ConfigsPath = "Assets/AssetsPackage/AssetsHotFix/Configs";
         public const string AssemblyManifestAssetPath = ConfigsPath + "/AssemblyManifest.asset";
 
+        public sealed class RuntimePackageConfig
+        {
+            public readonly string MainPackageName;
+            public readonly bool IncludeRawFilePackage;
+            public readonly string RawFilePackageName;
+
+            public RuntimePackageConfig(string mainPackageName, bool includeRawFilePackage, string rawFilePackageName)
+            {
+                MainPackageName = mainPackageName;
+                IncludeRawFilePackage = includeRawFilePackage;
+                RawFilePackageName = rawFilePackageName;
+            }
+        }
+
         [MenuItem("Build/Build Initial YooAsset Package")]
         public static void BuildInitialYooAssetPackage()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+            var packageConfig = HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
             CompileDllCommand.CompileDll(target);
 
             var aotAssemblies = CopyAOTAssembliesToTargetPath(target);
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
             CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
 
-            BuildYooAssetPackage(DefaultPackageName, target, true);
+            BuildYooAssetPackage(packageConfig.MainPackageName, target, true);
             AssetDatabase.Refresh();
         }
 
@@ -39,6 +55,7 @@ namespace HybridCLR.Editor
         public static void BuildHotfixYooAssetPackage()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+            var packageConfig = HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
             CompileDllCommand.CompileDll(target);
 
             var previousAotAssemblies = GetManifestOrConfiguredAOTAssemblies();
@@ -46,7 +63,9 @@ namespace HybridCLR.Editor
             try
             {
                 CreateOrUpdateAssemblyManifest(new List<string>(), hotfixAssemblies);
-                BuildWithAOTCollectorDisabled(() => BuildYooAssetPackage(DefaultPackageName, target, false));
+                BuildWithAOTCollectorDisabled(
+                    packageConfig.MainPackageName,
+                    () => BuildYooAssetPackage(packageConfig.MainPackageName, target, false));
             }
             finally
             {
@@ -171,6 +190,7 @@ namespace HybridCLR.Editor
 
         public static BuildResult BuildYooAssetPackage(string packageName, BuildTarget target, bool copyToStreamingAssets)
         {
+            packageName = NormalizePackageName(packageName, GetConfiguredMainPackageName());
             var buildParameters = new BuiltinBuildParameters
             {
                 BuildOutputRoot = AssetBundleBuilderHelper.GetDefaultBuildOutputRoot(),
@@ -201,6 +221,24 @@ namespace HybridCLR.Editor
 
             Debug.Log($"[BuildYooAssetPackage] Output: {result.OutputPackageDirectory}");
             return result;
+        }
+
+        public static RuntimePackageConfig GetRuntimePackageConfigFromCollectorSettings()
+        {
+            var mainPackageName = GetConfiguredMainPackageName();
+            var includeRawFilePackage = TryGetConfiguredRawFilePackageName(mainPackageName, out var rawFilePackageName);
+            return new RuntimePackageConfig(mainPackageName, includeRawFilePackage, rawFilePackageName);
+        }
+
+        public static string GetConfiguredMainPackageName()
+        {
+            var packageNames = GetConfiguredPackageNames();
+            var defaultPackage = packageNames.FirstOrDefault(packageName =>
+                string.Equals(packageName, HotfixRuntimeSettings.DefaultMainPackageName, StringComparison.OrdinalIgnoreCase));
+
+            return NormalizePackageName(
+                defaultPackage ?? packageNames.FirstOrDefault(),
+                HotfixRuntimeSettings.DefaultMainPackageName);
         }
 
         public static List<string> FindAllAOTMetaAssemblies(BuildTarget buildTarget)
@@ -267,7 +305,7 @@ namespace HybridCLR.Editor
             var aotAssemblies = CopyAOTAssembliesToTargetPath(target);
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
             CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
-            BuildYooAssetPackage(DefaultPackageName, target, true);
+            BuildYooAssetPackage(GetConfiguredMainPackageName(), target, true);
         }
 
         [Obsolete("Use BuildYooAssetPackage instead.")]
@@ -320,9 +358,14 @@ namespace HybridCLR.Editor
             return DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
         }
 
-        private static void BuildWithAOTCollectorDisabled(Action buildAction)
+        private static void BuildWithAOTCollectorDisabled(string packageName, Action buildAction)
         {
-            var package = AssetBundleCollectorSettingData.Setting.GetPackage(DefaultPackageName);
+            var package = AssetBundleCollectorSettingData.Setting.GetPackage(packageName);
+            if (package == null)
+            {
+                throw new InvalidOperationException($"YooAsset collector package not found: {packageName}");
+            }
+
             var snapshots = new List<CollectorSnapshot>();
             foreach (var group in package.Groups)
             {
@@ -355,6 +398,52 @@ namespace HybridCLR.Editor
                 collector.CollectPath.Replace('\\', '/'),
                 AOTCodesPath,
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryGetConfiguredRawFilePackageName(string mainPackageName, out string rawFilePackageName)
+        {
+            var packageNames = GetConfiguredPackageNames()
+                .Where(packageName => !string.Equals(packageName, mainPackageName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var rawFilePackage = packageNames.FirstOrDefault(packageName =>
+                                     string.Equals(packageName, HotfixRuntimeSettings.DefaultRawFilePackageName, StringComparison.OrdinalIgnoreCase))
+                                 ?? packageNames.FirstOrDefault(IsRawFilePackageName)
+                                 ?? (packageNames.Count == 1 ? packageNames[0] : null);
+            if (string.IsNullOrWhiteSpace(rawFilePackage))
+            {
+                rawFilePackageName = HotfixRuntimeSettings.DefaultRawFilePackageName;
+                return false;
+            }
+
+            rawFilePackageName = rawFilePackage.Trim();
+            return true;
+        }
+
+        private static bool IsRawFilePackageName(string packageName)
+        {
+            return packageName.IndexOf("RawFile", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   packageName.IndexOf("Raw", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static List<string> GetConfiguredPackageNames()
+        {
+            var setting = AssetBundleCollectorSettingData.Setting;
+            if (setting == null || setting.Packages == null)
+            {
+                return new List<string>();
+            }
+
+            return setting.Packages
+                .Where(package => !string.IsNullOrWhiteSpace(package.PackageName))
+                .Select(package => package.PackageName.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static string NormalizePackageName(string packageName, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(packageName) ? fallback : packageName.Trim();
         }
 
         private struct CollectorSnapshot

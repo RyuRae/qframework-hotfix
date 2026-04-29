@@ -72,12 +72,19 @@ namespace HybridCLR.Editor
             ApplyPlayModeToRuntimeSettings(EditorUserBuildSettings.activeBuildTarget);
         }
 
+        [MenuItem("Build/Hotfix/Sync Package Names From YooAsset Collector")]
+        public static void SyncPackageNamesFromCollectorSettingsMenu()
+        {
+            SyncPackageNamesFromCollectorSettings();
+        }
+
         public static EPlayMode ApplyPlayModeToRuntimeSettings(BuildTarget target)
         {
             var profile = GetOrCreateProfile();
             var playMode = profile.GetPlayMode(target);
             ValidatePlayerPlayMode(playMode, target);
             SetRuntimeSettingsPlayMode(playMode, $"set to {playMode} for {target}");
+            SyncPackageNamesFromCollectorSettings();
             return playMode;
         }
 
@@ -87,7 +94,15 @@ namespace HybridCLR.Editor
             var playMode = profile.GetPlayMode(target);
             ValidatePlayerPlayMode(playMode, target);
             SetRuntimeSettingsPlayMode(playMode, $"set to {playMode} for {target} build");
+            SyncPackageNamesFromCollectorSettings();
             return playMode;
+        }
+
+        public static BuildAssetsCommand.RuntimePackageConfig SyncPackageNamesFromCollectorSettings()
+        {
+            var packageConfig = BuildAssetsCommand.GetRuntimePackageConfigFromCollectorSettings();
+            SetRuntimeSettingsPackageNames(packageConfig, "synced from YooAsset collector settings");
+            return packageConfig;
         }
 
         private static void SetRuntimeSettingsPlayMode(EPlayMode playMode, string logReason)
@@ -101,6 +116,28 @@ namespace HybridCLR.Editor
             }
 
             Debug.Log($"[HotfixBuildProfile] Runtime play mode {logReason}.");
+        }
+
+        private static void SetRuntimeSettingsPackageNames(
+            BuildAssetsCommand.RuntimePackageConfig packageConfig,
+            string logReason)
+        {
+            var settings = GetOrCreateRuntimeSettings();
+            if (settings.MainPackageName != packageConfig.MainPackageName ||
+                settings.IncludeRawFilePackage != packageConfig.IncludeRawFilePackage ||
+                settings.RawFilePackageName != packageConfig.RawFilePackageName)
+            {
+                settings.SetPackageNamesForEditor(
+                    packageConfig.MainPackageName,
+                    packageConfig.IncludeRawFilePackage,
+                    packageConfig.RawFilePackageName);
+                EditorUtility.SetDirty(settings);
+                AssetDatabase.SaveAssetIfDirty(settings);
+            }
+
+            Debug.Log(
+                $"[HotfixBuildProfile] Runtime packages {logReason}. Main={packageConfig.MainPackageName}, " +
+                $"IncludeRawFile={packageConfig.IncludeRawFilePackage}, RawFile={packageConfig.RawFilePackageName}");
         }
 
         private static HotfixBuildProfile GetOrCreateProfile()
