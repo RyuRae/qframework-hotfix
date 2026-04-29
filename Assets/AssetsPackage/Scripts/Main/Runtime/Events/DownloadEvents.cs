@@ -105,6 +105,17 @@ namespace Framework.Events
     }
 
     /// <summary>
+    /// 启动阶段使用本地缓存事件
+    /// </summary>
+    public struct OnStartupUsingLocalCacheEvent
+    {
+        /// <summary>
+        /// 使用本地缓存原因
+        /// </summary>
+        public string reason;
+    }
+
+    /// <summary>
     /// 资源加载进度
     /// </summary>
     public struct OnAssetloadProgressEvent

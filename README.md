@@ -44,6 +44,7 @@ Assets/AssetsPackage
 - `IncludeRawFilePackage`：是否初始化并更新 RawFile 包。
 - `RawFilePackageName`：RawFile 包名，默认 `RawFilePackage`。
 - `StartupDownloadMode`：启动阶段下载策略，可选 `DownloadAll`、`DownloadByTags`、`Skip`。
+- `StartupUpdatePolicy`：启动阶段更新策略，可选 `MustUpdate`、`AllowCached`、`WifiOnly`、`BackgroundDownload`。
 - `StartupDownloadTags`：主资源包启动阶段按 Tag 下载的 Tag 列表。
 - `RawFileStartupDownloadTags`：RawFile 包启动阶段按 Tag 下载的 Tag 列表。
 
@@ -59,8 +60,8 @@ Assets/AssetsPackage
 2. `YooAssets.Initialize()` 初始化 YooAsset。
 3. 创建 `ProcedureManager`，进入资源初始化和热更状态机。
 4. `ProcedureInitializePackage` 初始化主资源包；如启用 RawFile 包，会同时初始化 RawFile 包。Host/Web 模式会配置远端文件系统。
-5. `ProcedureRequestPackageVersion` 请求远端最新包版本。
-6. `ProcedureUpdatePackageManifest` 更新远端 manifest。
+5. `ProcedureRequestPackageVersion` 请求远端最新包版本；失败时按 `StartupUpdatePolicy` 选择重试、退出或使用本地缓存。
+6. `ProcedureUpdatePackageManifest` 更新远端 manifest；manifest 请求或校验失败时可回退到上次可用缓存或首包内置 manifest。
 7. `ProcedureCreateDownloader` 根据 `StartupDownloadMode` 创建启动阶段差异下载器。
 8. 如有差异文件，`ProcedureDownloadPackageFiles` 下载变更 bundle。
 9. `ProcedureLoadAOTMetadata` 从当前可用包中加载 `AssemblyManifest`，再加载 AOT 元数据并调用 `RuntimeApi.LoadMetadataForAOTAssembly`。
@@ -73,6 +74,15 @@ Assets/AssetsPackage
 - `DownloadAll`：启动阶段下载全部差异资源。
 - `DownloadByTags`：启动阶段只下载 `StartupDownloadTags` / `RawFileStartupDownloadTags` 指定的资源；Tag 为空则不创建下载器。
 - `Skip`：跳过启动阶段下载，直接进入 AOT 和热更 DLL 加载流程。
+
+`StartupUpdatePolicy` 语义：
+
+- `MustUpdate`：强更策略。远端版本、manifest 或资源下载失败时只能重试或退出，不使用本地缓存。
+- `AllowCached`：默认弱更策略。远端失败时允许使用上次成功启动的缓存版本；没有缓存时尝试首包内置 manifest。
+- `WifiOnly`：仅 Wi-Fi 更新。非 Wi-Fi 环境优先使用本地可用版本，Wi-Fi 环境按正常热更流程请求远端。
+- `BackgroundDownload`：优先本地启动策略。如已有可用缓存，启动阶段直接使用本地版本；后续后台下载入口由业务层接入。
+
+Player 的 Host 模式初始化时会把首包内置 manifest 复制到 YooAsset 缓存目录，因此首次安装后即使远端版本接口不可达，也可以尝试用首包内置版本启动。
 
 ### 启动下载取消与失败处理
 
@@ -103,7 +113,13 @@ UIPanelRoot.Instance.RequestCancelDownloadWithReason("用户在下载中取消�
 - 发送 `OnDownloadCanceledEvent`，关闭 loading 并显示取消原因。
 - 将热更流程标记为失败，避免 FSM 或协程继续悬挂。
 
-下载过程中如果失败，会弹出“确定重试 / 取消退出更新”提示。点击确定会重新创建 downloader 并重试当前包，点击取消会走同一套取消收口逻辑。`ProcedureManager` 也预留了 `TryPauseDownload()` 和 `TryResumeDownload()`，后续可接入弱网或大包下载 UI。
+下载过程中如果失败，会弹出“确定重试 / 取消使用本地缓存或退出更新”提示。点击确定会重新创建 downloader 并重试当前包；点击取消时，弱更策略会尝试使用本地缓存，强更策略会退出更新。`ProcedureManager` 也预留了 `TryPauseDownload()` 和 `TryResumeDownload()`，后续可接入弱网或大包下载 UI。
+
+在 `AllowCached`、`WifiOnly`、`BackgroundDownload` 策略下，网络失败弹窗的取消路径会优先变为“使用本地缓存启动”。本地缓存来源包括：
+
+- 上次完整完成启动下载后记录的可用 package version。
+- 首包内置 manifest 复制到缓存目录后的内置版本。
+- 当前已经激活的 YooAsset manifest。
 
 ## 首包发布流程
 

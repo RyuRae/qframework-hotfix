@@ -13,7 +13,8 @@ namespace Framework.Procedure
 
         protected override bool OnCondition()
         {
-            return mFSM.CurrentStateId == ResPackageStates.UpdatePackageManifest;
+            return mFSM.CurrentStateId == ResPackageStates.UpdatePackageManifest ||
+                   mFSM.CurrentStateId == ResPackageStates.RequestPackageVersion;
         }
 
         protected override void OnEnter()
@@ -32,6 +33,14 @@ namespace Framework.Procedure
 
         private void CreateDownloader()
         {
+            if (mTarget.IsUsingLocalManifestFallback)
+            {
+                Debug.Log("Using local manifest fallback, skip startup resource download.");
+                mTarget.SaveUsablePackageVersions();
+                mFSM.ChangeState(ResPackageStates.LoadAOTMetadata);
+                return;
+            }
+
             if (mTarget._startupDownloadMode == StartupDownloadMode.Skip)
             {
                 Debug.Log("Skip startup resource download.");
@@ -77,6 +86,7 @@ namespace Framework.Procedure
             if (totalDownloadCount == 0)
             {
                 Debug.Log("Not found any download files.");
+                mTarget.SaveUsablePackageVersions();
                 mFSM.ChangeState(ResPackageStates.LoadAOTMetadata);
                 return;
             }

@@ -13,6 +13,13 @@ namespace Framework.Procedure
         private const int DownloadingMaxNum = 10;
         private const int FailedTryAgain = 3;
 
+        private enum DownloadFailureDecision
+        {
+            Retry,
+            UseLocalCache,
+            Exit
+        }
+
         public ProcedureDownloadPackageFiles(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)
         {
         }
@@ -41,7 +48,7 @@ namespace Framework.Procedure
             if (mTarget._downloaderOperation != null)
             {
                 yield return DownloadPackage(mTarget._downloaderOperation, mTarget._packageName, false);
-                if (mTarget.IsDone)
+                if (mTarget.IsDone || mTarget.IsUsingLocalManifestFallback)
                 {
                     yield break;
                 }
@@ -50,7 +57,7 @@ namespace Framework.Procedure
             if (mTarget._isIncludeRawFile && mTarget._downloaderRawfile != null)
             {
                 yield return DownloadPackage(mTarget._downloaderRawfile, mTarget._rawfilwPkgName, true);
-                if (mTarget.IsDone)
+                if (mTarget.IsDone || mTarget.IsUsingLocalManifestFallback)
                 {
                     yield break;
                 }
@@ -97,15 +104,21 @@ namespace Framework.Procedure
                 }
 
                 string error = $"{packageName} download failed: {downloader.Error}";
-                bool retry = false;
-                yield return WaitForDownloadFailureDecision(packageName, error, value => retry = value);
+                DownloadFailureDecision decision = DownloadFailureDecision.Retry;
+                yield return WaitForDownloadFailureDecision(packageName, error, value => decision = value);
 
                 if (mTarget.IsDone || mTarget.IsDownloadCancelRequested)
                 {
                     yield break;
                 }
 
-                if (!retry)
+                if (decision == DownloadFailureDecision.UseLocalCache)
+                {
+                    yield return TryUseLocalManifestFallback($"资源下载失败，使用本地缓存启动。{GetFailureHint(error)}");
+                    yield break;
+                }
+
+                if (decision == DownloadFailureDecision.Exit)
                 {
                     mTarget.CancelDownload($"下载失败，用户选择退出更新。{error}");
                     yield break;
@@ -137,23 +150,28 @@ namespace Framework.Procedure
             downloader.DownloadFinishCallback = null;
         }
 
-        private IEnumerator WaitForDownloadFailureDecision(string packageName, string error, Action<bool> onDecision)
+        private IEnumerator WaitForDownloadFailureDecision(string packageName, string error, Action<DownloadFailureDecision> onDecision)
         {
             bool hasDecision = false;
-            bool shouldRetry = false;
+            DownloadFailureDecision decision = DownloadFailureDecision.Retry;
+            string fallbackText = mTarget.CanUseLocalCacheFallback
+                ? "点击确定重试，点击取消使用本地缓存启动。"
+                : "点击确定重试，点击取消退出更新。";
 
             LogKit.E(error);
             UIPanelRoot.Instance.CloseLoadingPanel();
             UIPanelRoot.Instance.ShowMessageBox(
-                $"资源包 {packageName} 下载失败：\n{error}\n点击确定重试，点击取消退出更新。",
+                $"资源包 {packageName} 下载失败：\n{GetFailureHint(error)}\n{error}\n{fallbackText}",
                 () =>
                 {
-                    shouldRetry = true;
+                    decision = DownloadFailureDecision.Retry;
                     hasDecision = true;
                 },
                 () =>
                 {
-                    shouldRetry = false;
+                    decision = mTarget.CanUseLocalCacheFallback
+                        ? DownloadFailureDecision.UseLocalCache
+                        : DownloadFailureDecision.Exit;
                     hasDecision = true;
                 },
                 true);
@@ -163,7 +181,53 @@ namespace Framework.Procedure
                 yield return null;
             }
 
-            onDecision?.Invoke(shouldRetry);
+            onDecision?.Invoke(decision);
+        }
+
+        private IEnumerator TryUseLocalManifestFallback(string reason)
+        {
+            bool succeeded = false;
+            string error = string.Empty;
+            yield return mTarget.TryUseLocalManifestFallback(reason, (result, resultError) =>
+            {
+                succeeded = result;
+                error = resultError;
+            });
+
+            if (succeeded)
+            {
+                UIPanelRoot.Instance.CloseLoadingPanel();
+                mFSM.ChangeState(ResPackageStates.DownloadPackageOver);
+                yield break;
+            }
+
+            mTarget.SetFailed($"本地缓存启动失败：{error}");
+        }
+
+        private static string GetFailureHint(string error)
+        {
+            string lowerError = (error ?? string.Empty).ToLowerInvariant();
+            if (lowerError.Contains("404") || lowerError.Contains("not found"))
+            {
+                return "CDN bundle 不存在，可能是资源未上传或 manifest 指向了错误版本。";
+            }
+
+            if (lowerError.Contains("resolve") || lowerError.Contains("dns"))
+            {
+                return "域名解析失败，请检查网络或 CDN 域名。";
+            }
+
+            if (lowerError.Contains("timeout") || lowerError.Contains("connect") || lowerError.Contains("unreachable"))
+            {
+                return "服务器不可达或网络超时。";
+            }
+
+            if (lowerError.Contains("verify") || lowerError.Contains("crc") || lowerError.Contains("hash"))
+            {
+                return "下载文件校验失败，可能是 CDN 文件损坏或缓存污染。";
+            }
+
+            return "网络或远端资源异常。";
         }
 
         private ResourceDownloaderOperation CreateDownloader(string packageName, bool isRawFilePackage)

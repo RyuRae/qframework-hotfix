@@ -79,21 +79,23 @@
 - 下载中取消不会留下未完成状态或卡住协程。
 - 取消路径有明确日志、UI 提示和业务结果。
 
-### 3. 增加网络失败后的本地缓存兜底
+### 3. 增加网络失败后的本地缓存兜底（已完成）
 
-- [ ] `RequestPackageVersionAsync` 失败时允许使用内置 manifest 或上次缓存 manifest 启动。
-- [ ] `UpdatePackageManifestAsync` 失败时允许使用已缓存版本启动。
-- [ ] 版本请求、manifest 更新、资源下载失败时增加业务层重试，不只依赖 YooAsset `failedTryAgain`。
-- [ ] 对服务器不可达、DNS 失败、CDN 404、manifest 损坏等失败类型分别设计恢复路径。
-- [ ] 区分强更资源和弱更资源：强更失败阻断，弱更失败允许进入游戏。
-- [ ] 增加启动策略配置：必须更新 / 可跳过更新 / 仅 Wi-Fi 更新 / 后台下载。
-- [ ] 给所有网络失败路径补充用户可理解的错误提示和重试按钮。
+- [x] `RequestPackageVersionAsync` 失败时允许使用内置 manifest 或上次缓存 manifest 启动。
+- [x] `UpdatePackageManifestAsync` 失败时允许使用已缓存版本启动。
+- [x] 版本请求、manifest 更新、资源下载失败时增加业务层重试，不只依赖 YooAsset `failedTryAgain`。
+- [x] 对服务器不可达、DNS 失败、CDN 404、manifest 损坏等失败类型分别设计恢复路径。
+- [x] 区分强更资源和弱更资源：`MustUpdate` 阻断，`AllowCached` / `WifiOnly` / `BackgroundDownload` 允许本地缓存启动。
+- [x] 增加启动策略配置：必须更新 / 可跳过更新 / 仅 Wi-Fi 更新 / 后台下载。
+- [x] 给所有网络失败路径补充用户可理解的错误提示和重试按钮。
 
 相关位置：
 
 - `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureRequestPackageVersion.cs`
 - `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureUpdatePackageManifest.cs`
 - `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureDownloadPackageFiles.cs`
+- `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/HotfixLocalManifestUtility.cs`
+- `Assets/AssetsPackage/Scripts/Main/Runtime/HotfixRuntimeSettings.cs`
 
 验收标准：
 

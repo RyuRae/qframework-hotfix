@@ -18,5 +18,6 @@ MonoBehaviour:
   includeRawFilePackage: 0
   rawfilePackageName: RawFilePackage
   startupDownloadMode: 0
+  startupUpdatePolicy: 1
   startupDownloadTags: []
   rawfileStartupDownloadTags: []

@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using Framework.UI;
 using QFramework;
@@ -7,7 +8,20 @@ namespace Framework.Procedure
 {
     public class ProcedureRequestPackageVersion : AbstractState<ResPackageStates, ProcedureManager>
     {
-        private RequestPackageVersionOperation rawfileOperation;
+        private enum StartupFailureDecision
+        {
+            Retry,
+            UseLocalCache,
+            Exit
+        }
+
+        private struct PackageVersionRequestResult
+        {
+            public bool Succeeded;
+            public string PackageName;
+            public string PackageVersion;
+            public string Error;
+        }
 
         public ProcedureRequestPackageVersion(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)
         {
@@ -34,41 +48,174 @@ namespace Framework.Procedure
 
         private IEnumerator UpdatePackageVersion()
         {
-            var package = YooAssets.GetPackage(mTarget._packageName);
-            var operation = package.RequestPackageVersionAsync();
-            if (mTarget._isIncludeRawFile)
+            while (!mTarget.IsDone)
             {
-                var rawfilePackage = YooAssets.GetPackage(mTarget._rawfilwPkgName);
-                rawfileOperation = rawfilePackage.RequestPackageVersionAsync();
-                yield return rawfileOperation;
-            }
+                if (mTarget.ShouldUseLocalCacheOnlyAtStartup())
+                {
+                    yield return TryUseLocalManifestFallback("当前启动策略要求使用本地可用资源启动。");
+                    yield break;
+                }
 
+                PackageVersionRequestResult packageResult = default;
+                yield return RequestPackageVersion(mTarget._packageName, result => packageResult = result);
+
+                PackageVersionRequestResult rawfileResult = default;
+                if (mTarget._isIncludeRawFile)
+                {
+                    yield return RequestPackageVersion(mTarget._rawfilwPkgName, result => rawfileResult = result);
+                }
+
+                if (packageResult.Succeeded && (!mTarget._isIncludeRawFile || rawfileResult.Succeeded))
+                {
+                    LogKit.I($"Request package version: {packageResult.PackageVersion}");
+                    mTarget._packageVersion = packageResult.PackageVersion;
+                    if (mTarget._isIncludeRawFile)
+                    {
+                        mTarget._rawfilePkgVersion = rawfileResult.PackageVersion;
+                    }
+
+                    mFSM.ChangeState(ResPackageStates.UpdatePackageManifest);
+                    yield break;
+                }
+
+                string error = BuildPackageError("请求远端资源版本失败", packageResult, rawfileResult);
+                LogKit.W(error);
+
+                StartupFailureDecision decision = StartupFailureDecision.Retry;
+                yield return WaitForStartupFailureDecision(
+                    "请求远端资源版本失败",
+                    error,
+                    mTarget.CanUseLocalCacheFallback,
+                    value => decision = value);
+
+                if (decision == StartupFailureDecision.Retry)
+                {
+                    continue;
+                }
+
+                if (decision == StartupFailureDecision.UseLocalCache)
+                {
+                    yield return TryUseLocalManifestFallback($"请求远端资源版本失败，使用本地缓存启动。{GetFailureHint(error)}");
+                    yield break;
+                }
+
+                mTarget.SetFailed(error);
+                yield break;
+            }
+        }
+
+        private IEnumerator RequestPackageVersion(string packageName, Action<PackageVersionRequestResult> onCompleted)
+        {
+            var package = YooAssets.GetPackage(packageName);
+            var operation = package.RequestPackageVersionAsync();
             yield return operation;
 
-            if (operation.Status != EOperationStatus.Succeed)
+            onCompleted?.Invoke(new PackageVersionRequestResult
             {
-                LogKit.W(operation.Error);
-                UIPanelRoot.Instance.ShowMessageBox(operation.Error);
-                mTarget.SetFailed(operation.Error);
+                Succeeded = operation.Status == EOperationStatus.Succeed,
+                PackageName = packageName,
+                PackageVersion = operation.PackageVersion,
+                Error = operation.Error
+            });
+        }
+
+        private IEnumerator TryUseLocalManifestFallback(string reason)
+        {
+            bool succeeded = false;
+            string error = string.Empty;
+            yield return mTarget.TryUseLocalManifestFallback(reason, (result, resultError) =>
+            {
+                succeeded = result;
+                error = resultError;
+            });
+
+            if (succeeded)
+            {
+                mFSM.ChangeState(ResPackageStates.CreateDownloader);
                 yield break;
             }
 
-            if (mTarget._isIncludeRawFile && rawfileOperation.Status != EOperationStatus.Succeed)
+            mTarget.SetFailed($"本地缓存启动失败：{error}");
+        }
+
+        private IEnumerator WaitForStartupFailureDecision(
+            string title,
+            string error,
+            bool canUseLocalCache,
+            Action<StartupFailureDecision> onDecision)
+        {
+            bool hasDecision = false;
+            StartupFailureDecision decision = StartupFailureDecision.Retry;
+            string fallbackText = canUseLocalCache
+                ? "点击确定重试，点击取消使用本地缓存启动。"
+                : "点击确定重试，点击取消退出更新。";
+
+            UIPanelRoot.Instance.CloseLoadingPanel();
+            UIPanelRoot.Instance.ShowMessageBox(
+                $"{title}：\n{GetFailureHint(error)}\n{error}\n{fallbackText}",
+                () =>
+                {
+                    decision = StartupFailureDecision.Retry;
+                    hasDecision = true;
+                },
+                () =>
+                {
+                    decision = canUseLocalCache ? StartupFailureDecision.UseLocalCache : StartupFailureDecision.Exit;
+                    hasDecision = true;
+                },
+                true);
+
+            while (!hasDecision && !mTarget.IsDone)
             {
-                LogKit.W(rawfileOperation.Error);
-                UIPanelRoot.Instance.ShowMessageBox(rawfileOperation.Error);
-                mTarget.SetFailed(rawfileOperation.Error);
-                yield break;
+                yield return null;
             }
 
-            LogKit.I($"Request package version: {operation.PackageVersion}");
-            if (mTarget._isIncludeRawFile)
+            onDecision?.Invoke(decision);
+        }
+
+        private string BuildPackageError(
+            string prefix,
+            PackageVersionRequestResult packageResult,
+            PackageVersionRequestResult rawfileResult)
+        {
+            string error = packageResult.Succeeded
+                ? string.Empty
+                : $"{packageResult.PackageName}: {packageResult.Error}";
+
+            if (mTarget._isIncludeRawFile && !rawfileResult.Succeeded)
             {
-                mTarget._rawfilePkgVersion = rawfileOperation.PackageVersion;
+                error = string.IsNullOrEmpty(error)
+                    ? $"{rawfileResult.PackageName}: {rawfileResult.Error}"
+                    : $"{error}\n{rawfileResult.PackageName}: {rawfileResult.Error}";
             }
 
-            mTarget._packageVersion = operation.PackageVersion;
-            mFSM.ChangeState(ResPackageStates.UpdatePackageManifest);
+            return $"{prefix}\n{error}";
+        }
+
+        private static string GetFailureHint(string error)
+        {
+            string lowerError = (error ?? string.Empty).ToLowerInvariant();
+            if (lowerError.Contains("404") || lowerError.Contains("not found"))
+            {
+                return "CDN 资源不存在或版本文件未上传。";
+            }
+
+            if (lowerError.Contains("resolve") || lowerError.Contains("dns"))
+            {
+                return "域名解析失败，请检查网络或 CDN 域名。";
+            }
+
+            if (lowerError.Contains("timeout") || lowerError.Contains("connect") || lowerError.Contains("unreachable"))
+            {
+                return "服务器不可达或网络超时。";
+            }
+
+            if (lowerError.Contains("manifest") || lowerError.Contains("verify") || lowerError.Contains("deserialize"))
+            {
+                return "远端 manifest 可能损坏或与 hash 不匹配。";
+            }
+
+            return "网络或远端资源异常。";
         }
     }
 }

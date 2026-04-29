@@ -21,6 +21,26 @@ namespace Framework
         Skip
     }
 
+    public enum StartupUpdatePolicy
+    {
+        /// <summary>
+        /// 必须完成远端更新，失败时阻断启动。
+        /// </summary>
+        MustUpdate,
+        /// <summary>
+        /// 远端更新失败时允许使用上次可用缓存或首包内置版本启动。
+        /// </summary>
+        AllowCached,
+        /// <summary>
+        /// 非 Wi-Fi 环境优先使用本地可用版本。
+        /// </summary>
+        WifiOnly,
+        /// <summary>
+        /// 优先使用本地可用版本启动，预留进入游戏后的后台下载策略。
+        /// </summary>
+        BackgroundDownload
+    }
+
     [CreateAssetMenu(fileName = "HotfixRuntimeSettings", menuName = "Hotfix/Runtime Settings", order = 0)]
     public sealed class HotfixRuntimeSettings : ScriptableObject
     {
@@ -53,6 +73,10 @@ namespace Framework
         [SerializeField]
         private StartupDownloadMode startupDownloadMode = StartupDownloadMode.DownloadAll;
 
+        [Header("启动阶段更新策略")]
+        [SerializeField]
+        private StartupUpdatePolicy startupUpdatePolicy = StartupUpdatePolicy.AllowCached;
+
         [Header("启动阶段按Tag下载资源")]
         [SerializeField]
         private string[] startupDownloadTags = new string[0];
@@ -78,6 +102,7 @@ namespace Framework
         public bool IncludeRawFilePackage => includeRawFilePackage && !string.IsNullOrEmpty(RawFilePackageName);
         public string RawFilePackageName => NormalizePackageName(rawfilePackageName, DefaultRawFilePackageName);
         public StartupDownloadMode StartupDownloadMode => startupDownloadMode;
+        public StartupUpdatePolicy StartupUpdatePolicy => startupUpdatePolicy;
         public string[] StartupDownloadTags => NormalizeTags(startupDownloadTags);
         public string[] RawFileStartupDownloadTags => NormalizeTags(rawfileStartupDownloadTags);
 

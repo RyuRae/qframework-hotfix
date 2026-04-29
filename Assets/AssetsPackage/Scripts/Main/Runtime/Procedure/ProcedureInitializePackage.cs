@@ -139,9 +139,14 @@ namespace Framework.Procedure
 
         private static InitializationOperation InitHostPackage(ResourcePackage package, IRemoteServices remoteServices)
         {
+            var buildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters();
+#if !UNITY_EDITOR
+            buildinFileSystemParameters.AddParameter(FileSystemParametersDefine.COPY_BUILDIN_PACKAGE_MANIFEST, true);
+#endif
+
             var createParameters = new HostPlayModeParameters
             {
-                BuildinFileSystemParameters = FileSystemParameters.CreateDefaultBuildinFileSystemParameters(),
+                BuildinFileSystemParameters = buildinFileSystemParameters,
                 CacheFileSystemParameters = FileSystemParameters.CreateDefaultCacheFileSystemParameters(remoteServices)
             };
             return package.InitializeAsync(createParameters);

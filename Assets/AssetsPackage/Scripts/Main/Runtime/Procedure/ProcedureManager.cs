@@ -1,7 +1,9 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Framework.Events;
 using QFramework;
+using UnityEngine;
 using YooAsset;
 
 namespace Framework.Procedure
@@ -33,10 +35,12 @@ namespace Framework.Procedure
         public ResourceDownloaderOperation _downloaderOperation;
         public ResourceDownloaderOperation _downloaderRawfile;
         public readonly StartupDownloadMode _startupDownloadMode;
+        public readonly StartupUpdatePolicy _startupUpdatePolicy;
         public readonly string[] _downloadTags;
         public readonly string[] _rawfileDownloadTags;
         private bool _downloadCancelRequested;
         private bool _downloadPaused;
+        private bool _useLocalManifestFallback;
         private IUnRegister _downloadCancelRequestUnregister;
 
         public string EntrySceneAddress { get; private set; } = DefaultEntrySceneAddress;
@@ -44,6 +48,8 @@ namespace Framework.Procedure
         public string EntryMethodName { get; private set; } = string.Empty;
         public bool IsDownloadCancelRequested => _downloadCancelRequested;
         public bool IsDownloadPaused => _downloadPaused;
+        public bool IsUsingLocalManifestFallback => _useLocalManifestFallback;
+        public bool CanUseLocalCacheFallback => _startupUpdatePolicy != StartupUpdatePolicy.MustUpdate;
 
         public FSM<ResPackageStates> _mFSM = new FSM<ResPackageStates>();
 
@@ -52,6 +58,7 @@ namespace Framework.Procedure
             EPlayMode playMode,
             bool IsIncludeRawFile = false,
             StartupDownloadMode startupDownloadMode = StartupDownloadMode.DownloadAll,
+            StartupUpdatePolicy startupUpdatePolicy = StartupUpdatePolicy.AllowCached,
             string[] downloadTags = null,
             string[] rawfileDownloadTags = null,
             string rawfilePackageName = null)
@@ -60,6 +67,7 @@ namespace Framework.Procedure
             _playMode = playMode;
             _isIncludeRawFile = IsIncludeRawFile;
             _startupDownloadMode = startupDownloadMode;
+            _startupUpdatePolicy = startupUpdatePolicy;
             _downloadTags = NormalizeTags(downloadTags);
             _rawfileDownloadTags = NormalizeTags(rawfileDownloadTags);
             _rawfilwPkgName = NormalizePackageName(rawfilePackageName, HotfixRuntimeSettings.DefaultRawFilePackageName);
@@ -164,6 +172,91 @@ namespace Framework.Procedure
 
             LogKit.I(handled ? "资源下载已继续。" : "当前没有可继续的下载任务。");
             return handled;
+        }
+
+        public bool ShouldUseLocalCacheOnlyAtStartup()
+        {
+            if (!CanUseLocalCacheFallback)
+            {
+                return false;
+            }
+
+            if (_startupUpdatePolicy == StartupUpdatePolicy.WifiOnly)
+            {
+                return Application.internetReachability != NetworkReachability.ReachableViaLocalAreaNetwork;
+            }
+
+            if (_startupUpdatePolicy == StartupUpdatePolicy.BackgroundDownload)
+            {
+                if (string.IsNullOrEmpty(HotfixLocalManifestUtility.GetLastUsablePackageVersion(_packageName)))
+                {
+                    return false;
+                }
+
+                return !_isIncludeRawFile ||
+                       !string.IsNullOrEmpty(HotfixLocalManifestUtility.GetLastUsablePackageVersion(_rawfilwPkgName));
+            }
+
+            return false;
+        }
+
+        public void MarkUseLocalManifestFallback(string reason)
+        {
+            _useLocalManifestFallback = true;
+            if (!string.IsNullOrWhiteSpace(reason))
+            {
+                LogKit.W(reason);
+                TypeEventSystem.Global.Send(new OnStartupUsingLocalCacheEvent { reason = reason.Trim() });
+            }
+        }
+
+        public void SaveUsablePackageVersions()
+        {
+            HotfixLocalManifestUtility.SaveLastUsablePackageVersion(_packageName, _packageVersion);
+            if (_isIncludeRawFile)
+            {
+                HotfixLocalManifestUtility.SaveLastUsablePackageVersion(_rawfilwPkgName, _rawfilePkgVersion);
+            }
+        }
+
+        public IEnumerator TryUseLocalManifestFallback(string reason, Action<bool, string> onCompleted)
+        {
+            var package = YooAssets.GetPackage(_packageName);
+            HotfixLocalManifestResult packageResult = default;
+            yield return HotfixLocalManifestUtility.TryLoadLocalManifest(
+                package,
+                _packageVersion,
+                result => packageResult = result);
+
+            if (!packageResult.Succeeded)
+            {
+                onCompleted?.Invoke(false, $"主资源包本地缓存不可用：{packageResult.Error}");
+                yield break;
+            }
+
+            _packageVersion = packageResult.PackageVersion;
+
+            if (_isIncludeRawFile)
+            {
+                var rawfilePackage = YooAssets.GetPackage(_rawfilwPkgName);
+                HotfixLocalManifestResult rawfileResult = default;
+                yield return HotfixLocalManifestUtility.TryLoadLocalManifest(
+                    rawfilePackage,
+                    _rawfilePkgVersion,
+                    result => rawfileResult = result);
+
+                if (!rawfileResult.Succeeded)
+                {
+                    onCompleted?.Invoke(false, $"RawFile 资源包本地缓存不可用：{rawfileResult.Error}");
+                    yield break;
+                }
+
+                _rawfilePkgVersion = rawfileResult.PackageVersion;
+            }
+
+            MarkUseLocalManifestFallback(reason);
+            SaveUsablePackageVersions();
+            onCompleted?.Invoke(true, string.Empty);
         }
 
         public void SetHotfixEntry(string sceneAddress, string typeName, string methodName)

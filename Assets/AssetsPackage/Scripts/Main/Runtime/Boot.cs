@@ -51,6 +51,7 @@ namespace Framework
                 playMode,
                 settings.IncludeRawFilePackage,
                 settings.StartupDownloadMode,
+                settings.StartupUpdatePolicy,
                 settings.StartupDownloadTags,
                 settings.RawFileStartupDownloadTags,
                 rawfilePackageName);

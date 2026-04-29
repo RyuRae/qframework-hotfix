@@ -46,6 +46,11 @@ namespace Framework.UI
                 OnDownloadCanceledHandler(downloadHandler.reason);
             }).UnRegisterWhenGameObjectDestroyed(gameObject);
 
+            TypeEventSystem.Global.Register<OnStartupUsingLocalCacheEvent>(downloadHandler =>
+            {
+                OnStartupUsingLocalCacheHandler(downloadHandler.reason);
+            }).UnRegisterWhenGameObjectDestroyed(gameObject);
+
             TypeEventSystem.Global.Register<OnSceneloadUpdateEvent>(sceneLoadHandler =>
             {
                 OnSceneLoadUpdateHandler(sceneLoadHandler.progress, sceneLoadHandler.desc);
@@ -83,6 +88,12 @@ namespace Framework.UI
         {
             CloseLoadingPanel();
             ShowMessage(string.IsNullOrEmpty(reason) ? "资源下载已取消。" : reason);
+        }
+
+        public void OnStartupUsingLocalCacheHandler(string reason)
+        {
+            CloseLoadingPanel();
+            ShowMessage(string.IsNullOrEmpty(reason) ? "网络异常，已使用本地缓存启动。" : reason);
         }
 
         public void OnDownloadUpdateHandler(DownloadUpdateData data)
