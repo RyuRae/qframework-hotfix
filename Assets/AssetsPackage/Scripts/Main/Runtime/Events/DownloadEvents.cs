@@ -76,6 +76,32 @@ namespace Framework.Events
         /// 信息确认回调
         /// </summary>
         public Action confirmCallBack;
+        /// <summary>
+        /// 信息取消回调
+        /// </summary>
+        public Action cancelCallBack;
+    }
+
+    /// <summary>
+    /// 下载取消请求事件
+    /// </summary>
+    public struct OnDownloadCancelRequestEvent
+    {
+        /// <summary>
+        /// 取消原因
+        /// </summary>
+        public string reason;
+    }
+
+    /// <summary>
+    /// 下载取消事件
+    /// </summary>
+    public struct OnDownloadCanceledEvent
+    {
+        /// <summary>
+        /// 取消原因
+        /// </summary>
+        public string reason;
     }
 
     /// <summary>

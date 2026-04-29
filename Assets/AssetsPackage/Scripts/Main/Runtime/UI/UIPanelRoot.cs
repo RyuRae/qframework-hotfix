@@ -16,7 +16,9 @@ namespace Framework.UI
                 string totalSizeMB = sizeMB.ToString("f1");
                 ShowMessageBox(
                     $"发现可更新文件：{downloadInfo.totalDownloadCount} 个，总大小 {totalSizeMB} MB，是否开始下载？",
-                    downloadInfo.confirmCallBack);
+                    downloadInfo.confirmCallBack,
+                    downloadInfo.cancelCallBack,
+                    true);
             }).UnRegisterWhenGameObjectDestroyed(gameObject);
 
             TypeEventSystem.Global.Register<OnDownloadFileBeginEvent>(downloadHandler =>
@@ -37,6 +39,11 @@ namespace Framework.UI
             TypeEventSystem.Global.Register<OnDownloadErrorEvent>(downloadHandler =>
             {
                 OnDownloadErrorHandler(downloadHandler.errorData);
+            }).UnRegisterWhenGameObjectDestroyed(gameObject);
+
+            TypeEventSystem.Global.Register<OnDownloadCanceledEvent>(downloadHandler =>
+            {
+                OnDownloadCanceledHandler(downloadHandler.reason);
             }).UnRegisterWhenGameObjectDestroyed(gameObject);
 
             TypeEventSystem.Global.Register<OnSceneloadUpdateEvent>(sceneLoadHandler =>
@@ -72,6 +79,12 @@ namespace Framework.UI
             UISceneHint.ShowMessage($"下载失败：{data.PackageName}\n{data.FileName}\n{data.ErrorInfo}");
         }
 
+        public void OnDownloadCanceledHandler(string reason)
+        {
+            CloseLoadingPanel();
+            ShowMessage(string.IsNullOrEmpty(reason) ? "资源下载已取消。" : reason);
+        }
+
         public void OnDownloadUpdateHandler(DownloadUpdateData data)
         {
             LogKit.I($"资源下载中：{data.Progress:P0}");
@@ -85,8 +98,7 @@ namespace Framework.UI
 
         public void OnDownloadFinishHandler(DownloaderFinishData data)
         {
-            LogKit.I("文件下载完成。");
-            ActionKit.Delay(1, CloseLoadingPanel).Start(this);
+            LogKit.I(data.Succeed ? $"文件下载完成：{data.PackageName}" : $"文件下载失败：{data.PackageName}");
         }
 
         public void OnSceneLoadUpdateHandler(float progress, string desc = "场景加载中")
@@ -123,10 +135,20 @@ namespace Framework.UI
             UISceneHint.ShowMessage(msg, seconds);
         }
 
-        public void ShowMessageBox(string msg, Action action = null)
+        public void ShowMessageBox(string msg, Action action = null, Action cancelAction = null, bool openLoadingOnConfirm = false)
         {
             UISceneMessageBox.Show();
-            UISceneMessageBox.ShowMessageBox(msg, action);
+            UISceneMessageBox.ShowMessageBox(msg, action, cancelAction, openLoadingOnConfirm);
+        }
+
+        public void RequestCancelDownload()
+        {
+            RequestCancelDownloadWithReason("用户取消资源下载。");
+        }
+
+        public void RequestCancelDownloadWithReason(string reason)
+        {
+            TypeEventSystem.Global.Send(new OnDownloadCancelRequestEvent { reason = reason });
         }
 
         public void ClearScreen()

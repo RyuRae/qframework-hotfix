@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Framework.Events;
 using QFramework;
 using YooAsset;
 
@@ -34,10 +35,15 @@ namespace Framework.Procedure
         public readonly StartupDownloadMode _startupDownloadMode;
         public readonly string[] _downloadTags;
         public readonly string[] _rawfileDownloadTags;
+        private bool _downloadCancelRequested;
+        private bool _downloadPaused;
+        private IUnRegister _downloadCancelRequestUnregister;
 
         public string EntrySceneAddress { get; private set; } = DefaultEntrySceneAddress;
         public string EntryTypeName { get; private set; } = string.Empty;
         public string EntryMethodName { get; private set; } = string.Empty;
+        public bool IsDownloadCancelRequested => _downloadCancelRequested;
+        public bool IsDownloadPaused => _downloadPaused;
 
         public FSM<ResPackageStates> _mFSM = new FSM<ResPackageStates>();
 
@@ -68,10 +74,13 @@ namespace Framework.Procedure
             _mFSM.AddState(ResPackageStates.LoadAssemblies, new ProcedureLoadAssembly(_mFSM, this));
             _mFSM.AddState(ResPackageStates.ClearCacheBundle, new ProcedureClearCacheBundle(_mFSM, this));
             _mFSM.AddState(ResPackageStates.StartGame, new ProcedureStartGame(_mFSM, this));
+
+            RegisterDownloadControlEvents();
         }
 
         protected override void OnAbort()
         {
+            ReleaseDownloadControlEvents();
         }
 
         protected override void OnStart()
@@ -92,6 +101,7 @@ namespace Framework.Procedure
         public void SetFinish()
         {
             Status = EOperationStatus.Succeed;
+            ReleaseDownloadControlEvents();
         }
 
         public void SetFailed(string error)
@@ -104,6 +114,56 @@ namespace Framework.Procedure
             Error = string.IsNullOrEmpty(error) ? "Hot update procedure failed." : error;
             Status = EOperationStatus.Failed;
             LogKit.E(Error);
+            ReleaseDownloadControlEvents();
+        }
+
+        public void CancelDownload(string reason = null)
+        {
+            if (IsDone)
+            {
+                return;
+            }
+
+            string cancelReason = string.IsNullOrWhiteSpace(reason) ? "用户取消资源更新。" : reason.Trim();
+            _downloadCancelRequested = true;
+            _downloadPaused = false;
+
+            TryCancelDownloader(_downloaderOperation);
+            TryCancelDownloader(_downloaderRawfile);
+
+            LogKit.I(cancelReason);
+            TypeEventSystem.Global.Send(new OnDownloadCanceledEvent { reason = cancelReason });
+            SetFailed(cancelReason);
+        }
+
+        public bool TryPauseDownload()
+        {
+            if (IsDone || _downloadCancelRequested)
+            {
+                return false;
+            }
+
+            bool handled = TryPauseDownloader(_downloaderOperation);
+            handled |= TryPauseDownloader(_downloaderRawfile);
+            _downloadPaused = handled;
+
+            LogKit.I(handled ? "资源下载已暂停。" : "当前没有可暂停的下载任务。");
+            return handled;
+        }
+
+        public bool TryResumeDownload()
+        {
+            if (IsDone || _downloadCancelRequested)
+            {
+                return false;
+            }
+
+            bool handled = TryResumeDownloader(_downloaderOperation);
+            handled |= TryResumeDownloader(_downloaderRawfile);
+            _downloadPaused = handled ? false : _downloadPaused;
+
+            LogKit.I(handled ? "资源下载已继续。" : "当前没有可继续的下载任务。");
+            return handled;
         }
 
         public void SetHotfixEntry(string sceneAddress, string typeName, string methodName)
@@ -142,6 +202,53 @@ namespace Framework.Procedure
         private static string NormalizePackageName(string packageName, string fallback)
         {
             return string.IsNullOrWhiteSpace(packageName) ? fallback : packageName.Trim();
+        }
+
+        private void RegisterDownloadControlEvents()
+        {
+            _downloadCancelRequestUnregister = TypeEventSystem.Global.Register<OnDownloadCancelRequestEvent>(downloadCancelRequest =>
+            {
+                CancelDownload(downloadCancelRequest.reason);
+            });
+        }
+
+        private void ReleaseDownloadControlEvents()
+        {
+            _downloadCancelRequestUnregister?.UnRegister();
+            _downloadCancelRequestUnregister = null;
+        }
+
+        private static bool TryCancelDownloader(ResourceDownloaderOperation downloader)
+        {
+            if (downloader == null || downloader.IsDone)
+            {
+                return false;
+            }
+
+            downloader.CancelDownload();
+            return true;
+        }
+
+        private static bool TryPauseDownloader(ResourceDownloaderOperation downloader)
+        {
+            if (downloader == null || downloader.IsDone)
+            {
+                return false;
+            }
+
+            downloader.PauseDownload();
+            return true;
+        }
+
+        private static bool TryResumeDownloader(ResourceDownloaderOperation downloader)
+        {
+            if (downloader == null || downloader.IsDone)
+            {
+                return false;
+            }
+
+            downloader.ResumeDownload();
+            return true;
         }
     }
 }

@@ -85,7 +85,11 @@ namespace Framework.Procedure
             {
                 totalDownloadCount = totalDownloadCount,
                 totalDownloadBytes = totalDownloadBytes,
-                confirmCallBack = () => mFSM.ChangeState(ResPackageStates.DownloadPackageFiles)
+                confirmCallBack = () => mFSM.ChangeState(ResPackageStates.DownloadPackageFiles),
+                cancelCallBack = () => TypeEventSystem.Global.Send(new OnDownloadCancelRequestEvent
+                {
+                    reason = "用户取消资源更新，启动流程终止。"
+                })
             });
         }
 

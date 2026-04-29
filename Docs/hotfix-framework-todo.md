@@ -1,6 +1,6 @@
 # 热更新框架优化 TODO
 
-更新时间：2026-04-28
+更新时间：2026-04-29
 
 本文档用于记录当前 QFramework + YooAsset + HybridCLR 热更新框架后续需要改善的事项。优先级含义：
 
@@ -54,20 +54,23 @@
 - Windows / Android / iOS / WebGL 打包时不会带着错误 play mode 出包。
 - CI 或本地构建脚本能自动失败并输出清晰原因。
 
-### 2. 处理用户取消下载导致流程卡死
+### 2. 处理用户取消下载导致流程卡死（已完成）
 
-- [ ] 为下载确认弹窗增加取消回调。
-- [ ] 用户取消下载时明确进入失败、退出、离线启动或继续使用本地缓存之一。
-- [ ] 下载开始后支持取消下载，并将 downloader、UI、FSM 状态一起收口。
-- [ ] 评估并实现下载暂停 / 继续能力，至少为弱网和大包下载预留状态接口。
-- [ ] 下载失败后提供用户可点击的“重试 / 退出 / 使用本地缓存”路径。
-- [ ] `ProcedureCreateDownloader` 不应只在确认时推进 FSM。
-- [ ] loading 状态、弹窗状态、FSM 状态需要保持一致，避免界面隐藏但流程悬挂。
+- [x] 为下载确认弹窗增加取消回调。
+- [x] 用户取消下载时明确进入失败 / 退出更新路径，离线启动和本地缓存兜底归入第 3 项继续完善。
+- [x] 下载开始后支持通过 `ProcedureManager.CancelDownload` 取消下载，并将 downloader、UI、FSM 状态一起收口。
+- [x] 评估并实现下载暂停 / 继续能力，已预留 `TryPauseDownload` / `TryResumeDownload` 状态接口。
+- [x] 下载失败后提供用户可点击的“重试 / 退出更新”路径，本地缓存兜底归入第 3 项。
+- [x] `ProcedureCreateDownloader` 不再只在确认时推进 FSM，取消时会明确终止流程。
+- [x] loading 状态、弹窗状态、FSM 状态保持一致，避免界面隐藏但流程悬挂。
 
 相关位置：
 
 - `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureCreateDownloader.cs`
+- `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureDownloadPackageFiles.cs`
+- `Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureManager.cs`
 - `Assets/AssetsPackage/Scripts/Main/Runtime/UI/UISceneMessageBox.cs`
+- `Assets/AssetsPackage/Scripts/Main/Runtime/UI/UIPanelRoot.cs`
 - `Assets/AssetsPackage/Scripts/Main/Runtime/Events/DownloadEvents.cs`
 
 验收标准：

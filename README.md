@@ -74,6 +74,37 @@ Assets/AssetsPackage
 - `DownloadByTags`：启动阶段只下载 `StartupDownloadTags` / `RawFileStartupDownloadTags` 指定的资源；Tag 为空则不创建下载器。
 - `Skip`：跳过启动阶段下载，直接进入 AOT 和热更 DLL 加载流程。
 
+### 启动下载取消与失败处理
+
+启动阶段如发现差异文件，`ProcedureCreateDownloader` 会发送 `OnDownloadInfoHandlerEvent`，由 `UIPanelRoot` 弹出下载确认框：
+
+- 点击“确定”：进入 `ProcedureDownloadPackageFiles` 开始下载。
+- 点击“取消”：发送 `OnDownloadCancelRequestEvent`，由 `ProcedureManager` 统一调用 `CancelDownload` 收口。
+
+下载取消请求可以由任意 UI 或业务代码触发：
+
+```csharp
+TypeEventSystem.Global.Send(new OnDownloadCancelRequestEvent
+{
+    reason = "用户取消资源下载。"
+});
+```
+
+如果是在 UI 层，也可以使用封装方法：
+
+```csharp
+UIPanelRoot.Instance.RequestCancelDownload();
+UIPanelRoot.Instance.RequestCancelDownloadWithReason("用户在下载中取消。");
+```
+
+`CancelDownload` 会执行以下收口动作：
+
+- 调用主包和 RawFile 包 downloader 的 `CancelDownload()`。
+- 发送 `OnDownloadCanceledEvent`，关闭 loading 并显示取消原因。
+- 将热更流程标记为失败，避免 FSM 或协程继续悬挂。
+
+下载过程中如果失败，会弹出“确定重试 / 取消退出更新”提示。点击确定会重新创建 downloader 并重试当前包，点击取消会走同一套取消收口逻辑。`ProcedureManager` 也预留了 `TryPauseDownload()` 和 `TryResumeDownload()`，后续可接入弱网或大包下载 UI。
+
 ## 首包发布流程
 
 首包用于首次安装，必须包含：
