@@ -42,7 +42,7 @@ namespace HybridCLR.Editor
             }
         }
 
-        [MenuItem("Build/Build Initial YooAsset Package")]
+        [MenuItem("Build/热更新/内部工具/仅构建首包 YooAsset", false, HotfixBuildMenuPriority.InternalYooAssetInitialOnly)]
         public static void BuildInitialYooAssetPackage()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
@@ -60,7 +60,7 @@ namespace HybridCLR.Editor
             AssetDatabase.Refresh();
         }
 
-        [MenuItem("Build/Build Hotfix YooAsset Package")]
+        [MenuItem("Build/热更新/内部工具/仅构建热更 YooAsset", false, HotfixBuildMenuPriority.InternalYooAssetHotfixOnly)]
         public static void BuildHotfixYooAssetPackage()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
@@ -76,7 +76,7 @@ namespace HybridCLR.Editor
             AssetDatabase.Refresh();
         }
 
-        [MenuItem("Build/BuildAssetsAndCopyToAssetsPackage")]
+        [MenuItem("Build/热更新/内部工具/旧命令/构建并复制到 AssetsPackage", false, HotfixBuildMenuPriority.LegacyCommands)]
         public static void BuildAndCopyToAssetsPackage()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
@@ -91,13 +91,13 @@ namespace HybridCLR.Editor
             AssetDatabase.Refresh();
         }
 
-        [MenuItem("Build/BuildAssetsAndCopyToStreamingAssets")]
+        [MenuItem("Build/热更新/内部工具/旧命令/构建并复制到 StreamingAssets", false, HotfixBuildMenuPriority.LegacyCommands + 1)]
         public static void BuildAndCopyABAOTHotUpdateDlls()
         {
             BuildInitialYooAssetPackage();
         }
 
-        [MenuItem("Build/CopyAotDllsToAssetsPackage")]
+        [MenuItem("Build/热更新/内部工具/复制 AOT 元数据 DLL", false, HotfixBuildMenuPriority.InternalCopyAOTMetadata)]
         public static void BuildAndCopyAOTHotUpdateDlls()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
@@ -106,7 +106,7 @@ namespace HybridCLR.Editor
             AssetDatabase.Refresh();
         }
 
-        [MenuItem("Build/CopyHotUpdateDllsToAssetsPackage")]
+        [MenuItem("Build/热更新/内部工具/复制热更 DLL", false, HotfixBuildMenuPriority.InternalCopyHotfixDlls)]
         public static void BuildAndCopyHotUpdateDlls()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
@@ -260,7 +260,7 @@ namespace HybridCLR.Editor
             if (!Directory.Exists(folder))
             {
                 throw new DirectoryNotFoundException(
-                    $"AOT metadata folder not found. Please run HybridCLR/Generate/All first. Folder: {folder}");
+                    $"AOT metadata folder not found. 请先执行 Build/热更新/内部工具/安全生成 HybridCLR 数据。Folder: {folder}");
             }
 
             var aotAssemblies = GetConfiguredAOTMetaAssemblies();
@@ -302,6 +302,14 @@ namespace HybridCLR.Editor
             manifest.AotMetadataAssemblies = NormalizeDllNames(aotAssemblies);
             manifest.AotMetadataFiles = CreateAssemblyFileRecords(AOTCodesPath, manifest.AotMetadataAssemblies);
             manifest.AotVersion = CreateAotVersion(manifest.AppVersion, manifest.BuildTarget, manifest.AotMetadataFiles);
+            manifest.BaselineGeneratedAtUtc = DateTime.UtcNow.ToString("O");
+            manifest.BaselineGitCommit = string.Empty;
+            manifest.BaselineFingerprint = CreateAOTBaselineFingerprint(
+                manifest.AppVersion,
+                manifest.BuildTarget,
+                manifest.BaselineGeneratedAtUtc,
+                manifest.AotMetadataAssemblies,
+                manifest.AotMetadataFiles);
 
             EditorUtility.SetDirty(manifest);
             AssetDatabase.SaveAssets();
@@ -523,6 +531,97 @@ namespace HybridCLR.Editor
             ValidateEntryResource(hotfixManifest);
         }
 
+        public static void ValidateAOTManifestNotExpired(BuildTarget target, AOTAssemblyManifest manifest)
+        {
+            if (manifest == null)
+            {
+                throw new InvalidOperationException($"AOT manifest missing: {AOTAssemblyManifestAssetPath}");
+            }
+
+            string buildTargetName = GetRuntimePlatformName(target);
+            if (!string.Equals(manifest.BuildTarget, buildTargetName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"AOT manifest target mismatch. Manifest={manifest.BuildTarget}, Build={buildTargetName}");
+            }
+
+            string appVersion = GetAppVersion();
+            if (!string.Equals(manifest.AppVersion, appVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"AOT manifest AppVersion mismatch. Manifest={manifest.AppVersion}, PlayerSettings={appVersion}. " +
+                    "请构建首包建立新的 App 基线，或明确选择 AOT 元数据补丁。");
+            }
+
+            var manifestAssemblies = NormalizeDllNames(manifest.AotMetadataAssemblies);
+            if (manifestAssemblies.Count == 0)
+            {
+                throw new InvalidOperationException("AOT manifest has no metadata assemblies.");
+            }
+
+            var configuredAssemblies = GetConfiguredAOTMetaAssemblies();
+            if (!AreSameList(manifestAssemblies, configuredAssemblies))
+            {
+                throw new InvalidOperationException(
+                    "HybridCLR AOT metadata assembly list changed. 普通热更包不能更新 AOT 基线，请构建首包或选择 AOT 元数据补丁。");
+            }
+
+            ValidateAssemblyFiles(AOTCodesPath, manifestAssemblies, "AOT metadata");
+            var currentRecords = CreateAssemblyFileRecords(AOTCodesPath, manifestAssemblies);
+            ValidateAssemblyRecordsUnchanged(manifest.AotMetadataFiles, currentRecords);
+
+            string manifestFingerprint = string.IsNullOrWhiteSpace(manifest.BaselineFingerprint)
+                ? CreateAOTBaselineFingerprint(
+                    manifest.AppVersion,
+                    manifest.BuildTarget,
+                    manifest.BaselineGeneratedAtUtc,
+                    manifestAssemblies,
+                    manifest.AotMetadataFiles)
+                : manifest.BaselineFingerprint;
+            string currentFingerprint = CreateAOTBaselineFingerprint(
+                manifest.AppVersion,
+                manifest.BuildTarget,
+                manifest.BaselineGeneratedAtUtc,
+                manifestAssemblies,
+                currentRecords);
+            if (!string.Equals(manifestFingerprint, currentFingerprint, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "AOT manifest baseline fingerprint changed. 普通热更包已阻断，请构建首包建立新基线，或明确选择 AOT 元数据补丁。");
+            }
+        }
+
+        public static void ValidateHotfixAppVersionRange(HotfixAssemblyManifest manifest)
+        {
+            if (manifest == null)
+            {
+                throw new InvalidOperationException($"Hotfix manifest missing: {HotfixAssemblyManifestAssetPath}");
+            }
+
+            string appVersion = GetAppVersion();
+            if (!string.IsNullOrWhiteSpace(manifest.AppVersionMin) &&
+                CompareVersion(appVersion, manifest.AppVersionMin) < 0)
+            {
+                throw new InvalidOperationException(
+                    $"Hotfix manifest AppVersionMin mismatch. Current={appVersion}, Min={manifest.AppVersionMin}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(manifest.AppVersionMax) &&
+                CompareVersion(appVersion, manifest.AppVersionMax) > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Hotfix manifest AppVersionMax mismatch. Current={appVersion}, Max={manifest.AppVersionMax}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(manifest.AppVersionMin) &&
+                !string.IsNullOrWhiteSpace(manifest.AppVersionMax) &&
+                CompareVersion(manifest.AppVersionMin, manifest.AppVersionMax) > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Hotfix manifest version range is invalid. Min={manifest.AppVersionMin}, Max={manifest.AppVersionMax}");
+            }
+        }
+
         private static AOTAssemblyManifest EnsureAOTAssemblyManifest(BuildTarget target)
         {
             var manifest = AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(AOTAssemblyManifestAssetPath);
@@ -611,6 +710,26 @@ namespace HybridCLR.Editor
             return "aot-" + ComputeSha256HashPrefix(BuildVersionSeed(appVersion, buildTarget, string.Empty, records));
         }
 
+        private static string CreateAOTBaselineFingerprint(
+            string appVersion,
+            string buildTarget,
+            string generatedAtUtc,
+            IEnumerable<string> aotAssemblies,
+            IEnumerable<AssemblyFileRecord> records)
+        {
+            var builder = new StringBuilder();
+            builder.Append(appVersion ?? string.Empty).Append('|');
+            builder.Append(buildTarget ?? string.Empty).Append('|');
+            builder.Append(generatedAtUtc ?? string.Empty).Append('|');
+            foreach (var assembly in NormalizeDllNames(aotAssemblies).OrderBy(name => name, StringComparer.OrdinalIgnoreCase))
+            {
+                builder.Append(assembly).Append('|');
+            }
+
+            builder.Append(BuildVersionSeed(appVersion, buildTarget, "aot-baseline", records));
+            return ComputeSha256HashPrefix(builder.ToString());
+        }
+
         private static string CreateHotfixVersion(
             string appVersionMin,
             string appVersionMax,
@@ -632,7 +751,9 @@ namespace HybridCLR.Editor
             builder.Append(appVersion ?? string.Empty).Append('|');
             builder.Append(buildTarget ?? string.Empty).Append('|');
             builder.Append(extra ?? string.Empty).Append('|');
-            foreach (var record in records.OrderBy(record => record.AssemblyName, StringComparer.OrdinalIgnoreCase))
+            foreach (var record in (records ?? Enumerable.Empty<AssemblyFileRecord>())
+                         .Where(record => record != null)
+                         .OrderBy(record => record.AssemblyName, StringComparer.OrdinalIgnoreCase))
             {
                 builder.Append(record.AssemblyName).Append(':');
                 builder.Append(record.Sha256).Append(':');
@@ -664,6 +785,16 @@ namespace HybridCLR.Editor
             }
         }
 
+        private static int CompareVersion(string left, string right)
+        {
+            if (Version.TryParse(left, out var leftVersion) && Version.TryParse(right, out var rightVersion))
+            {
+                return leftVersion.CompareTo(rightVersion);
+            }
+
+            return string.Compare(left ?? string.Empty, right ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        }
+
         private static void ValidateFirstPackageAssetFiles(HotfixAssemblyManifest hotfixManifest)
         {
             if (hotfixManifest == null)
@@ -684,6 +815,58 @@ namespace HybridCLR.Editor
                     throw new FileNotFoundException($"{label} bytes file missing: {filePath}", filePath);
                 }
             }
+        }
+
+        private static void ValidateAssemblyRecordsUnchanged(
+            IEnumerable<AssemblyFileRecord> expectedRecords,
+            IEnumerable<AssemblyFileRecord> currentRecords)
+        {
+            var expected = ToRecordMap(expectedRecords);
+            var current = ToRecordMap(currentRecords);
+            foreach (var expectedPair in expected)
+            {
+                if (!current.TryGetValue(expectedPair.Key, out var currentRecord))
+                {
+                    throw new InvalidOperationException($"AOT metadata file missing from current scan: {expectedPair.Key}");
+                }
+
+                var expectedRecord = expectedPair.Value;
+                if (expectedRecord.Size != currentRecord.Size ||
+                    !string.Equals(expectedRecord.Sha256, currentRecord.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"AOT metadata file changed: {expectedPair.Key}. 普通热更包不能修改 AOT 基线。");
+                }
+            }
+
+            foreach (var currentPair in current)
+            {
+                if (!expected.ContainsKey(currentPair.Key))
+                {
+                    throw new InvalidOperationException($"Unexpected AOT metadata file in current scan: {currentPair.Key}");
+                }
+            }
+        }
+
+        private static Dictionary<string, AssemblyFileRecord> ToRecordMap(IEnumerable<AssemblyFileRecord> records)
+        {
+            var map = new Dictionary<string, AssemblyFileRecord>(StringComparer.OrdinalIgnoreCase);
+            if (records == null)
+            {
+                return map;
+            }
+
+            foreach (var record in records)
+            {
+                if (record == null || string.IsNullOrWhiteSpace(record.AssemblyName))
+                {
+                    continue;
+                }
+
+                map[NormalizeDllName(record.AssemblyName)] = record;
+            }
+
+            return map;
         }
 
         private static void ValidateEntryResource(HotfixAssemblyManifest manifest)
@@ -806,6 +989,28 @@ namespace HybridCLR.Editor
                 .Select(NormalizeDllName)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+        }
+
+        private static bool AreSameList(List<string> left, List<string> right)
+        {
+            left = NormalizeDllNames(left);
+            right = NormalizeDllNames(right);
+            if (left.Count != right.Count)
+            {
+                return false;
+            }
+
+            left.Sort(StringComparer.OrdinalIgnoreCase);
+            right.Sort(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < left.Count; i++)
+            {
+                if (!string.Equals(left[i], right[i], StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static string NormalizeDllName(string dllName)

@@ -20,6 +20,9 @@ namespace Framework.Assemblies
         public string AppVersion = string.Empty;
         public string BuildTarget = string.Empty;
         public string AotVersion = string.Empty;
+        public string BaselineFingerprint = string.Empty;
+        public string BaselineGeneratedAtUtc = string.Empty;
+        public string BaselineGitCommit = string.Empty;
         public List<string> AotMetadataAssemblies = new List<string>();
         public List<AssemblyFileRecord> AotMetadataFiles = new List<AssemblyFileRecord>();
     }

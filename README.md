@@ -33,12 +33,13 @@
 
    在 Unity 菜单 `File/Build Settings` 中选择目标平台并点击 `Switch Platform`。热更 DLL、AOT metadata 和 AssetBundle 都和平台相关，不能跨平台混用。
 
-3. 安装并生成 HybridCLR 数据。
+3. 安装 HybridCLR。
 
    ```text
    HybridCLR/Installer/Install
-   HybridCLR/Generate/All
    ```
+
+   不再建议新手直接执行 `HybridCLR/Generate/All`。首包构建时优先通过 `Build/热更新/构建中心...` 或一键构建入口触发统一流程。
 
 4. 检查 HybridCLR 热更程序集。
 
@@ -61,10 +62,18 @@
    Assets/AssetsPackage/AssetsHotFix/Datas
    ```
 
-6. 同步运行时包名。
+6. 打开构建中心。
 
    ```text
-   Build/Hotfix/Sync Package Names From YooAsset Collector
+   Build/热更新/构建中心...
+   ```
+
+   构建中心会显示当前 BuildTarget、AppVersion、远端环境、启动包策略、下载模式、入口资源、AOT Manifest 和 Hotfix Manifest 状态，并提供：
+
+   ```text
+   仅校验
+   一键修复
+   开始构建
    ```
 
 7. 选择启动包策略。
@@ -75,26 +84,26 @@
    - `StartupPackageMode = EmptyPackage`：空包不内置资源，首次启动必须能访问远端。
    - `StartupPackageMode = OfflinePackage`：离线包完整内置资源，必须搭配 `OfflinePlayMode`。
 
-8. 构建 YooAsset 包。
+8. 构建热更资源包。
 
    首包或首次远端资源：
 
    ```text
-   Build/Build Initial YooAsset Package
+   Build/热更新/一键构建/构建首包
    ```
 
    后续热更资源：
 
    ```text
-   Build/Build Hotfix YooAsset Package
+   Build/热更新/一键构建/构建热更包
    ```
 
 9. 构建 Player。
 
-   Windows 示例菜单：
+   Windows 示例内部菜单：
 
    ```text
-   Build/Win64
+   Build/热更新/内部工具/旧命令/构建 Win64 Player
    ```
 
    其他平台可以使用 Unity `Build Settings`，构建前预处理器会校验 Player PlayMode、远端配置和启动包策略。
@@ -134,10 +143,10 @@ Assets/AssetsPackage
 
 ```mermaid
 flowchart TD
-    A[切换 Unity 目标平台] --> B[执行 HybridCLR/Generate/All]
-    B --> C[配置 HotfixRuntimeSettings.asset]
-    C --> D[配置 HotfixRemoteSettings.asset]
-    D --> E[执行 Build/Build Initial YooAsset Package]
+    A[切换 Unity 目标平台] --> B[打开 Build/热更新/构建中心...]
+    B --> C[仅校验 / 一键修复]
+    C --> D[配置 HotfixRuntimeSettings.asset 和 HotfixRemoteSettings.asset]
+    D --> E[执行 一键构建/构建首包]
     E --> F[编译 AOT + 热更 DLL]
     F --> G[复制 AOT DLL 到 AOTCodes/*.dll.bytes]
     G --> H[复制热更 DLL 到 HotfixCodes/*.dll.bytes]
@@ -148,7 +157,7 @@ flowchart TD
     L --> M{StartupPackageMode?}
     M -->|FirstPackage / OfflinePackage| N[构建 YooAsset 包 + 复制到 StreamingAssets]
     M -->|EmptyPackage| O[构建 YooAsset 包 不复制到 StreamingAssets]
-    N --> P[构建 Player Build/Win64 等]
+    N --> P[构建 Player]
     O --> Q[上传输出目录到 CDN]
     Q --> P
     P --> R[完成]
@@ -158,7 +167,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[修改热更代码/资源/场景/配置] --> B[执行 Build/Build Hotfix YooAsset Package]
+    A[修改热更代码/资源/场景/配置] --> B[执行 一键构建/构建热更包]
     B --> C[编译热更 DLL]
     C --> D[复制热更 DLL 到 HotfixCodes/*.dll.bytes]
     D --> E[复用现有 AOTAssemblyManifest.asset]
@@ -251,9 +260,9 @@ flowchart LR
     end
 
     subgraph 构建系统
-        B1[构建首包\nBuild Initial YooAsset Package]
-        B2[构建热更包\nBuild Hotfix YooAsset Package]
-        B3[构建 Player\nBuild/Win64 等]
+        B1[构建首包\n一键构建/构建首包]
+        B2[构建热更包\n一键构建/构建热更包]
+        B3[构建 Player\nUnity Build Settings / 内部工具 Win64]
         B4[配置运行时参数\nHotfixRuntimeSettings]
         B5[配置 CDN 地址\nHotfixRemoteSettings]
         B6[配置多语言\nHotfixLocalizationSettings]
@@ -324,9 +333,9 @@ sequenceDiagram
     Note over Dev,CDN: === 首包构建阶段 ===
 
     Dev->>Unity: 切换目标平台
-    Dev->>Unity: HybridCLR/Generate/All
+    Dev->>Unity: Build/热更新/构建中心...
     Dev->>Unity: 配置 HotfixRuntimeSettings
-    Dev->>Unity: Build/Build Initial YooAsset Package
+    Dev->>Unity: Build/热更新/一键构建/构建首包
     Unity->>Build: 编译 AOT + 热更 DLL
     Build->>Build: 复制 DLL.bytes 到 AssetsHotFix
     Build->>Build: 生成 AOTAssemblyManifest
@@ -335,7 +344,7 @@ sequenceDiagram
     Build->>Build: 构建 YooAsset 包
     Build-->>CDN: 上传构建产物
 
-    Dev->>Unity: Build/Win64
+    Dev->>Unity: Unity Build Settings / 内部工具 Win64
     Unity->>Build: 构建 Player (含 StreamingAssets)
 
     Note over Player,CDN: === 玩家首次启动 ===
@@ -353,7 +362,7 @@ sequenceDiagram
     Note over Dev,CDN: === 热更发布阶段 ===
 
     Dev->>Unity: 修改热更代码/资源
-    Dev->>Unity: Build/Build Hotfix YooAsset Package
+    Dev->>Unity: Build/热更新/一键构建/构建热更包
     Unity->>Build: 编译热更 DLL
     Build->>Build: 复制热更 DLL.bytes
     Build->>Build: 复用 AOTAssemblyManifest
@@ -419,7 +428,7 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
 - 入口场景或入口 prefab。
 - 展示更新 UI、错误提示、本地缓存降级所需资源。
 
-构建 `Build/Build Initial YooAsset Package` 时会校验上述资源是否存在，并把 YooAsset 构建产物复制到 `StreamingAssets`。
+通过 `Build/热更新/构建中心...` 或 `Build/热更新/一键构建/构建首包` 构建时会校验上述资源是否存在，并把 YooAsset 构建产物复制到 `StreamingAssets`。
 
 ### EmptyPackage
 
@@ -430,7 +439,7 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
 - `PlayerPlayMode` 必须是 `HostPlayMode` 或 `WebPlayMode`。
 - 首次启动时远端必须可访问。
 - 启动下载策略建议使用 `DownloadAll`，或用 `DownloadByTags` 覆盖所有启动必需资源。
-- 构建 `Build/Build Initial YooAsset Package` 会生成远端资源包，但不会复制到 `StreamingAssets`。
+- 构建 `Build/热更新/一键构建/构建首包` 会生成远端资源包，但不会复制到 `StreamingAssets`。
 
 空包不能搭配 `OfflinePlayMode`。如果远端不可用且本地从未成功缓存过资源，首次启动会失败并给出明确错误。
 
@@ -598,8 +607,9 @@ Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset
 步骤：
 
 1. 切换 Unity 目标平台。
-2. 执行 `HybridCLR/Generate/All`。
-3. 检查 `HotfixRuntimeSettings.asset`：
+2. 打开 `Build/热更新/构建中心...`，先执行 `仅校验`。
+3. 必要时执行 `一键修复`，同步运行时包名和平台 PlayMode。
+4. 检查 `HotfixRuntimeSettings.asset`：
 
    ```text
    StartupPackageMode = FirstPackage
@@ -608,11 +618,11 @@ Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset
    StartupUpdatePolicy = AllowCached
    ```
 
-4. 检查 `HotfixRemoteSettings.asset`，确保目标平台对应环境的主/备 CDN 合法。
-5. 执行：
+5. 检查 `HotfixRemoteSettings.asset`，确保目标平台对应环境的主/备 CDN 合法。
+6. 执行：
 
    ```text
-   Build/Build Initial YooAsset Package
+   Build/热更新/一键构建/构建首包
    ```
 
 该菜单会：
@@ -663,7 +673,7 @@ Bundles/StandaloneWindows64/DefaultPackage/2026-04-30-153012
 2. 执行：
 
    ```text
-   Build/Build Initial YooAsset Package
+   Build/热更新/一键构建/构建首包
    ```
 
 3. 将输出目录内容上传到 `HotfixRemoteSettings.asset` 解析出的 CDN 根目录。
@@ -685,7 +695,7 @@ Bundles/StandaloneWindows64/DefaultPackage/2026-04-30-153012
 2. 执行：
 
    ```text
-   Build/Build Initial YooAsset Package
+   Build/热更新/一键构建/构建首包
    ```
 
 3. 构建 Player。
@@ -697,7 +707,7 @@ Bundles/StandaloneWindows64/DefaultPackage/2026-04-30-153012
 当修改热更代码、资源、场景或配置后，执行：
 
 ```text
-Build/Build Hotfix YooAsset Package
+Build/热更新/一键构建/构建热更包
 ```
 
 该菜单会：
@@ -705,14 +715,48 @@ Build/Build Hotfix YooAsset Package
 - 编译热更 DLL。
 - 更新 `HotfixCodes/*.dll.bytes`。
 - 复用当前 `AOTAssemblyManifest.asset`。
+- 构建前校验 AOT 基线指纹、AppVersion、BuildTarget 和 AOTCodes 文件 hash。
 - 生成新的 `HotfixAssemblyManifest.asset`，其中 `RequiredAotVersion` 指向当前 AOT 版本。
 - 校验 AOT 和 Hotfix manifest 兼容关系。
 - 构建远端 YooAsset 包。
 - 不复制到 `StreamingAssets`。
+- 生成 `BuildReports/Hotfix/*.txt` 构建报告，并在报告中提示 CDN 上传目录。
 
 热更构建不会移除 AOT 收集器。输出目录是一个完整资源版本目录，客户端会通过 YooAsset manifest 对比本地缓存，只下载缺失或 hash 变化的 bundle。AOT metadata 没变化时不会重复下载。
 
-如果修改导致 AOT metadata 也需要更新，先重新执行 `HybridCLR/Generate/All`，再构建首版资源或热更资源，让 `AOTAssemblyManifest.AotVersion` 发生变化。客户端会按新的 `RequiredAotVersion` 先下载并加载匹配的 AOT metadata，再加载热更 DLL。
+如果普通热更构建检测到 AOT 基线变化，会阻断构建并提示选择：
+
+- `构建首包`：建立新的 App 基线。
+- `构建 AOT 元数据补丁`：只在同一 App 基线下补充元数据。
+- `取消`：停止本次构建。
+
+## 构建 AOT 元数据补丁
+
+AOT 元数据补丁是高级模式，只适用于：
+
+```text
+AOT 代码逻辑没有变化
+但 Hotfix 需要补充新的泛型元数据
+```
+
+菜单：
+
+```text
+Build/热更新/高级/构建 AOT 元数据补丁
+```
+
+该流程会：
+
+- 弹出风险确认。
+- 校验旧 `AOTAssemblyManifest.asset` 与当前 AppVersion、BuildTarget 一致。
+- 执行安全版 HybridCLR Generate All。
+- 复制 AOT metadata DLL 和 Hotfix DLL。
+- 重新生成 `AOTAssemblyManifest.asset` 和 `HotfixAssemblyManifest.asset`。
+- 构建远端 YooAsset 包。
+- 不复制到 `StreamingAssets`。
+- 在构建报告中标记这是 AOT 元数据补丁。
+
+如果修改了主工程 AOT 代码逻辑、公共接口、原生 SDK 或 PlayerSettings，应发布新 App，而不是发布 AOT 元数据补丁。
 
 ## 上传 CDN
 
@@ -760,7 +804,7 @@ http://127.0.0.1:8081
 Windows 示例：
 
 ```text
-Build/Win64
+Build/热更新/内部工具/旧命令/构建 Win64 Player
 ```
 
 该菜单会：
@@ -889,16 +933,27 @@ PlayerPrefs.Save();
 
 ```text
 HybridCLR/Installer/Install
-HybridCLR/Generate/All
-Build/Hotfix/Apply Build Play Mode To Runtime Settings
-Build/Hotfix/Sync Package Names From YooAsset Collector
-Build/Build Initial YooAsset Package
-Build/Build Hotfix YooAsset Package
-Build/BuildAssetsAndCopyToAssetsPackage
-Build/BuildAssetsAndCopyToStreamingAssets
-Build/CopyAotDllsToAssetsPackage
-Build/CopyHotUpdateDllsToAssetsPackage
-Build/Win64
+Build/热更新/构建中心...
+Build/热更新/一键构建/构建首包
+Build/热更新/一键构建/构建热更包
+```
+
+高级菜单需要明确风险后再使用：
+
+```text
+Build/热更新/高级/构建 AOT 元数据补丁
+```
+
+`内部工具` 下的菜单保留给框架维护、排障和分步验证，日常构建不需要手动点击：
+
+```text
+Build/热更新/内部工具/安全生成 HybridCLR 数据
+Build/热更新/内部工具/仅构建首包 YooAsset
+Build/热更新/内部工具/仅构建热更 YooAsset
+Build/热更新/内部工具/复制 AOT 元数据 DLL
+Build/热更新/内部工具/复制热更 DLL
+Build/热更新/内部工具/校验运行时设置
+Build/热更新/内部工具/旧命令/构建 Win64 Player
 ```
 
 ## 自检清单
@@ -906,7 +961,7 @@ Build/Win64
 构建前检查：
 
 - 目标平台已切换。
-- `HybridCLR/Generate/All` 已执行。
+- 构建中心的 `仅校验` 没有红色错误项。
 - 热更 asmdef 已加入 HybridCLR Settings。
 - YooAsset Collector 已收集 `AOTCodes`、`HotfixCodes`、`Configs` 和入口资源。
 - `HotfixRuntimeSettings.asset` 的包名与 Collector 一致。
@@ -950,8 +1005,8 @@ Build/Win64
 检查：
 
 1. 新 asmdef 是否加入 `HybridCLR/Settings -> Hot Update Assembly Definitions`。
-2. 是否执行 `HybridCLR/Generate/All` 或至少重新编译热更 DLL。
-3. 是否执行 `Build/Build Hotfix YooAsset Package`。
+2. 是否通过构建中心或 `Build/热更新/内部工具/安全生成 HybridCLR 数据` 生成过 HybridCLR 数据，或至少重新编译热更 DLL。
+3. 是否执行 `Build/热更新/一键构建/构建热更包`。
 4. `HotfixAssemblyManifest.asset` 的 `HotUpdateAssemblies` 是否包含新增 DLL。
 
 ### 修改资源后客户端下载不到？

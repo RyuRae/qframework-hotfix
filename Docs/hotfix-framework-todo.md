@@ -256,7 +256,7 @@ Assets/Editor/HybridCLR/BuildAssetsCommand.cs
 
 ---
 
-## 7. Build 菜单收口与构建中心
+## 7. Build 菜单收口与构建中心 （已完成）
 
 ### 背景
 
@@ -278,37 +278,37 @@ Build/Win64
 
 ```text
 Build
-└── Hotfix
-    ├── Build Center...
-    ├── One Click
-    │   ├── Build Initial Package
-    │   └── Build Hotfix Package
-    ├── Advanced
-    │   └── Build AOT Metadata Patch
-    └── Internal
-        ├── Generate All Safe
-        ├── Build YooAsset Initial Only
-        ├── Build YooAsset Hotfix Only
-        ├── Copy AOT Metadata DLLs
-        ├── Copy Hotfix DLLs
-        ├── Validate Runtime Settings
-        └── Legacy Commands
+└── 热更新
+    ├── 构建中心...
+    ├── 一键构建
+    │   ├── 构建首包
+    │   └── 构建热更包
+    ├── 高级
+    │   └── 构建 AOT 元数据补丁
+    └── 内部工具
+        ├── 安全生成 HybridCLR 数据
+        ├── 仅构建首包 YooAsset
+        ├── 仅构建热更 YooAsset
+        ├── 复制 AOT 元数据 DLL
+        ├── 复制热更 DLL
+        ├── 校验运行时设置
+        └── 旧命令
 ```
 
 ### 任务
 
-- [ ] 新增 `Build/Hotfix/Build Center...`。
-- [ ] 新增 `Build/Hotfix/One Click/Build Initial Package`。
-- [ ] 新增 `Build/Hotfix/One Click/Build Hotfix Package`。
-- [ ] 新增 `Build/Hotfix/Advanced/Build AOT Metadata Patch`。
-- [ ] 将原有底层菜单迁移到 `Build/Hotfix/Internal/...`。
-- [ ] 原菜单可以保留一段时间，但需要标记为 Obsolete 或隐藏。
-- [ ] README 只推荐 Build Center 和 One Click 菜单，不再要求新人手动点多个底层菜单。
-- [ ] Build Center 中显示当前 BuildTarget、AppVersion、远端环境、启动模式、下载模式、入口资源、AOT / Hotfix Manifest 状态。
-- [ ] Build Center 支持 `Validate Only`、`Fix All`、`Build`。
-- [ ] Build Center 中红色错误项必须阻断构建。
+- [x] 新增 `Build/热更新/构建中心...`。
+- [x] 新增 `Build/热更新/一键构建/构建首包`。
+- [x] 新增 `Build/热更新/一键构建/构建热更包`。
+- [x] 新增 `Build/热更新/高级/构建 AOT 元数据补丁`。
+- [x] 将原有底层菜单迁移到 `Build/热更新/内部工具/...`。
+- [x] 原菜单可以保留一段时间，但需要标记为 Obsolete 或隐藏。
+- [x] README 只推荐构建中心和一键构建菜单，不再要求新人手动点多个底层菜单。
+- [x] 构建中心中显示当前 BuildTarget、AppVersion、远端环境、启动模式、下载模式、入口资源、AOT / Hotfix Manifest 状态。
+- [x] 构建中心支持 `仅校验`、`一键修复`、`开始构建`。
+- [x] 构建中心中红色错误项必须阻断构建。
 
-建议新增文件：
+实现文件：
 
 ```text
 Assets/Editor/HybridCLR/BuildPipeline/HotfixBuildCenterWindow.cs
@@ -317,19 +317,26 @@ Assets/Editor/HybridCLR/BuildPipeline/HotfixBuildContext.cs
 Assets/Editor/HybridCLR/BuildPipeline/HotfixBuildRunner.cs
 Assets/Editor/HybridCLR/BuildPipeline/HotfixBuildValidator.cs
 Assets/Editor/HybridCLR/BuildPipeline/HotfixBuildReport.cs
+Assets/Editor/HybridCLR/BuildPipeline/HybridCLRGenerateAllSafe.cs
 Assets/Editor/HybridCLR/BuildPipeline/Internal/HotfixInternalBuildMenu.cs
 ```
 
+实现记录：
+
+- 第 7 项已完成菜单收口和构建中心骨架验收。
+- `HotfixBuildRunner` 已实现 `BuildInitialPackage`、`BuildHotfixPackage`、`BuildAOTMetadataPatch` 三条构建流水线。
+- `HybridCLRGenerateAllSafe.Run()` 和 `HotfixBuildProfileUtility.SkipRemoteSettingsValidationForCurrentBuild` 已作为第 8 项的稳定接入点预留。
+
 验收标准：
 
-- 新开发人员只需要打开 `Build/Hotfix/Build Center...` 即可完成首包构建或热更包构建。
-- 原底层菜单不会出现在 `Build` 根目录下干扰使用。
-- 构建前所有关键配置都能在一个窗口中看到。
-- 配置错误时不能继续构建。
+- [x] 新开发人员只需要打开 `Build/热更新/构建中心...` 即可完成首包构建或热更包构建。
+- [x] 原底层菜单不会出现在 `Build` 根目录下干扰使用。
+- [x] 构建前所有关键配置都能在一个窗口中看到。
+- [x] 配置错误时不能继续构建。
 
 ---
 
-## 8. HybridCLR Generate All Safe
+## 8. HybridCLR Generate All Safe （已完成）
 
 ### 背景
 
@@ -339,13 +346,13 @@ Assets/Editor/HybridCLR/BuildPipeline/Internal/HotfixInternalBuildMenu.cs
 
 ### 任务
 
-- [ ] 新增 `GenerateAllSafe()` 包装方法。
-- [ ] `GenerateAllSafe()` 执行期间跳过远端环境校验。
-- [ ] 只跳过 HybridCLR 临时生成流程，不跳过真实 Player Build 校验。
-- [ ] 首包构建自动调用 `GenerateAllSafe()`。
-- [ ] AOT Metadata Patch 自动调用 `GenerateAllSafe()`。
-- [ ] 普通 Hotfix Package 默认不调用 `GenerateAllSafe()`。
-- [ ] README 中不再推荐直接点击 `HybridCLR/Generate/All`，统一推荐 Build Center。
+- [x] 新增 `GenerateAllSafe()` 包装方法。
+- [x] `GenerateAllSafe()` 执行期间跳过远端环境校验。
+- [x] 只跳过 HybridCLR 临时生成流程，不跳过真实 Player Build 校验。
+- [x] 首包构建自动调用 `GenerateAllSafe()`。
+- [x] AOT Metadata Patch 自动调用 `GenerateAllSafe()`。
+- [x] 普通 Hotfix Package 默认不调用 `GenerateAllSafe()`。
+- [x] README 中不再推荐直接点击 `HybridCLR/Generate/All`，统一推荐 Build Center。
 
 建议实现：
 
@@ -393,7 +400,7 @@ Assets/Editor/HybridCLR/BuildPlayerCommand.cs
 
 ---
 
-## 9. 一键首包构建 Initial Package
+## 9. 一键首包构建 Initial Package （已完成）
 
 ### 背景
 
@@ -414,19 +421,19 @@ Copy StreamingAssets
 
 ### 任务
 
-- [ ] 新增 `HotfixBuildMode.InitialPackage`。
-- [ ] 新增 `Build Initial Package` Runner。
-- [ ] 自动执行 `GenerateAllSafe()`。
-- [ ] 自动执行 Hotfix DLL 编译。
-- [ ] 自动拷贝 AOT Metadata DLLs。
-- [ ] 自动拷贝 Hotfix DLLs。
-- [ ] 自动生成 `AOTAssemblyManifest`。
-- [ ] 自动生成 `HotfixAssemblyManifest`。
-- [ ] 自动校验 `RequiredAotVersion == AotVersion`。
-- [ ] 自动校验首包必需资源。
-- [ ] 自动构建 YooAsset Package。
-- [ ] 按 `StartupPackageMode` 决定是否复制到 `StreamingAssets`。
-- [ ] 生成构建报告。
+- [x] 新增 `HotfixBuildMode.InitialPackage`。
+- [x] 新增 `Build Initial Package` Runner。
+- [x] 自动执行 `GenerateAllSafe()`。
+- [x] 自动执行 Hotfix DLL 编译。
+- [x] 自动拷贝 AOT Metadata DLLs。
+- [x] 自动拷贝 Hotfix DLLs。
+- [x] 自动生成 `AOTAssemblyManifest`。
+- [x] 自动生成 `HotfixAssemblyManifest`。
+- [x] 自动校验 `RequiredAotVersion == AotVersion`。
+- [x] 自动校验首包必需资源。
+- [x] 自动构建 YooAsset Package。
+- [x] 按 `StartupPackageMode` 决定是否复制到 `StreamingAssets`。
+- [x] 生成构建报告。
 
 首包构建步骤：
 
@@ -450,16 +457,20 @@ Build Initial Package
 └── Write Build Report
 ```
 
+实现记录：
+
+- `HotfixBuildRunner.BuildInitialPackage()` 已按首包流程编排：GenerateAllSafe、编译 DLL、复制 AOT/Hotfix DLL、生成双清单、校验首包资源、构建 YooAsset、按启动包策略复制 StreamingAssets，并写入构建报告。
+
 验收标准：
 
-- 新人不需要手动执行 `HybridCLR/Generate/All`。
-- 首包构建产物包含启动必需的 Manifest、AOT Metadata、Hotfix DLL 和入口资源。
-- 构建失败时能明确指出缺失项。
-- 构建报告能追溯 AppVersion、AotVersion、HotfixVersion、PackageVersion。
+- [x] 新人不需要手动执行 `HybridCLR/Generate/All`。
+- [x] 首包构建产物包含启动必需的 Manifest、AOT Metadata、Hotfix DLL 和入口资源。
+- [x] 构建失败时能明确指出缺失项。
+- [x] 构建报告能追溯 AppVersion、AotVersion、HotfixVersion、PackageVersion。
 
 ---
 
-## 10. 一键热更包构建 Hotfix Package
+## 10. 一键热更包构建 Hotfix Package （已完成）
 
 ### 背景
 
@@ -467,19 +478,19 @@ Build Initial Package
 
 ### 任务
 
-- [ ] 新增 `HotfixBuildMode.HotfixPackage`。
-- [ ] 新增 `Build Hotfix Package` Runner。
-- [ ] 默认不执行 `GenerateAllSafe()`。
-- [ ] 构建前必须检查 `AOTAssemblyManifest` 存在。
-- [ ] 构建前必须执行 AOTManifest 过期校验。
-- [ ] 自动编译 Hotfix DLL。
-- [ ] 自动拷贝 Hotfix DLLs。
-- [ ] 复用当前 `AOTAssemblyManifest.AotVersion`。
-- [ ] 生成新的 `HotfixAssemblyManifest`。
-- [ ] 校验 `HotfixAssemblyManifest.RequiredAotVersion`。
-- [ ] 构建 YooAsset 远端包。
-- [ ] 不复制到 `StreamingAssets`。
-- [ ] 生成构建报告和 CDN 上传目录提示。
+- [x] 新增 `HotfixBuildMode.HotfixPackage`。
+- [x] 新增 `Build Hotfix Package` Runner。
+- [x] 默认不执行 `GenerateAllSafe()`。
+- [x] 构建前必须检查 `AOTAssemblyManifest` 存在。
+- [x] 构建前必须执行 AOTManifest 过期校验。
+- [x] 自动编译 Hotfix DLL。
+- [x] 自动拷贝 Hotfix DLLs。
+- [x] 复用当前 `AOTAssemblyManifest.AotVersion`。
+- [x] 生成新的 `HotfixAssemblyManifest`。
+- [x] 校验 `HotfixAssemblyManifest.RequiredAotVersion`。
+- [x] 构建 YooAsset 远端包。
+- [x] 不复制到 `StreamingAssets`。
+- [x] 生成构建报告和 CDN 上传目录提示。
 
 热更包构建步骤：
 
@@ -501,16 +512,20 @@ Build Hotfix Package
 └── Write Build Report
 ```
 
+实现记录：
+
+- `HotfixBuildRunner.BuildHotfixPackage()` 已按热更包流程编排：校验 AOT 清单存在且未过期、校验 AppVersion 范围、编译并复制 Hotfix DLL、复用当前 AotVersion 生成 Hotfix 清单、构建远端 YooAsset 包、不复制 StreamingAssets，并写入构建报告和 CDN 上传目录。
+
 验收标准：
 
-- 普通热更包不会误更新 AOT 基线。
-- 修改 Hotfix 代码 / 热更资源后可以一键构建热更包。
-- 修改 AOT 代码后，普通热更构建会被阻断。
-- 输出路径明确区分本地构建产物和待上传 CDN 产物。
+- [x] 普通热更包不会误更新 AOT 基线。
+- [x] 修改 Hotfix 代码 / 热更资源后可以一键构建热更包。
+- [x] 修改 AOT 代码后，普通热更构建会被阻断。
+- [x] 输出路径明确区分本地构建产物和待上传 CDN 产物。
 
 ---
 
-## 11. AOT Metadata Patch 高级构建模式
+## 11. AOT Metadata Patch 高级构建模式 （已完成）
 
 ### 背景
 
@@ -525,17 +540,17 @@ AOT 代码逻辑没有变化
 
 ### 任务
 
-- [ ] 新增 `HotfixBuildMode.AOTMetadataPatch`。
-- [ ] 放在 `Build/Hotfix/Advanced/Build AOT Metadata Patch`。
-- [ ] 执行前弹出风险说明。
-- [ ] 自动执行 `GenerateAllSafe()`。
-- [ ] 自动拷贝 AOT Metadata DLLs。
-- [ ] 自动拷贝 Hotfix DLLs。
-- [ ] 重新生成 `AOTAssemblyManifest`。
-- [ ] 重新生成 `HotfixAssemblyManifest`。
-- [ ] 构建 YooAsset 远端包。
-- [ ] 不复制到 `StreamingAssets`。
-- [ ] 构建报告中明确标记这是 AOT Metadata Patch。
+- [x] 新增 `HotfixBuildMode.AOTMetadataPatch`。
+- [x] 放在 `Build/热更新/高级/构建 AOT 元数据补丁`。
+- [x] 执行前弹出风险说明。
+- [x] 自动执行 `GenerateAllSafe()`。
+- [x] 自动拷贝 AOT Metadata DLLs。
+- [x] 自动拷贝 Hotfix DLLs。
+- [x] 重新生成 `AOTAssemblyManifest`。
+- [x] 重新生成 `HotfixAssemblyManifest`。
+- [x] 构建 YooAsset 远端包。
+- [x] 不复制到 `StreamingAssets`。
+- [x] 构建报告中明确标记这是 AOT Metadata Patch。
 
 必须提示的边界：
 
@@ -545,11 +560,15 @@ AOT Metadata Patch 只能补充同一 App 基线下的元数据。
 应发布新 App，而不是发 AOT Metadata Patch。
 ```
 
+实现记录：
+
+- `HotfixBuildRunner.BuildAOTMetadataPatch()` 已实现风险确认、同 AppVersion/BuildTarget 基线校验、GenerateAllSafe、复制 AOT/Hotfix DLL、重新生成双清单、构建远端 YooAsset 包，并在构建报告中标记高级模式。
+
 验收标准：
 
-- 普通开发者默认不会误触该模式。
-- Patch 构建产物能明确绑定 AppVersion 和 RequiredAotVersion。
-- 修改 AOT 逻辑代码时不会被误认为只需要 Metadata Patch。
+- [x] 普通开发者默认不会误触该模式。
+- [x] Patch 构建产物能明确绑定 AppVersion 和 RequiredAotVersion。
+- [x] 修改 AOT 逻辑代码时不会被误认为只需要 Metadata Patch。
 
 ---
 
@@ -561,8 +580,8 @@ AOT Metadata Patch 只能补充同一 App 基线下的元数据。
 
 ### 任务
 
-- [ ] 在 `AOTAssemblyManifest` 中记录 Baseline Fingerprint。
-- [ ] Fingerprint 至少包含：
+- [x] 在 `AOTAssemblyManifest` 中记录 Baseline Fingerprint。
+- [x] Fingerprint 至少包含：
   - AppVersion
   - BuildTarget
   - HybridCLR AOT Metadata 列表
@@ -571,15 +590,21 @@ AOT Metadata Patch 只能补充同一 App 基线下的元数据。
   - AOT DLL sha256
   - 生成时间
   - 可选 Git commit
-- [ ] Build Hotfix 前重新扫描当前 AOTCodes。
-- [ ] 对比当前扫描结果与 `AOTAssemblyManifest`。
-- [ ] 对比当前 BuildTarget 与 Manifest BuildTarget。
-- [ ] 对比当前 AppVersion 与 Manifest AppVersion。
-- [ ] 如果检测到 AOT 基线变化，禁止普通热更构建。
-- [ ] 提示开发者选择：
+- [x] Build Hotfix 前重新扫描当前 AOTCodes。
+- [x] 对比当前扫描结果与 `AOTAssemblyManifest`。
+- [x] 对比当前 BuildTarget 与 Manifest BuildTarget。
+- [x] 对比当前 AppVersion 与 Manifest AppVersion。
+- [x] 如果检测到 AOT 基线变化，禁止普通热更构建。
+- [x] 提示开发者选择：
   - Build Initial Package / New App Baseline
   - Build AOT Metadata Patch
   - 取消构建
+
+实现记录：
+
+- `AOTAssemblyManifest` 新增 `BaselineFingerprint`、`BaselineGeneratedAtUtc`、`BaselineGitCommit`。
+- `BuildAssetsCommand.ValidateAOTManifestNotExpired()` 会在热更包构建前检查 AppVersion、BuildTarget、HybridCLR AOT metadata 列表、AOTCodes 文件 size/sha256 和基线指纹。
+- 普通热更构建检测到 AOT 基线变化时会弹窗引导选择构建首包、构建 AOT 元数据补丁或取消。
 
 建议方法：
 
@@ -592,14 +617,14 @@ ValidateAOTManifestNotExpired(BuildTarget target, AOTAssemblyManifest manifest)
 ```text
 Assets/AssetsPackage/Scripts/Main/Runtime/Assemblies/AOTAssemblyManifest.cs
 Assets/Editor/HybridCLR/BuildAssetsCommand.cs
-Assets/Editor/HybridCLR/BuildPipeline/Steps/ValidateAOTManifestNotExpiredStep.cs
+Assets/Editor/HybridCLR/BuildPipeline/HotfixBuildRunner.cs
 ```
 
 验收标准：
 
-- 只改 Hotfix 代码时，热更包构建成功。
-- 修改 AOT 相关程序集后，普通热更包构建失败并提示原因。
-- 不会因为误复用旧 AOTManifest 导致线上旧包加载不兼容 DLL。
+- [x] 只改 Hotfix 代码时，热更包构建成功。
+- [x] 修改 AOT 相关程序集后，普通热更包构建失败并提示原因。
+- [x] 不会因为误复用旧 AOTManifest 导致线上旧包加载不兼容 DLL。
 
 ---
 

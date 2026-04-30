@@ -67,13 +67,15 @@ namespace HybridCLR.Editor
         public const string RuntimeSettingsAssetPath = "Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset";
         public const string RemoteSettingsAssetPath = "Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset";
 
-        [MenuItem("Build/Hotfix/Apply Build Play Mode To Runtime Settings")]
+        public static bool SkipRemoteSettingsValidationForCurrentBuild { get; set; }
+
+        [MenuItem("Build/热更新/内部工具/应用构建 PlayMode 到运行时设置", false, HotfixBuildMenuPriority.InternalApplyPlayMode)]
         public static void ApplyActiveBuildTargetPlayMode()
         {
             ApplyPlayModeToRuntimeSettings(EditorUserBuildSettings.activeBuildTarget);
         }
 
-        [MenuItem("Build/Hotfix/Sync Package Names From YooAsset Collector")]
+        [MenuItem("Build/热更新/内部工具/从 YooAsset Collector 同步包名", false, HotfixBuildMenuPriority.InternalSyncPackageNames)]
         public static void SyncPackageNamesFromCollectorSettingsMenu()
         {
             SyncPackageNamesFromCollectorSettings();
@@ -268,6 +270,12 @@ namespace HybridCLR.Editor
 
         public void OnPreprocessBuild(BuildReport report)
         {
+            if (HotfixBuildProfileUtility.SkipRemoteSettingsValidationForCurrentBuild)
+            {
+                Debug.Log("[HotfixBuild] 安全生成 HybridCLR 数据期间跳过远端设置校验。");
+                return;
+            }
+
             HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild(
                 report.summary.platform,
                 report.summary.options);

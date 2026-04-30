@@ -32,7 +32,7 @@ namespace HybridCLR.Editor
             Build_Win64(true);
         }
 
-        [MenuItem("Build/Win64")]
+        [MenuItem("Build/热更新/内部工具/旧命令/构建 Win64 Player", false, HotfixBuildMenuPriority.LegacyCommands + 2)]
         public static void Build_Win64()
         {
             Build_Win64(false);
