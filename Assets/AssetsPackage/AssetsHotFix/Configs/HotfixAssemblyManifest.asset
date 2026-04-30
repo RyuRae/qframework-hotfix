@@ -14,18 +14,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   AppVersionMin: 0.1
   AppVersionMax: 0.1
-  BuildTarget: macOS
-  RequiredAotVersion: aot-c39ee76d75bc897a
-  HotfixVersion: hotfix-50cb4fd8c3ee253f
+  BuildTarget: Android
+  RequiredAotVersion: aot-a8e46b0639e6e257
+  HotfixVersion: hotfix-ef48a54bf3643153
   HotUpdateAssemblies:
   - HotfixCommon.dll
   - HotfixDemo.dll
   HotUpdateFiles:
   - AssemblyName: HotfixCommon.dll
-    Sha256: f0fe4bf4166cd10643527f28138b9e8a2166a8d4fc36e04df0bb13daa4fd51c1
+    Sha256: 89241e586cad75116b312dad0442ca872d1e62c8b71ad8b0d8133e9d9f69ed48
     Size: 10240
   - AssemblyName: HotfixDemo.dll
-    Sha256: a4b036584699186665a208f0b754666539f9a604af15e7ae5662cb6e6091cd4a
+    Sha256: e3975c404b5c668f81c9c8cb6c8b844aacd5b21477a39e66c480341e769e4032
     Size: 11264
   EntrySceneAddress: main
   EntryPrefabAddress: 

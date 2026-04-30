@@ -25747,85 +25747,104 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool TMP_InputField_get_shouldHideSoftKeyboar
 		L_0 = Application_get_platform_m59EF7D6155D18891B24767F83F388160B1FF2138(NULL);
 		V_0 = L_0;
 		int32_t L_1 = V_0;
-		if ((((int32_t)L_1) > ((int32_t)((int32_t)20))))
+		if ((((int32_t)L_1) > ((int32_t)((int32_t)25))))
 		{
-			goto IL_001d;
+			goto IL_0029;
 		}
 	}
 	{
 		int32_t L_2 = V_0;
-		if ((((int32_t)L_2) == ((int32_t)8)))
+		if ((((int32_t)L_2) > ((int32_t)((int32_t)11))))
 		{
-			goto IL_003a;
+			goto IL_001b;
 		}
 	}
 	{
 		int32_t L_3 = V_0;
-		if ((((int32_t)L_3) == ((int32_t)((int32_t)11))))
+		if ((((int32_t)L_3) == ((int32_t)8)))
 		{
-			goto IL_003a;
+			goto IL_0046;
 		}
 	}
 	{
 		int32_t L_4 = V_0;
-		if ((!(((uint32_t)((int32_t)il2cpp_codegen_subtract((int32_t)L_4, ((int32_t)18)))) > ((uint32_t)2))))
+		if ((((int32_t)L_4) == ((int32_t)((int32_t)11))))
 		{
-			goto IL_003a;
+			goto IL_0046;
 		}
 	}
 	{
-		goto IL_0041;
+		goto IL_004d;
 	}
 
-IL_001d:
+IL_001b:
 	{
 		int32_t L_5 = V_0;
-		if ((((int32_t)L_5) > ((int32_t)((int32_t)32))))
+		if ((!(((uint32_t)((int32_t)il2cpp_codegen_subtract((int32_t)L_5, ((int32_t)18)))) > ((uint32_t)2))))
 		{
-			goto IL_0030;
+			goto IL_0046;
 		}
 	}
 	{
 		int32_t L_6 = V_0;
 		if ((((int32_t)L_6) == ((int32_t)((int32_t)25))))
 		{
-			goto IL_003a;
+			goto IL_0046;
 		}
 	}
 	{
-		int32_t L_7 = V_0;
-		if ((!(((uint32_t)((int32_t)il2cpp_codegen_subtract((int32_t)L_7, ((int32_t)31)))) > ((uint32_t)1))))
-		{
-			goto IL_003a;
-		}
-	}
-	{
-		goto IL_0041;
+		goto IL_004d;
 	}
 
-IL_0030:
+IL_0029:
+	{
+		int32_t L_7 = V_0;
+		if ((((int32_t)L_7) > ((int32_t)((int32_t)34))))
+		{
+			goto IL_003c;
+		}
+	}
 	{
 		int32_t L_8 = V_0;
-		if ((((int32_t)L_8) == ((int32_t)((int32_t)34))))
+		if ((!(((uint32_t)((int32_t)il2cpp_codegen_subtract((int32_t)L_8, ((int32_t)31)))) > ((uint32_t)1))))
 		{
-			goto IL_003a;
+			goto IL_0046;
 		}
 	}
 	{
 		int32_t L_9 = V_0;
-		if ((!(((uint32_t)L_9) == ((uint32_t)((int32_t)38)))))
+		if ((((int32_t)L_9) == ((int32_t)((int32_t)34))))
 		{
-			goto IL_0041;
+			goto IL_0046;
+		}
+	}
+	{
+		goto IL_004d;
+	}
+
+IL_003c:
+	{
+		int32_t L_10 = V_0;
+		if ((((int32_t)L_10) == ((int32_t)((int32_t)38))))
+		{
+			goto IL_0046;
+		}
+	}
+	{
+		int32_t L_11 = V_0;
+		if ((!(((uint32_t)L_11) == ((uint32_t)((int32_t)50)))))
+		{
+			goto IL_004d;
 		}
 	}
 
-IL_003a:
+IL_0046:
 	{
-		bool L_10 = __this->___m_HideSoftKeyboard;
-		return L_10;
+		bool L_12 = __this->___m_HideSoftKeyboard;
+		return L_12;
 	}
 
-IL_0041:
+IL_004d:
 	{
 		return (bool)1;
 	}
@@ -25846,134 +25865,153 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR void TMP_InputField_set_shouldHideSoftKeyboar
 		L_0 = Application_get_platform_m59EF7D6155D18891B24767F83F388160B1FF2138(NULL);
 		V_0 = L_0;
 		int32_t L_1 = V_0;
-		if ((((int32_t)L_1) > ((int32_t)((int32_t)20))))
+		if ((((int32_t)L_1) > ((int32_t)((int32_t)25))))
 		{
-			goto IL_001d;
+			goto IL_0029;
 		}
 	}
 	{
 		int32_t L_2 = V_0;
-		if ((((int32_t)L_2) == ((int32_t)8)))
+		if ((((int32_t)L_2) > ((int32_t)((int32_t)11))))
 		{
-			goto IL_003a;
+			goto IL_001b;
 		}
 	}
 	{
 		int32_t L_3 = V_0;
-		if ((((int32_t)L_3) == ((int32_t)((int32_t)11))))
+		if ((((int32_t)L_3) == ((int32_t)8)))
 		{
-			goto IL_003a;
+			goto IL_0046;
 		}
 	}
 	{
 		int32_t L_4 = V_0;
-		if ((!(((uint32_t)((int32_t)il2cpp_codegen_subtract((int32_t)L_4, ((int32_t)18)))) > ((uint32_t)2))))
+		if ((((int32_t)L_4) == ((int32_t)((int32_t)11))))
 		{
-			goto IL_003a;
+			goto IL_0046;
 		}
 	}
 	{
-		goto IL_0049;
+		goto IL_0055;
 	}
 
-IL_001d:
+IL_001b:
 	{
 		int32_t L_5 = V_0;
-		if ((((int32_t)L_5) > ((int32_t)((int32_t)32))))
+		if ((!(((uint32_t)((int32_t)il2cpp_codegen_subtract((int32_t)L_5, ((int32_t)18)))) > ((uint32_t)2))))
 		{
-			goto IL_0030;
+			goto IL_0046;
 		}
 	}
 	{
 		int32_t L_6 = V_0;
 		if ((((int32_t)L_6) == ((int32_t)((int32_t)25))))
 		{
-			goto IL_003a;
+			goto IL_0046;
 		}
 	}
 	{
-		int32_t L_7 = V_0;
-		if ((!(((uint32_t)((int32_t)il2cpp_codegen_subtract((int32_t)L_7, ((int32_t)31)))) > ((uint32_t)1))))
-		{
-			goto IL_003a;
-		}
-	}
-	{
-		goto IL_0049;
+		goto IL_0055;
 	}
 
-IL_0030:
+IL_0029:
+	{
+		int32_t L_7 = V_0;
+		if ((((int32_t)L_7) > ((int32_t)((int32_t)34))))
+		{
+			goto IL_003c;
+		}
+	}
 	{
 		int32_t L_8 = V_0;
-		if ((((int32_t)L_8) == ((int32_t)((int32_t)34))))
+		if ((!(((uint32_t)((int32_t)il2cpp_codegen_subtract((int32_t)L_8, ((int32_t)31)))) > ((uint32_t)1))))
 		{
-			goto IL_003a;
+			goto IL_0046;
 		}
 	}
 	{
 		int32_t L_9 = V_0;
-		if ((!(((uint32_t)L_9) == ((uint32_t)((int32_t)38)))))
+		if ((((int32_t)L_9) == ((int32_t)((int32_t)34))))
 		{
-			goto IL_0049;
+			goto IL_0046;
+		}
+	}
+	{
+		goto IL_0055;
+	}
+
+IL_003c:
+	{
+		int32_t L_10 = V_0;
+		if ((((int32_t)L_10) == ((int32_t)((int32_t)38))))
+		{
+			goto IL_0046;
+		}
+	}
+	{
+		int32_t L_11 = V_0;
+		if ((!(((uint32_t)L_11) == ((uint32_t)((int32_t)50)))))
+		{
+			goto IL_0055;
 		}
 	}
 
-IL_003a:
+IL_0046:
 	{
-		bool* L_10 = (bool*)(&__this->___m_HideSoftKeyboard);
-		bool L_11 = ___0_value;
-		bool L_12;
-		L_12 = SetPropertyUtility_SetStruct_TisBoolean_t09A6377A54BE2F9E6985A8149F19234FD7DDFE22_mFC5853627DE5D7B57CA91271BE9B87C37468C5B0(L_10, L_11, SetPropertyUtility_SetStruct_TisBoolean_t09A6377A54BE2F9E6985A8149F19234FD7DDFE22_mFC5853627DE5D7B57CA91271BE9B87C37468C5B0_RuntimeMethod_var);
-		goto IL_0050;
+		bool* L_12 = (bool*)(&__this->___m_HideSoftKeyboard);
+		bool L_13 = ___0_value;
+		bool L_14;
+		L_14 = SetPropertyUtility_SetStruct_TisBoolean_t09A6377A54BE2F9E6985A8149F19234FD7DDFE22_mFC5853627DE5D7B57CA91271BE9B87C37468C5B0(L_12, L_13, SetPropertyUtility_SetStruct_TisBoolean_t09A6377A54BE2F9E6985A8149F19234FD7DDFE22_mFC5853627DE5D7B57CA91271BE9B87C37468C5B0_RuntimeMethod_var);
+		goto IL_005c;
 	}
 
-IL_0049:
+IL_0055:
 	{
 		__this->___m_HideSoftKeyboard = (bool)1;
 	}
 
-IL_0050:
+IL_005c:
 	{
-		bool L_13 = __this->___m_HideSoftKeyboard;
-		if (!L_13)
-		{
-			goto IL_0087;
-		}
-	}
-	{
-		TouchScreenKeyboard_tE87B78A3DAED69816B44C99270A734682E093E7A* L_14 = __this->___m_SoftKeyboard;
-		if (!L_14)
-		{
-			goto IL_0087;
-		}
-	}
-	{
-		bool L_15;
-		L_15 = TouchScreenKeyboard_get_isSupported_mCFAC95CA6CAA06B4E21F42E3C40A39668D6B438E(NULL);
+		bool L_15 = __this->___m_HideSoftKeyboard;
 		if (!L_15)
 		{
-			goto IL_0087;
+			goto IL_0093;
 		}
 	}
 	{
 		TouchScreenKeyboard_tE87B78A3DAED69816B44C99270A734682E093E7A* L_16 = __this->___m_SoftKeyboard;
-		NullCheck(L_16);
+		if (!L_16)
+		{
+			goto IL_0093;
+		}
+	}
+	{
 		bool L_17;
-		L_17 = TouchScreenKeyboard_get_active_mB22402FB9E56D3F652DA785F01E504A530FF8775(L_16, NULL);
+		L_17 = TouchScreenKeyboard_get_isSupported_mCFAC95CA6CAA06B4E21F42E3C40A39668D6B438E(NULL);
 		if (!L_17)
 		{
-			goto IL_0087;
+			goto IL_0093;
 		}
 	}
 	{
 		TouchScreenKeyboard_tE87B78A3DAED69816B44C99270A734682E093E7A* L_18 = __this->___m_SoftKeyboard;
 		NullCheck(L_18);
-		TouchScreenKeyboard_set_active_m4382D57F87E4C86B59864E86BE93A8A2A474B7C2(L_18, (bool)0, NULL);
+		bool L_19;
+		L_19 = TouchScreenKeyboard_get_active_mB22402FB9E56D3F652DA785F01E504A530FF8775(L_18, NULL);
+		if (!L_19)
+		{
+			goto IL_0093;
+		}
+	}
+	{
+		TouchScreenKeyboard_tE87B78A3DAED69816B44C99270A734682E093E7A* L_20 = __this->___m_SoftKeyboard;
+		NullCheck(L_20);
+		TouchScreenKeyboard_set_active_m4382D57F87E4C86B59864E86BE93A8A2A474B7C2(L_20, (bool)0, NULL);
 		__this->___m_SoftKeyboard = (TouchScreenKeyboard_tE87B78A3DAED69816B44C99270A734682E093E7A*)NULL;
 		Il2CppCodeGenWriteBarrier((void**)(&__this->___m_SoftKeyboard), (void*)(TouchScreenKeyboard_tE87B78A3DAED69816B44C99270A734682E093E7A*)NULL);
 	}
 
-IL_0087:
+IL_0093:
 	{
 		return;
 	}
@@ -25993,58 +26031,65 @@ IL2CPP_EXTERN_C IL2CPP_METHOD_ATTR bool TMP_InputField_isKeyboardUsingEvents_mE8
 		L_0 = Application_get_platform_m59EF7D6155D18891B24767F83F388160B1FF2138(NULL);
 		V_0 = L_0;
 		int32_t L_1 = V_0;
-		if ((((int32_t)L_1) > ((int32_t)((int32_t)11))))
+		if ((((int32_t)L_1) > ((int32_t)((int32_t)25))))
 		{
-			goto IL_0016;
+			goto IL_001b;
 		}
 	}
 	{
 		int32_t L_2 = V_0;
 		if ((((int32_t)L_2) == ((int32_t)8)))
 		{
-			goto IL_0027;
+			goto IL_002c;
 		}
 	}
 	{
 		int32_t L_3 = V_0;
 		if ((((int32_t)L_3) == ((int32_t)((int32_t)11))))
 		{
-			goto IL_0027;
+			goto IL_002c;
 		}
 	}
-	{
-		goto IL_0029;
-	}
-
-IL_0016:
 	{
 		int32_t L_4 = V_0;
 		if ((((int32_t)L_4) == ((int32_t)((int32_t)25))))
 		{
-			goto IL_0027;
+			goto IL_002c;
 		}
 	}
+	{
+		goto IL_002e;
+	}
+
+IL_001b:
 	{
 		int32_t L_5 = V_0;
 		if ((!(((uint32_t)((int32_t)il2cpp_codegen_subtract((int32_t)L_5, ((int32_t)31)))) > ((uint32_t)1))))
 		{
-			goto IL_0027;
+			goto IL_002c;
 		}
 	}
 	{
 		int32_t L_6 = V_0;
-		if ((!(((uint32_t)L_6) == ((uint32_t)((int32_t)38)))))
+		if ((((int32_t)L_6) == ((int32_t)((int32_t)38))))
 		{
-			goto IL_0029;
+			goto IL_002c;
+		}
+	}
+	{
+		int32_t L_7 = V_0;
+		if ((!(((uint32_t)L_7) == ((uint32_t)((int32_t)50)))))
+		{
+			goto IL_002e;
 		}
 	}
 
-IL_0027:
+IL_002c:
 	{
 		return (bool)0;
 	}
 
-IL_0029:
+IL_002e:
 	{
 		return (bool)1;
 	}

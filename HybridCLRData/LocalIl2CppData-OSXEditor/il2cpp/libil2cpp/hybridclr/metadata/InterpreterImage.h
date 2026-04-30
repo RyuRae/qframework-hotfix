@@ -93,6 +93,13 @@ namespace metadata
 	};
 #endif
 
+	struct ImplMapInfo
+	{
+		const char* moduleName;
+		const char* importName;
+		uint32_t mappingFlags;
+	};
+
 	class InterpreterImage : public Image
 	{
 	public:
@@ -131,8 +138,12 @@ namespace metadata
 				RaiseExecutionEngineException("image can't be inited again");
 			}
 			_inited = true;
-			_rawImage = new RawImage();
-			LoadImageErrorCode err = _rawImage->Load(imageData, length);
+			LoadImageErrorCode err = InitRawImage(imageData, length);
+			if (err != LoadImageErrorCode::OK)
+			{
+				return err;
+			}
+			err = _rawImage->Load(imageData, length);
 			if (err != LoadImageErrorCode::OK)
 			{
 				delete _rawImage;
@@ -503,7 +514,7 @@ namespace metadata
 			CustomAttributeIndex nextIndex = DecodeMetadataIndex(GET_CUSTOM_ATTRIBUTE_TYPE_RANGE_START(*(dataRangeCur + 1)));
 			CustomAttribute& curCa = _customAttribues[curIndex];
 			CustomAttribute& nextCa = _customAttribues[nextIndex];
-			return std::make_tuple<void*, void*>((void*)_rawImage->GetBlobReaderByRawIndex(curCa.value).GetData(), (void*)_rawImage->GetBlobReaderByRawIndex(nextCa.value).GetData());
+			return std::tuple<void*, void*>((void*)_rawImage->GetBlobReaderByRawIndex(curCa.value).GetData(), (void*)_rawImage->GetBlobReaderByRawIndex(nextCa.value).GetData());
 		}
 
 		CustomAttributesCache* GenerateCustomAttributesCacheInternal(const Il2CppCustomAttributeTypeRange* typeRange)
@@ -608,7 +619,11 @@ namespace metadata
 		void GetPropertyDeclaringTypeIndexAndPropertyIndexByName(const Il2CppTypeDefinition* declaringType, const char* name, int32_t& typeIndex, int32_t& fieldIndex);
 #endif
 
-
+		ImplMapInfo* GetImplMapInfo(uint32_t token)
+		{
+			auto it = _implMapInfos.find(token);
+			return it != _implMapInfos.end() ? &it->second : nullptr;
+		}
 
 		Il2CppClass* GetTypeInfoFromTypeDefinitionRawIndex(uint32_t index);
 
@@ -656,6 +671,8 @@ namespace metadata
 		void InitClassLayouts0();
 		void InitClassLayouts();
 		void InitCustomAttributes();
+		void InitModuleRefs();
+		void InitImplMaps();
 		void InitProperties();
 		void InitEvents();
 		void InitMethodSemantics();
@@ -735,6 +752,9 @@ namespace metadata
 
 		std::vector<PropertyDetail> _propeties;
 		std::vector<EventDetail> _events;
+
+		std::vector<const char*> _moduleRefs;
+		std::unordered_map<uint32_t, ImplMapInfo> _implMapInfos;
 	};
 }
 }

@@ -89,12 +89,12 @@ namespace interpreter
 	inline bool CheckMulOverflow(int32_t a, int32_t b)
 	{
 		int64_t c = (int64_t)a * (int64_t)b;
-		return c <= INT32_MIN || c >= INT32_MAX;
+		return c < INT32_MIN || c > INT32_MAX;
 	}
 
 	inline bool CheckMulOverflowUn(uint32_t a, uint32_t b)
 	{
-		return (uint64_t)a * (uint64_t)b >= UINT32_MAX;
+		return (uint64_t)a * (uint64_t)b > UINT32_MAX;
 	}
 
 	inline bool CheckMulOverflow64(int64_t a, int64_t b)
@@ -1267,26 +1267,27 @@ namespace interpreter
 #define LOAD_PREV_FRAME() { \
 	imi = (const InterpMethodInfo*)frame->method->interpData; \
 	ip = frame->ip; \
-	frame->ip = (byte*)&ip; \
 	ipBase = imi->codes; \
 	localVarBase = frame->stackBasePtr; \
 }
 
 #define PREPARE_NEW_FRAME_FROM_NATIVE(newMethodInfo, argBasePtr, retPtr) { \
 	imi = newMethodInfo->interpData ? (InterpMethodInfo*)newMethodInfo->interpData : InterpreterModule::GetInterpMethodInfo(newMethodInfo); \
+	RuntimeInitClassCCtorWithoutInitClass(newMethodInfo); \
 	frame = interpFrameGroup.EnterFrameFromNative(newMethodInfo, argBasePtr); \
 	frame->ret = retPtr; \
-	frame->ip = (byte*)&ip; \
 	ip = ipBase = imi->codes; \
+	frame->ip = (byte*)ip; \
 	localVarBase = frame->stackBasePtr; \
 }
 
 #define PREPARE_NEW_FRAME_FROM_INTERPRETER(newMethodInfo, argBasePtr, retPtr) { \
 	imi = newMethodInfo->interpData ? (InterpMethodInfo*)newMethodInfo->interpData : InterpreterModule::GetInterpMethodInfo(newMethodInfo); \
+	RuntimeInitClassCCtorWithoutInitClass(newMethodInfo); \
 	frame = interpFrameGroup.EnterFrameFromInterpreter(newMethodInfo, argBasePtr); \
 	frame->ret = retPtr; \
-	frame->ip = (byte*)&ip; \
 	ip = ipBase = imi->codes; \
+	frame->ip = (byte*)ip; \
 	localVarBase = frame->stackBasePtr; \
 }
 
@@ -1391,7 +1392,8 @@ inline Il2CppObject* InvokeDelegateBeginInvoke(const MethodInfo* method, uint16_
 	CHECK_NOT_NULL_THROW(del);
 	RuntimeDelegate* callBack = (RuntimeDelegate*)localVarBase[argIdxs[paramCount - 1]].obj;
 	RuntimeObject* ctx = (RuntimeObject*)localVarBase[argIdxs[paramCount]].obj;
-	void* newArgs[256];
+	IL2CPP_ASSERT(paramCount > 0);
+	void** newArgs = (void**)alloca(sizeof(void*) * paramCount);
 	newArgs[paramCount - 1] = {};
 	for (int i = 0; i < paramCount - 2; i++)
 	{
@@ -1686,19 +1688,48 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 			{
 				switch (*(HiOpcodeEnum*)ip)
 				{
+					// avoid decrement *ip when compute jump table,  boosts about 5% performance
+				case HiOpcodeEnum::None:
+				{
+					continue;
+				}
 #pragma region memory
 					//!!!{{MEMORY
 				case HiOpcodeEnum::InitLocals_n_2:
 				{
 					uint16_t __size = *(uint16_t*)(ip + 2);
-					InitDefaultN(localVarBase + imi->localVarBaseOffset, __size);
+					InitDefaultN(localVarBase, __size);
 				    ip += 8;
 				    continue;
 				}
 				case HiOpcodeEnum::InitLocals_n_4:
 				{
 					uint32_t __size = *(uint32_t*)(ip + 4);
-					InitDefaultN(localVarBase + imi->localVarBaseOffset, __size);
+					InitDefaultN(localVarBase, __size);
+				    ip += 8;
+				    continue;
+				}
+				case HiOpcodeEnum::InitLocals_size_8:
+				{
+					InitDefault8(localVarBase);
+				    ip += 8;
+				    continue;
+				}
+				case HiOpcodeEnum::InitLocals_size_16:
+				{
+					InitDefault16(localVarBase);
+				    ip += 8;
+				    continue;
+				}
+				case HiOpcodeEnum::InitLocals_size_24:
+				{
+					InitDefault24(localVarBase);
+				    ip += 8;
+				    continue;
+				}
+				case HiOpcodeEnum::InitLocals_size_32:
+				{
+					InitDefault32(localVarBase);
 				    ip += 8;
 				    continue;
 				}
@@ -1716,6 +1747,34 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __offset = *(uint32_t*)(ip + 8);
 					InitDefaultN(localVarBase + __offset, __size);
 				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::InitInlineLocals_size_8:
+				{
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					InitDefault8(localVarBase + __offset);
+				    ip += 8;
+				    continue;
+				}
+				case HiOpcodeEnum::InitInlineLocals_size_16:
+				{
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					InitDefault16(localVarBase + __offset);
+				    ip += 8;
+				    continue;
+				}
+				case HiOpcodeEnum::InitInlineLocals_size_24:
+				{
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					InitDefault24(localVarBase + __offset);
+				    ip += 8;
+				    continue;
+				}
+				case HiOpcodeEnum::InitInlineLocals_size_32:
+				{
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					InitDefault32(localVarBase + __offset);
+				    ip += 8;
 				    continue;
 				}
 				case HiOpcodeEnum::LdlocVarVar:
@@ -4663,6 +4722,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					void* __managed2NativeMethod = ((void*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
 					MethodInfo* __method = ((MethodInfo*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
 					uint32_t __argIdxs = *(uint32_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    uint16_t* _argIdxs = ((uint16_t*)&imi->resolveDatas[__argIdxs]);
 				    Il2CppObject* _obj = il2cpp::vm::Object::New(__method->klass);
 				    *(Il2CppObject**)(localVarBase + _argIdxs[0]) = _obj;
@@ -4675,6 +4735,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint16_t __obj = *(uint16_t*)(ip + 2);
 					MethodInfo* __method = ((MethodInfo*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+				    frame->ip = ip + 2;
 				    Il2CppObject* _obj = il2cpp::vm::Object::New(__method->klass);
 				    ((NativeClassCtor0)(__method->methodPointerCallByInterp))(_obj, __method);
 				    (*(Il2CppObject**)(localVarBase + __obj)) = _obj;
@@ -4685,6 +4746,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint16_t __obj = *(uint16_t*)(ip + 2);
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+				    frame->ip = ip + 2;
 				    (*(Il2CppObject**)(localVarBase + __obj)) = il2cpp::vm::Object::New(__klass);
 				    ip += 8;
 				    continue;
@@ -4695,6 +4757,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					void* __managed2NativeMethod = ((void*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
 					MethodInfo* __method = ((MethodInfo*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
 					uint32_t __argIdxs = *(uint32_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    uint16_t* _argIdxs = ((uint16_t*)&imi->resolveDatas[__argIdxs]);
 				    int32_t _typeSize = GetTypeValueSize(__method->klass);
 				    // arg1, arg2, ..., argN, value type, __this
@@ -4704,6 +4767,14 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				    ((Managed2NativeCallMethod)__managed2NativeMethod)(__method, _argIdxs, localVarBase, nullptr);
 				    std::memmove((void*)(localVarBase + __obj), _this, _typeSize);
 				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::NewValueTypeVar_Ctor_0:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint16_t __size = *(uint16_t*)(ip + 4);
+				    InitDefaultN((void*)(localVarBase + __obj), __size);
+				    ip += 8;
 				    continue;
 				}
 				case HiOpcodeEnum::NewClassInterpVar:
@@ -4854,6 +4925,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __managed2NativeMethod = *(uint32_t*)(ip + 4);
 					uint32_t __methodInfo = *(uint32_t*)(ip + 8);
 					uint32_t __argIdxs = *(uint32_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    uint16_t* _resolvedArgIdxs = ((uint16_t*)&imi->resolveDatas[__argIdxs]);
 				    CHECK_NOT_NULL_THROW((localVarBase + _resolvedArgIdxs[0])->obj);
 				    ((Managed2NativeCallMethod)imi->resolveDatas[__managed2NativeMethod])(((MethodInfo*)imi->resolveDatas[__methodInfo]), _resolvedArgIdxs, localVarBase, nullptr);
@@ -4866,6 +4938,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __methodInfo = *(uint32_t*)(ip + 8);
 					uint32_t __argIdxs = *(uint32_t*)(ip + 12);
 					uint16_t __ret = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    uint16_t* _resolvedArgIdxs = ((uint16_t*)&imi->resolveDatas[__argIdxs]);
 				    CHECK_NOT_NULL_THROW((localVarBase + _resolvedArgIdxs[0])->obj);
 				    void* _ret = (void*)(localVarBase + __ret);
@@ -4880,6 +4953,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __argIdxs = *(uint32_t*)(ip + 16);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
 					uint8_t __retLocationType = *(uint8_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    uint16_t* _resolvedArgIdxs = ((uint16_t*)&imi->resolveDatas[__argIdxs]);
 				    CHECK_NOT_NULL_THROW((localVarBase + _resolvedArgIdxs[0])->obj);
 				    void* _ret = (void*)(localVarBase + __ret);
@@ -4893,6 +4967,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __managed2NativeMethod = *(uint32_t*)(ip + 4);
 					uint32_t __methodInfo = *(uint32_t*)(ip + 8);
 					uint32_t __argIdxs = *(uint32_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__methodInfo]);
 					RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    ((Managed2NativeCallMethod)imi->resolveDatas[__managed2NativeMethod])(_resolvedMethod, ((uint16_t*)&imi->resolveDatas[__argIdxs]), localVarBase, nullptr);
@@ -4905,6 +4980,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __methodInfo = *(uint32_t*)(ip + 8);
 					uint32_t __argIdxs = *(uint32_t*)(ip + 12);
 					uint16_t __ret = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__methodInfo]);
 					RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    void* _ret = (void*)(localVarBase + __ret);
@@ -4919,6 +4995,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __argIdxs = *(uint32_t*)(ip + 16);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
 					uint8_t __retLocationType = *(uint8_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__methodInfo]);
 					RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    void* _ret = (void*)(localVarBase + __ret);
@@ -4968,6 +5045,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				    }
 				    else 
 				    {
+				        frame->ip = ip + 2;
 				        if (!InitAndGetInterpreterDirectlyCallMethodPointer(_actualMethod))
 				        {
 				            RaiseAOTGenericMethodNotInstantiatedException(_actualMethod);
@@ -4997,6 +5075,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				    }
 				    else 
 				    {
+				        frame->ip = ip + 2;
 				        if (!InitAndGetInterpreterDirectlyCallMethodPointer(_actualMethod))
 				        {
 				            RaiseAOTGenericMethodNotInstantiatedException(_actualMethod);
@@ -5027,6 +5106,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				    }
 				    else 
 				    {
+				        frame->ip = ip + 2;
 				        if (!InitAndGetInterpreterDirectlyCallMethodPointer(_actualMethod))
 				        {
 				            RaiseAOTGenericMethodNotInstantiatedException(_actualMethod);
@@ -5071,14 +5151,15 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint8_t& __isMethodInfoPointer = *(uint8_t*)(ip + 2);
 					uint32_t __methodInfo = *(uint32_t*)(ip + 12);
 					uint32_t __argIdxs = *(uint32_t*)(ip + 16);
+				    frame->ip = ip + 2;
 				    Managed2NativeCallMethod _nativeMethodPointer = ((Managed2NativeCallMethod)imi->resolveDatas[__managed2NativeMethod]);
 				    Managed2NativeFunctionPointerCallMethod _nativeMethodPointer2 = ((Managed2NativeFunctionPointerCallMethod)imi->resolveDatas[__managed2NativeFunctionPointerMethod]);
 					uint16_t* _argIdxsPtr = (uint16_t*)&imi->resolveDatas[__argIdxs];
 					StackObject* _argBasePtr = localVarBase + _argIdxsPtr[0];
-					void* _methodPointer = (localVarBase + __methodInfo)->ptr;
+					Il2CppMethodPointer _methodPointer = (Il2CppMethodPointer)(localVarBase + __methodInfo)->ptr;
 					if (__isMethodInfoPointer == 0)
 					{
-				        __isMethodInfoPointer = hybridclr::interpreter::InterpreterModule::IsMethodInfoPointer(_methodPointer) ? 1 : 2;
+				        __isMethodInfoPointer = hybridclr::interpreter::InterpreterModule::IsMethodInfoPointer((void*)_methodPointer) ? 1 : 2;
 					}
 					if (__isMethodInfoPointer == 1)
 					{
@@ -5113,15 +5194,16 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __methodInfo = *(uint32_t*)(ip + 16);
 					uint32_t __argIdxs = *(uint32_t*)(ip + 20);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _ret = (void*)(localVarBase + __ret);
 				    Managed2NativeCallMethod _nativeMethodPointer = ((Managed2NativeCallMethod)imi->resolveDatas[__managed2NativeMethod]);
 				    Managed2NativeFunctionPointerCallMethod _nativeMethodPointer2 = ((Managed2NativeFunctionPointerCallMethod)imi->resolveDatas[__managed2NativeFunctionPointerMethod]);
 					uint16_t* _argIdxsPtr = (uint16_t*)&imi->resolveDatas[__argIdxs];
 					StackObject* _argBasePtr = localVarBase + _argIdxsPtr[0];
-					void* _methodPointer = (localVarBase + __methodInfo)->ptr;
+					Il2CppMethodPointer _methodPointer = (Il2CppMethodPointer)(localVarBase + __methodInfo)->ptr;
 					if (__isMethodInfoPointer == 0)
 					{
-				        __isMethodInfoPointer = hybridclr::interpreter::InterpreterModule::IsMethodInfoPointer(_methodPointer) ? 1 : 2;
+				        __isMethodInfoPointer = hybridclr::interpreter::InterpreterModule::IsMethodInfoPointer((void*)_methodPointer) ? 1 : 2;
 					}
 					if (__isMethodInfoPointer == 1)
 					{
@@ -5157,15 +5239,16 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __argIdxs = *(uint32_t*)(ip + 20);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
 					uint8_t __retLocationType = *(uint8_t*)(ip + 3);
+				    frame->ip = ip + 2;
 				    void* _ret = (void*)(localVarBase + __ret);
 				    Managed2NativeCallMethod _nativeMethodPointer = ((Managed2NativeCallMethod)imi->resolveDatas[__managed2NativeMethod]);
 				    Managed2NativeFunctionPointerCallMethod _nativeMethodPointer2 = ((Managed2NativeFunctionPointerCallMethod)imi->resolveDatas[__managed2NativeFunctionPointerMethod]);
 					uint16_t* _argIdxsPtr = (uint16_t*)&imi->resolveDatas[__argIdxs];
 					StackObject* _argBasePtr = localVarBase + _argIdxsPtr[0];
-					void* _methodPointer = (localVarBase + __methodInfo)->ptr;
+					Il2CppMethodPointer _methodPointer = (Il2CppMethodPointer)(localVarBase + __methodInfo)->ptr;
 					if (__isMethodInfoPointer == 0)
 					{
-				        __isMethodInfoPointer = hybridclr::interpreter::InterpreterModule::IsMethodInfoPointer(_methodPointer) ? 1 : 2;
+				        __isMethodInfoPointer = hybridclr::interpreter::InterpreterModule::IsMethodInfoPointer((void*)_methodPointer) ? 1 : 2;
 					}
 					if (__isMethodInfoPointer == 1)
 					{
@@ -5193,12 +5276,61 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				    ip += 24;
 				    continue;
 				}
+				case HiOpcodeEnum::CallPInvoke_void:
+				{
+					uint32_t __managed2NativeFunctionPointerMethod = *(uint32_t*)(ip + 4);
+					uint32_t __pinvokeMethodPointer = *(uint32_t*)(ip + 8);
+					uint32_t __argIdxs = *(uint32_t*)(ip + 12);
+				    frame->ip = ip + 2;
+				    Managed2NativeFunctionPointerCallMethod _managed2NativeFuncMethodPointer = ((Managed2NativeFunctionPointerCallMethod)imi->resolveDatas[__managed2NativeFunctionPointerMethod]);
+				    Il2CppMethodPointer _pinvokeMethodPointer = ((Il2CppMethodPointer)imi->resolveDatas[__pinvokeMethodPointer]);
+					uint16_t* _argIdxsPtr = (uint16_t*)&imi->resolveDatas[__argIdxs];
+					StackObject* _argBasePtr = localVarBase + _argIdxsPtr[0];
+				    _managed2NativeFuncMethodPointer(_pinvokeMethodPointer, _argIdxsPtr, localVarBase, nullptr);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::CallPInvoke_ret:
+				{
+					uint32_t __managed2NativeFunctionPointerMethod = *(uint32_t*)(ip + 4);
+					uint32_t __pinvokeMethodPointer = *(uint32_t*)(ip + 8);
+					uint32_t __argIdxs = *(uint32_t*)(ip + 12);
+					uint16_t __ret = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
+				    void* _ret = (void*)(localVarBase + __ret);
+				    Managed2NativeFunctionPointerCallMethod _managed2NativeFuncMethodPointer = ((Managed2NativeFunctionPointerCallMethod)imi->resolveDatas[__managed2NativeFunctionPointerMethod]);
+				    Il2CppMethodPointer _pinvokeMethodPointer = ((Il2CppMethodPointer)imi->resolveDatas[__pinvokeMethodPointer]);
+					uint16_t* _argIdxsPtr = (uint16_t*)&imi->resolveDatas[__argIdxs];
+					StackObject* _argBasePtr = localVarBase + _argIdxsPtr[0];
+				    _managed2NativeFuncMethodPointer(_pinvokeMethodPointer, _argIdxsPtr, localVarBase, _ret);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::CallPInvoke_ret_expand:
+				{
+					uint32_t __managed2NativeFunctionPointerMethod = *(uint32_t*)(ip + 8);
+					uint32_t __pinvokeMethodPointer = *(uint32_t*)(ip + 12);
+					uint32_t __argIdxs = *(uint32_t*)(ip + 16);
+					uint16_t __ret = *(uint16_t*)(ip + 4);
+					uint8_t __retLocationType = *(uint8_t*)(ip + 2);
+				    frame->ip = ip + 2;
+				    void* _ret = (void*)(localVarBase + __ret);
+				    Managed2NativeFunctionPointerCallMethod _managed2NativeFuncMethodPointer = ((Managed2NativeFunctionPointerCallMethod)imi->resolveDatas[__managed2NativeFunctionPointerMethod]);
+				    Il2CppMethodPointer _pinvokeMethodPointer = ((Il2CppMethodPointer)imi->resolveDatas[__pinvokeMethodPointer]);
+					uint16_t* _argIdxsPtr = (uint16_t*)&imi->resolveDatas[__argIdxs];
+					StackObject* _argBasePtr = localVarBase + _argIdxsPtr[0];
+				    _managed2NativeFuncMethodPointer(_pinvokeMethodPointer, _argIdxsPtr, localVarBase, _ret);
+				    ExpandLocationData2StackDataByType(_ret, (LocationDataType)__retLocationType);
+				    ip += 24;
+				    continue;
+				}
 				case HiOpcodeEnum::CallDelegateInvoke_void:
 				{
 					uint32_t __managed2NativeStaticMethod = *(uint32_t*)(ip + 4);
 					uint32_t __managed2NativeInstanceMethod = *(uint32_t*)(ip + 8);
 					uint32_t __argIdxs = *(uint32_t*)(ip + 12);
 					uint16_t __invokeParamCount = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 					void* _ret = nullptr;
 					uint16_t* _resolvedArgIdxs = ((uint16_t*)&imi->resolveDatas[__argIdxs]);
 					StackObject* _argBasePtr = localVarBase + _resolvedArgIdxs[0];
@@ -5278,6 +5410,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __ret = *(uint16_t*)(ip + 2);
 					uint16_t __invokeParamCount = *(uint16_t*)(ip + 4);
 					uint16_t __retTypeStackObjectSize = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _ret = (void*)(localVarBase + __ret);
 					IL2CPP_ASSERT(__retTypeStackObjectSize <= kMaxRetValueTypeStackObjectSize);
 					StackObject* _tempRet = tempRet ? tempRet : (tempRet = (StackObject*)alloca(sizeof(StackObject) * kMaxRetValueTypeStackObjectSize));
@@ -5360,6 +5493,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __ret = *(uint16_t*)(ip + 4);
 					uint16_t __invokeParamCount = *(uint16_t*)(ip + 6);
 					uint8_t __retLocationType = *(uint8_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    void* _ret = (void*)(localVarBase + __ret);
 					StackObject _tempRet[1];
 					uint16_t* _resolvedArgIdxs = ((uint16_t*)&imi->resolveDatas[__argIdxs]);
@@ -5438,6 +5572,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __result = *(uint16_t*)(ip + 2);
 					uint32_t __methodInfo = *(uint32_t*)(ip + 4);
 					uint32_t __argIdxs = *(uint32_t*)(ip + 8);
+				    frame->ip = ip + 2;
 					(*(Il2CppObject**)(localVarBase + __result)) = InvokeDelegateBeginInvoke(((MethodInfo*)imi->resolveDatas[__methodInfo]), ((uint16_t*)&imi->resolveDatas[__argIdxs]), localVarBase);
 				    ip += 16;
 				    continue;
@@ -5446,6 +5581,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __methodInfo = *(uint32_t*)(ip + 4);
 					uint16_t __asyncResult = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    InvokeDelegateEndInvokeVoid(((MethodInfo*)imi->resolveDatas[__methodInfo]), (Il2CppAsyncResult*)(*(Il2CppObject**)(localVarBase + __asyncResult)));
 				    ip += 8;
 				    continue;
@@ -5455,6 +5591,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __methodInfo = *(uint32_t*)(ip + 8);
 					uint16_t __asyncResult = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    InvokeDelegateEndInvokeRet(((MethodInfo*)imi->resolveDatas[__methodInfo]), (Il2CppAsyncResult*)(*(Il2CppObject**)(localVarBase + __asyncResult)), (void*)(localVarBase + __ret));
 				    ip += 16;
 				    continue;
@@ -5487,6 +5624,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __self = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5500,6 +5638,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5513,6 +5652,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5526,6 +5666,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5539,6 +5680,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5552,6 +5694,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5565,6 +5708,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5578,6 +5722,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5591,6 +5736,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5604,6 +5750,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5618,6 +5765,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5633,6 +5781,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5649,6 +5798,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5662,6 +5812,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5676,6 +5827,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5691,6 +5843,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5707,6 +5860,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5720,6 +5874,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5734,6 +5889,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5749,6 +5905,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5765,6 +5922,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5778,6 +5936,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5792,6 +5951,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5807,6 +5967,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5823,6 +5984,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5837,6 +5999,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5852,6 +6015,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5868,6 +6032,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5885,6 +6050,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5899,6 +6065,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5914,6 +6081,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5930,6 +6098,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5947,6 +6116,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5961,6 +6131,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5976,6 +6147,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -5992,6 +6164,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6009,6 +6182,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6023,6 +6197,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6038,6 +6213,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6054,6 +6230,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6071,6 +6248,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6085,6 +6263,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6100,6 +6279,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6116,6 +6296,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6133,6 +6314,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6147,6 +6329,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6162,6 +6345,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6178,6 +6362,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6195,6 +6380,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6209,6 +6395,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6224,6 +6411,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6240,6 +6428,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6257,6 +6446,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6271,6 +6461,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6286,6 +6477,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6302,6 +6494,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6319,6 +6512,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6333,6 +6527,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6348,6 +6543,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6364,6 +6560,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6381,6 +6578,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6395,6 +6593,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6410,6 +6609,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6426,6 +6626,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6443,6 +6644,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6457,6 +6659,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6472,6 +6675,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6488,6 +6692,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6505,6 +6710,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6519,6 +6725,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6534,6 +6741,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6550,6 +6758,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6567,6 +6776,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6581,6 +6791,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6596,6 +6807,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6612,6 +6824,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6629,6 +6842,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6643,6 +6857,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6658,6 +6873,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6674,6 +6890,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6691,6 +6908,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6705,6 +6923,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6720,6 +6939,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6736,6 +6956,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6753,6 +6974,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6767,6 +6989,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6782,6 +7005,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6798,6 +7022,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6815,6 +7040,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6829,6 +7055,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6844,6 +7071,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6860,6 +7088,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6877,6 +7106,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6891,6 +7121,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6906,6 +7137,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6922,6 +7154,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6939,6 +7172,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6953,6 +7187,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6968,6 +7203,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -6984,6 +7220,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -7001,6 +7238,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -7015,6 +7253,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __self = *(uint16_t*)(ip + 2);
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -7030,6 +7269,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 4);
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -7046,6 +7286,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 6);
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -7063,6 +7304,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 8);
 					uint16_t __param3 = *(uint16_t*)(ip + 10);
 					uint16_t __ret = *(uint16_t*)(ip + 12);
+				    frame->ip = ip + 2;
 				    void* _self = (*(void**)(localVarBase + __self));
 				    CHECK_NOT_NULL_THROW(_self);
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
@@ -7074,6 +7316,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::CallCommonNativeStatic_v_0:
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(MethodInfo*);
@@ -7085,6 +7328,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int8_t(*_NativeMethod_)(MethodInfo*);
@@ -7096,6 +7340,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(MethodInfo*);
@@ -7107,6 +7352,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int16_t(*_NativeMethod_)(MethodInfo*);
@@ -7118,6 +7364,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint16_t(*_NativeMethod_)(MethodInfo*);
@@ -7129,6 +7376,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(MethodInfo*);
@@ -7140,6 +7388,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(MethodInfo*);
@@ -7151,6 +7400,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(MethodInfo*);
@@ -7162,6 +7412,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(MethodInfo*);
@@ -7173,6 +7424,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(int32_t, MethodInfo*);
@@ -7185,6 +7437,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(int32_t, int32_t, MethodInfo*);
@@ -7198,6 +7451,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(int32_t, int32_t, int32_t, MethodInfo*);
@@ -7212,6 +7466,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(int32_t, int32_t, int32_t, int32_t, MethodInfo*);
@@ -7223,6 +7478,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(int64_t, MethodInfo*);
@@ -7235,6 +7491,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(int64_t, int64_t, MethodInfo*);
@@ -7248,6 +7505,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(int64_t, int64_t, int64_t, MethodInfo*);
@@ -7262,6 +7520,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(int64_t, int64_t, int64_t, int64_t, MethodInfo*);
@@ -7273,6 +7532,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(float, MethodInfo*);
@@ -7285,6 +7545,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(float, float, MethodInfo*);
@@ -7298,6 +7559,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(float, float, float, MethodInfo*);
@@ -7312,6 +7574,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(float, float, float, float, MethodInfo*);
@@ -7323,6 +7586,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint32_t __method = *(uint32_t*)(ip + 4);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(double, MethodInfo*);
@@ -7335,6 +7599,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(double, double, MethodInfo*);
@@ -7348,6 +7613,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(double, double, double, MethodInfo*);
@@ -7362,6 +7628,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef void(*_NativeMethod_)(double, double, double, double, MethodInfo*);
@@ -7374,6 +7641,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(int32_t, MethodInfo*);
@@ -7387,6 +7655,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(int32_t, int32_t, MethodInfo*);
@@ -7401,6 +7670,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(int32_t, int32_t, int32_t, MethodInfo*);
@@ -7416,6 +7686,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(int32_t, int32_t, int32_t, int32_t, MethodInfo*);
@@ -7428,6 +7699,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(int64_t, MethodInfo*);
@@ -7441,6 +7713,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(int64_t, int64_t, MethodInfo*);
@@ -7455,6 +7728,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(int64_t, int64_t, int64_t, MethodInfo*);
@@ -7470,6 +7744,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(int64_t, int64_t, int64_t, int64_t, MethodInfo*);
@@ -7482,6 +7757,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(float, MethodInfo*);
@@ -7495,6 +7771,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(float, float, MethodInfo*);
@@ -7509,6 +7786,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(float, float, float, MethodInfo*);
@@ -7524,6 +7802,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(float, float, float, float, MethodInfo*);
@@ -7536,6 +7815,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(double, MethodInfo*);
@@ -7549,6 +7829,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(double, double, MethodInfo*);
@@ -7563,6 +7844,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(double, double, double, MethodInfo*);
@@ -7578,6 +7860,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef uint8_t(*_NativeMethod_)(double, double, double, double, MethodInfo*);
@@ -7590,6 +7873,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(int32_t, MethodInfo*);
@@ -7603,6 +7887,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(int32_t, int32_t, MethodInfo*);
@@ -7617,6 +7902,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(int32_t, int32_t, int32_t, MethodInfo*);
@@ -7632,6 +7918,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(int32_t, int32_t, int32_t, int32_t, MethodInfo*);
@@ -7644,6 +7931,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(int64_t, MethodInfo*);
@@ -7657,6 +7945,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(int64_t, int64_t, MethodInfo*);
@@ -7671,6 +7960,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(int64_t, int64_t, int64_t, MethodInfo*);
@@ -7686,6 +7976,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(int64_t, int64_t, int64_t, int64_t, MethodInfo*);
@@ -7698,6 +7989,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(float, MethodInfo*);
@@ -7711,6 +8003,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(float, float, MethodInfo*);
@@ -7725,6 +8018,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(float, float, float, MethodInfo*);
@@ -7740,6 +8034,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(float, float, float, float, MethodInfo*);
@@ -7752,6 +8047,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(double, MethodInfo*);
@@ -7765,6 +8061,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(double, double, MethodInfo*);
@@ -7779,6 +8076,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(double, double, double, MethodInfo*);
@@ -7794,6 +8092,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int32_t(*_NativeMethod_)(double, double, double, double, MethodInfo*);
@@ -7806,6 +8105,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(int32_t, MethodInfo*);
@@ -7819,6 +8119,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(int32_t, int32_t, MethodInfo*);
@@ -7833,6 +8134,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(int32_t, int32_t, int32_t, MethodInfo*);
@@ -7848,6 +8150,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(int32_t, int32_t, int32_t, int32_t, MethodInfo*);
@@ -7860,6 +8163,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(int64_t, MethodInfo*);
@@ -7873,6 +8177,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(int64_t, int64_t, MethodInfo*);
@@ -7887,6 +8192,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(int64_t, int64_t, int64_t, MethodInfo*);
@@ -7902,6 +8208,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(int64_t, int64_t, int64_t, int64_t, MethodInfo*);
@@ -7914,6 +8221,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(float, MethodInfo*);
@@ -7927,6 +8235,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(float, float, MethodInfo*);
@@ -7941,6 +8250,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(float, float, float, MethodInfo*);
@@ -7956,6 +8266,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(float, float, float, float, MethodInfo*);
@@ -7968,6 +8279,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(double, MethodInfo*);
@@ -7981,6 +8293,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(double, double, MethodInfo*);
@@ -7995,6 +8308,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(double, double, double, MethodInfo*);
@@ -8010,6 +8324,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef int64_t(*_NativeMethod_)(double, double, double, double, MethodInfo*);
@@ -8022,6 +8337,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(int32_t, MethodInfo*);
@@ -8035,6 +8351,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(int32_t, int32_t, MethodInfo*);
@@ -8049,6 +8366,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(int32_t, int32_t, int32_t, MethodInfo*);
@@ -8064,6 +8382,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(int32_t, int32_t, int32_t, int32_t, MethodInfo*);
@@ -8076,6 +8395,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(int64_t, MethodInfo*);
@@ -8089,6 +8409,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(int64_t, int64_t, MethodInfo*);
@@ -8103,6 +8424,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(int64_t, int64_t, int64_t, MethodInfo*);
@@ -8118,6 +8440,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(int64_t, int64_t, int64_t, int64_t, MethodInfo*);
@@ -8130,6 +8453,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(float, MethodInfo*);
@@ -8143,6 +8467,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(float, float, MethodInfo*);
@@ -8157,6 +8482,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(float, float, float, MethodInfo*);
@@ -8172,6 +8498,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(float, float, float, float, MethodInfo*);
@@ -8184,6 +8511,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(double, MethodInfo*);
@@ -8197,6 +8525,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(double, double, MethodInfo*);
@@ -8211,6 +8540,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(double, double, double, MethodInfo*);
@@ -8226,6 +8556,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef float(*_NativeMethod_)(double, double, double, double, MethodInfo*);
@@ -8238,6 +8569,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(int32_t, MethodInfo*);
@@ -8251,6 +8583,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(int32_t, int32_t, MethodInfo*);
@@ -8265,6 +8598,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(int32_t, int32_t, int32_t, MethodInfo*);
@@ -8280,6 +8614,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(int32_t, int32_t, int32_t, int32_t, MethodInfo*);
@@ -8292,6 +8627,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(int64_t, MethodInfo*);
@@ -8305,6 +8641,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(int64_t, int64_t, MethodInfo*);
@@ -8319,6 +8656,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(int64_t, int64_t, int64_t, MethodInfo*);
@@ -8334,6 +8672,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(int64_t, int64_t, int64_t, int64_t, MethodInfo*);
@@ -8346,6 +8685,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(float, MethodInfo*);
@@ -8359,6 +8699,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(float, float, MethodInfo*);
@@ -8373,6 +8714,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(float, float, float, MethodInfo*);
@@ -8388,6 +8730,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(float, float, float, float, MethodInfo*);
@@ -8400,6 +8743,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint32_t __method = *(uint32_t*)(ip + 8);
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __ret = *(uint16_t*)(ip + 4);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(double, MethodInfo*);
@@ -8413,6 +8757,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param0 = *(uint16_t*)(ip + 2);
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __ret = *(uint16_t*)(ip + 6);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(double, double, MethodInfo*);
@@ -8427,6 +8772,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param1 = *(uint16_t*)(ip + 4);
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __ret = *(uint16_t*)(ip + 8);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(double, double, double, MethodInfo*);
@@ -8442,6 +8788,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 					uint16_t __param2 = *(uint16_t*)(ip + 6);
 					uint16_t __param3 = *(uint16_t*)(ip + 8);
 					uint16_t __ret = *(uint16_t*)(ip + 10);
+				    frame->ip = ip + 2;
 				    MethodInfo* _resolvedMethod = ((MethodInfo*)imi->resolveDatas[__method]);
 				    RuntimeInitClassCCtorWithoutInitClass(_resolvedMethod);
 				    typedef double(*_NativeMethod_)(double, double, double, double, MethodInfo*);
@@ -9550,8 +9897,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_i1:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    (*(int32_t*)(localVarBase + __dst)) = *(int8_t*)(((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9560,8 +9907,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_u1:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    (*(int32_t*)(localVarBase + __dst)) = *(uint8_t*)(((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9570,8 +9917,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_i2:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    (*(int32_t*)(localVarBase + __dst)) = *(int16_t*)(((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9580,8 +9927,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_u2:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    (*(int32_t*)(localVarBase + __dst)) = *(uint16_t*)(((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9590,8 +9937,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_i4:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    (*(int32_t*)(localVarBase + __dst)) = *(int32_t*)(((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9600,8 +9947,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_u4:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    (*(int32_t*)(localVarBase + __dst)) = *(uint32_t*)(((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9610,8 +9957,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_i8:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    (*(int64_t*)(localVarBase + __dst)) = *(int64_t*)(((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9620,8 +9967,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_u8:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    (*(int64_t*)(localVarBase + __dst)) = *(uint64_t*)(((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9630,8 +9977,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_size_8:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy8((void*)(localVarBase + __dst), ((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9640,8 +9987,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_size_12:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy12((void*)(localVarBase + __dst), ((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9650,8 +9997,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_size_16:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy16((void*)(localVarBase + __dst), ((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9660,8 +10007,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_size_20:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy20((void*)(localVarBase + __dst), ((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9670,8 +10017,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_size_24:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy24((void*)(localVarBase + __dst), ((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9680,8 +10027,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_size_28:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy28((void*)(localVarBase + __dst), ((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9690,8 +10037,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_size_32:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy32((void*)(localVarBase + __dst), ((byte*)__klass->static_fields) + __offset);
 				    ip += 16;
@@ -9701,8 +10048,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
-					uint16_t __size = *(uint16_t*)(ip + 6);
+					uint32_t __offset = *(uint32_t*)(ip + 12);
+					uint16_t __size = *(uint16_t*)(ip + 4);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    std::memmove((void*)(localVarBase + __dst), (((byte*)__klass->static_fields) + __offset), __size);
 				    ip += 16;
@@ -9711,8 +10058,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldVarVar_n_4:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 					uint32_t __size = *(uint32_t*)(ip + 12);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    std::memmove((void*)(localVarBase + __dst), (((byte*)__klass->static_fields) + __offset), __size);
@@ -9722,8 +10069,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_i1:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)__klass->static_fields) + __offset;
 				    *(int8_t*)(_fieldAddr_) = (*(int8_t*)(localVarBase + __data));
@@ -9733,8 +10080,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_u1:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)__klass->static_fields) + __offset;
 				    *(uint8_t*)(_fieldAddr_) = (*(uint8_t*)(localVarBase + __data));
@@ -9744,8 +10091,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_i2:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)__klass->static_fields) + __offset;
 				    *(int16_t*)(_fieldAddr_) = (*(int16_t*)(localVarBase + __data));
@@ -9755,8 +10102,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_u2:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)__klass->static_fields) + __offset;
 				    *(uint16_t*)(_fieldAddr_) = (*(uint16_t*)(localVarBase + __data));
@@ -9766,8 +10113,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_i4:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)__klass->static_fields) + __offset;
 				    *(int32_t*)(_fieldAddr_) = (*(int32_t*)(localVarBase + __data));
@@ -9777,8 +10124,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_u4:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)__klass->static_fields) + __offset;
 				    *(uint32_t*)(_fieldAddr_) = (*(uint32_t*)(localVarBase + __data));
@@ -9788,8 +10135,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_i8:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)__klass->static_fields) + __offset;
 				    *(int64_t*)(_fieldAddr_) = (*(int64_t*)(localVarBase + __data));
@@ -9799,8 +10146,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_u8:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)__klass->static_fields) + __offset;
 				    *(uint64_t*)(_fieldAddr_) = (*(uint64_t*)(localVarBase + __data));
@@ -9810,8 +10157,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_ref:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)__klass->static_fields) + __offset;
 				    *(Il2CppObject**)(_fieldAddr_) = (*(Il2CppObject**)(localVarBase + __data));HYBRIDCLR_SET_WRITE_BARRIER((void**)_fieldAddr_);
@@ -9821,8 +10168,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_size_8:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy8(((byte*)__klass->static_fields) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -9831,8 +10178,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_size_12:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy12(((byte*)__klass->static_fields) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -9841,8 +10188,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_size_16:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy16(((byte*)__klass->static_fields) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -9851,8 +10198,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_size_20:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy20(((byte*)__klass->static_fields) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -9861,8 +10208,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_size_24:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy24(((byte*)__klass->static_fields) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -9871,8 +10218,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_size_28:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy28(((byte*)__klass->static_fields) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -9881,8 +10228,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_size_32:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy32(((byte*)__klass->static_fields) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -9891,9 +10238,9 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_n_2:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
-					uint16_t __size = *(uint16_t*)(ip + 6);
+					uint32_t __offset = *(uint32_t*)(ip + 12);
+					uint16_t __data = *(uint16_t*)(ip + 2);
+					uint16_t __size = *(uint16_t*)(ip + 4);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    std::memmove(((byte*)__klass->static_fields) + __offset, (void*)(localVarBase + __data), __size);
 				    ip += 16;
@@ -9901,9 +10248,9 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				}
 				case HiOpcodeEnum::StsfldVarVar_n_4:
 				{
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 					uint32_t __size = *(uint32_t*)(ip + 12);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    std::memmove(((byte*)__klass->static_fields) + __offset, (void*)(localVarBase + __data), __size);
@@ -9913,9 +10260,9 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StsfldVarVar_WriteBarrier_n_2:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
-					uint16_t __size = *(uint16_t*)(ip + 6);
+					uint32_t __offset = *(uint32_t*)(ip + 12);
+					uint16_t __data = *(uint16_t*)(ip + 2);
+					uint16_t __size = *(uint16_t*)(ip + 4);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)__klass->static_fields) + __offset;
 				    std::memmove(_fieldAddr_, (void*)(localVarBase + __data), __size);
@@ -9925,9 +10272,9 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				}
 				case HiOpcodeEnum::StsfldVarVar_WriteBarrier_n_4:
 				{
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 					uint32_t __size = *(uint32_t*)(ip + 12);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)__klass->static_fields) + __offset;
@@ -9939,8 +10286,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::LdsfldaVarVar:
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    (*(void**)(localVarBase + __dst)) = ((byte*)__klass->static_fields) + __offset;
 				    ip += 16;
@@ -10139,8 +10486,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_i1:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset))) + __offset;
 				    *(int8_t*)_fieldAddr_ = (*(int8_t*)(localVarBase + __data));
@@ -10150,8 +10497,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_u1:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset))) + __offset;
 				    *(uint8_t*)_fieldAddr_ = (*(uint8_t*)(localVarBase + __data));
@@ -10161,8 +10508,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_i2:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset))) + __offset;
 				    *(int16_t*)_fieldAddr_ = (*(int16_t*)(localVarBase + __data));
@@ -10172,8 +10519,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_u2:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset))) + __offset;
 				    *(uint16_t*)_fieldAddr_ = (*(uint16_t*)(localVarBase + __data));
@@ -10183,8 +10530,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_i4:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset))) + __offset;
 				    *(int32_t*)_fieldAddr_ = (*(int32_t*)(localVarBase + __data));
@@ -10194,8 +10541,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_u4:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset))) + __offset;
 				    *(uint32_t*)_fieldAddr_ = (*(uint32_t*)(localVarBase + __data));
@@ -10205,8 +10552,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_i8:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset))) + __offset;
 				    *(int64_t*)_fieldAddr_ = (*(int64_t*)(localVarBase + __data));
@@ -10216,8 +10563,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_u8:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset))) + __offset;
 				    *(uint64_t*)_fieldAddr_ = (*(uint64_t*)(localVarBase + __data));
@@ -10227,8 +10574,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_ref:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset))) + __offset;
 				    *(Il2CppObject**)_fieldAddr_ = (*(Il2CppObject**)(localVarBase + __data));HYBRIDCLR_SET_WRITE_BARRIER((void**)_fieldAddr_);
@@ -10238,8 +10585,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_size_8:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy8((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset)) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -10248,8 +10595,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_size_12:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy12((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset)) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -10258,8 +10605,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_size_16:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy16((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset)) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -10268,8 +10615,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_size_20:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy20((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset)) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -10278,8 +10625,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_size_24:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy24((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset)) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -10288,8 +10635,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_size_28:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy28((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset)) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -10298,8 +10645,8 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_size_32:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 4);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    Copy32((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset)) + __offset, (void*)(localVarBase + __data));
 				    ip += 16;
@@ -10308,9 +10655,9 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_n_2:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
-					uint16_t __size = *(uint16_t*)(ip + 6);
+					uint32_t __offset = *(uint32_t*)(ip + 12);
+					uint16_t __data = *(uint16_t*)(ip + 2);
+					uint16_t __size = *(uint16_t*)(ip + 4);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    std::memmove((byte*)il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset) + __offset, (void*)(localVarBase + __data), __size);
 				    ip += 16;
@@ -10318,9 +10665,9 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				}
 				case HiOpcodeEnum::StthreadlocalVarVar_n_4:
 				{
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 					uint32_t __size = *(uint32_t*)(ip + 12);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    std::memmove((byte*)il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset) + __offset, (void*)(localVarBase + __data), __size);
@@ -10330,9 +10677,9 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				case HiOpcodeEnum::StthreadlocalVarVar_WriteBarrier_n_2:
 				{
 					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
-					uint16_t __size = *(uint16_t*)(ip + 6);
+					uint32_t __offset = *(uint32_t*)(ip + 12);
+					uint16_t __data = *(uint16_t*)(ip + 2);
+					uint16_t __size = *(uint16_t*)(ip + 4);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset))) + __offset;
 				    std::memmove(_fieldAddr_, (void*)(localVarBase + __data), __size);
@@ -10342,9 +10689,9 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				}
 				case HiOpcodeEnum::StthreadlocalVarVar_WriteBarrier_n_4:
 				{
-					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 8)]);
-					uint16_t __offset = *(uint16_t*)(ip + 2);
-					uint16_t __data = *(uint16_t*)(ip + 4);
+					Il2CppClass* __klass = ((Il2CppClass*)imi->resolveDatas[*(uint32_t*)(ip + 4)]);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 2);
 					uint32_t __size = *(uint32_t*)(ip + 12);
 				    RuntimeInitClassCCtorWithoutInitClass(__klass);
 				    void* _fieldAddr_ = ((byte*)(il2cpp::vm::Thread::GetThreadStaticData(__klass->thread_static_fields_offset))) + __offset;
@@ -10364,6 +10711,560 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint64_t __klass = *(uint64_t*)(ip + 8);
 				    RuntimeInitClassCCtorWithoutInitClass((Il2CppClass*)(__klass));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldaLargeVarVar:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    (*(void**)(localVarBase + __dst)) = (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset;
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_i1:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    (*(int32_t*)(localVarBase + __dst)) = *(int8_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_u1:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    (*(int32_t*)(localVarBase + __dst)) = *(uint8_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_i2:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    (*(int32_t*)(localVarBase + __dst)) = *(int16_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_u2:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    (*(int32_t*)(localVarBase + __dst)) = *(uint16_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_i4:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    (*(int32_t*)(localVarBase + __dst)) = *(int32_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_u4:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    (*(int32_t*)(localVarBase + __dst)) = *(uint32_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_i8:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    (*(int64_t*)(localVarBase + __dst)) = *(int64_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_u8:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    (*(int64_t*)(localVarBase + __dst)) = *(uint64_t*)((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_size_8:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy8((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_size_12:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy12((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_size_16:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy16((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_size_20:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy20((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_size_24:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy24((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_size_28:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy28((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_size_32:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy32((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_n_2:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __size = *(uint16_t*)(ip + 6);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    std::memmove((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, __size);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldLargeVarVar_n_4:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint32_t __size = *(uint32_t*)(ip + 12);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    std::memmove((void*)(localVarBase + __dst), (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, __size);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_i1:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					(*(int32_t*)(localVarBase + __dst)) = *(int8_t*)((byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_u1:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					(*(int32_t*)(localVarBase + __dst)) = *(uint8_t*)((byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_i2:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					(*(int32_t*)(localVarBase + __dst)) = *(int16_t*)((byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_u2:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					(*(int32_t*)(localVarBase + __dst)) = *(uint16_t*)((byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_i4:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					(*(int32_t*)(localVarBase + __dst)) = *(int32_t*)((byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_u4:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					(*(int32_t*)(localVarBase + __dst)) = *(uint32_t*)((byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_i8:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					(*(int64_t*)(localVarBase + __dst)) = *(int64_t*)((byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_u8:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					(*(int64_t*)(localVarBase + __dst)) = *(uint64_t*)((byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_size_8:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					Copy8((void*)(localVarBase + __dst), (byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_size_12:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					Copy12((void*)(localVarBase + __dst), (byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_size_16:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					Copy16((void*)(localVarBase + __dst), (byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_size_20:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					Copy20((void*)(localVarBase + __dst), (byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_size_24:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					Copy24((void*)(localVarBase + __dst), (byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_size_28:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					Copy28((void*)(localVarBase + __dst), (byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_size_32:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					Copy32((void*)(localVarBase + __dst), (byte*)(void*)(localVarBase + __obj) + __offset);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_n_2:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __size = *(uint16_t*)(ip + 6);
+					std::memmove((void*)(localVarBase + __dst), (byte*)(void*)(localVarBase + __obj) + __offset, __size);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::LdfldValueTypeLargeVarVar_n_4:
+				{
+					uint16_t __dst = *(uint16_t*)(ip + 2);
+					uint16_t __obj = *(uint16_t*)(ip + 4);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint32_t __size = *(uint32_t*)(ip + 12);
+					std::memmove((void*)(localVarBase + __dst), (byte*)(void*)(localVarBase + __obj) + __offset, __size);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_i1:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    void* _fieldAddr_ = (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset;
+				    *(int8_t*)(_fieldAddr_) = (*(int8_t*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_u1:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    void* _fieldAddr_ = (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset;
+				    *(uint8_t*)(_fieldAddr_) = (*(uint8_t*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_i2:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    void* _fieldAddr_ = (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset;
+				    *(int16_t*)(_fieldAddr_) = (*(int16_t*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_u2:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    void* _fieldAddr_ = (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset;
+				    *(uint16_t*)(_fieldAddr_) = (*(uint16_t*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_i4:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    void* _fieldAddr_ = (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset;
+				    *(int32_t*)(_fieldAddr_) = (*(int32_t*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_u4:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    void* _fieldAddr_ = (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset;
+				    *(uint32_t*)(_fieldAddr_) = (*(uint32_t*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_i8:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    void* _fieldAddr_ = (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset;
+				    *(int64_t*)(_fieldAddr_) = (*(int64_t*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_u8:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    void* _fieldAddr_ = (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset;
+				    *(uint64_t*)(_fieldAddr_) = (*(uint64_t*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_ref:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    void* _fieldAddr_ = (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset;
+				    *(Il2CppObject**)(_fieldAddr_) = (*(Il2CppObject**)(localVarBase + __data));HYBRIDCLR_SET_WRITE_BARRIER((void**)_fieldAddr_);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_size_8:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy8((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, (void*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_size_12:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy12((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, (void*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_size_16:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy16((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, (void*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_size_20:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy20((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, (void*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_size_24:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy24((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, (void*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_size_28:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy28((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, (void*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_size_32:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    Copy32((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, (void*)(localVarBase + __data));
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_n_2:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint16_t __size = *(uint16_t*)(ip + 6);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    std::memmove((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, (void*)(localVarBase + __data), __size);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_n_4:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __size = *(uint32_t*)(ip + 12);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    std::memmove((uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset, (void*)(localVarBase + __data), __size);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_WriteBarrier_n_2:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint16_t __size = *(uint16_t*)(ip + 6);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    void* _fieldAddr_ = (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset;
+				    std::memmove(_fieldAddr_, (void*)(localVarBase + __data), __size);
+				    HYBRIDCLR_SET_WRITE_BARRIER((void**)_fieldAddr_, (size_t)__size);
+				    ip += 16;
+				    continue;
+				}
+				case HiOpcodeEnum::StfldLargeVarVar_WriteBarrier_n_4:
+				{
+					uint16_t __obj = *(uint16_t*)(ip + 2);
+					uint32_t __offset = *(uint32_t*)(ip + 8);
+					uint16_t __data = *(uint16_t*)(ip + 4);
+					uint32_t __size = *(uint32_t*)(ip + 12);
+				    CHECK_NOT_NULL_THROW((*(Il2CppObject**)(localVarBase + __obj)));
+				    void* _fieldAddr_ = (uint8_t*)(*(Il2CppObject**)(localVarBase + __obj)) + __offset;
+				    std::memmove(_fieldAddr_, (void*)(localVarBase + __data), __size);
+				    HYBRIDCLR_SET_WRITE_BARRIER((void**)_fieldAddr_, (size_t)__size);
 				    ip += 16;
 				    continue;
 				}
@@ -11362,7 +12263,7 @@ const int32_t kMaxRetValueTypeStackObjectSize = 1024;
 				{
 					uint16_t __dst = *(uint16_t*)(ip + 2);
 					uint16_t __src = *(uint16_t*)(ip + 4);
-				    (*(int32_t*)(localVarBase + __dst)) = GetEnumLongHashCode({(*(void**)(localVarBase + __src))});
+				    (*(int32_t*)(localVarBase + __dst)) = GetEnumLongHashCode((*(void**)(localVarBase + __src)));
 				    ip += 8;
 				    continue;
 				}

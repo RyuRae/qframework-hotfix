@@ -18,7 +18,7 @@ namespace HybridCLR.Editor
     public static class BuildAssetsCommand
     {
         public const string DefaultPackageName = HotfixRuntimeSettings.DefaultMainPackageName;
-        public const string DefaultEntrySceneAddress = "main";
+        public const string DefaultEntrySceneAddress = HotfixUtility.DefaultEntrySceneAddress;
         public const string AOTCodesPath = "Assets/AssetsPackage/AssetsHotFix/AOTCodes";
         public const string HotfixCodesPath = "Assets/AssetsPackage/AssetsHotFix/HotfixCodes";
         public const string ConfigsPath = "Assets/AssetsPackage/AssetsHotFix/Configs";
@@ -608,7 +608,7 @@ namespace HybridCLR.Editor
 
         private static string CreateAotVersion(string appVersion, string buildTarget, IEnumerable<AssemblyFileRecord> records)
         {
-            return "aot-" + ComputeStableHash(BuildVersionSeed(appVersion, buildTarget, string.Empty, records));
+            return "aot-" + ComputeSha256HashPrefix(BuildVersionSeed(appVersion, buildTarget, string.Empty, records));
         }
 
         private static string CreateHotfixVersion(
@@ -619,7 +619,7 @@ namespace HybridCLR.Editor
             IEnumerable<AssemblyFileRecord> records)
         {
             string seed = BuildVersionSeed($"{appVersionMin}-{appVersionMax}", buildTarget, requiredAotVersion, records);
-            return "hotfix-" + ComputeStableHash(seed);
+            return "hotfix-" + ComputeSha256HashPrefix(seed);
         }
 
         private static string BuildVersionSeed(
@@ -642,7 +642,10 @@ namespace HybridCLR.Editor
             return builder.ToString();
         }
 
-        private static string ComputeStableHash(string value)
+        /// <summary>
+        /// 使用 SHA256 计算哈希并截取前16位作为版本标识，与运行时 FNV-1a 灰度哈希不同。
+        /// </summary>
+        private static string ComputeSha256HashPrefix(string value)
         {
             using (var sha256 = SHA256.Create())
             {
@@ -828,24 +831,7 @@ namespace HybridCLR.Editor
 
         private static string GetRuntimePlatformName(BuildTarget target)
         {
-            switch (target)
-            {
-                case BuildTarget.Android:
-                    return "Android";
-                case BuildTarget.iOS:
-                    return "iOS";
-                case BuildTarget.WebGL:
-                    return "WebGL";
-                case BuildTarget.StandaloneWindows:
-                case BuildTarget.StandaloneWindows64:
-                    return "Windows";
-                case BuildTarget.StandaloneOSX:
-                    return "macOS";
-                case BuildTarget.StandaloneLinux64:
-                    return "Linux";
-                default:
-                    return target.ToString();
-            }
+            return HotfixUtility.GetPlatformNameForBuildTarget(target);
         }
 
         private static string GetAppVersion()
@@ -940,7 +926,7 @@ namespace HybridCLR.Editor
 
         private static string NormalizePackageName(string packageName, string fallback)
         {
-            return string.IsNullOrWhiteSpace(packageName) ? fallback : packageName.Trim();
+            return HotfixUtility.NormalizePackageName(packageName, fallback);
         }
 
         private struct CollectorSnapshot

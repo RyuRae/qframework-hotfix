@@ -3,8 +3,6 @@
 #include <algorithm>
 
 #include "vm/MetadataLock.h"
-#include "os/Mutex.h"
-#include "Baselib.h"
 
 #include "../interpreter/InterpreterDefs.h"
 
@@ -15,8 +13,6 @@ namespace hybridclr
 namespace metadata
 {
 	constexpr uint32_t kHiddenLine = 0xfeefee;
-
-	baselib::ReentrantLock s_pdbLock;
 
 	LoadImageErrorCode PDBImage::LoadCLIHeader(uint32_t& entryPointToken, uint32_t& metadataRva, uint32_t& metadataSize)
 	{
@@ -71,14 +67,13 @@ namespace metadata
 			return nullptr;
 		}
 
-		il2cpp::os::FastAutoLock lock(&s_pdbLock);
 		auto it = _documents.find(documentToken);
 		if (it != _documents.end())
 		{
 			return it->second;
 		}
 
-		TbSymbolDocument document = ReadSymbolDocument(rowIndex);
+		TbDocument document = ReadDocument(rowIndex);
 		SymbolDocumentData* documentData = new (HYBRIDCLR_MALLOC_ZERO(sizeof(SymbolDocumentData))) SymbolDocumentData();
 		BlobReader reader = GetBlobReaderByRawIndex(document.name);
 		
@@ -108,6 +103,7 @@ namespace metadata
 
 	void PDBImage::SetupStackFrameInfo(const MethodInfo* method, const void* ip, Il2CppStackFrameInfo& stackFrame)
 	{
+		il2cpp::os::FastAutoLock lock(&il2cpp::vm::g_MetadataLock);
 		auto it = _methodInfos.find(method);
 		if (it == _methodInfos.end())
 		{
@@ -116,16 +112,8 @@ namespace metadata
 		const SymbolMethodInfoData* methodInfoData = it->second;
 		const SymbolMethodDefData* methodData = methodInfoData->methodData;
 		const hybridclr::interpreter::InterpMethodInfo* imi = (const hybridclr::interpreter::InterpMethodInfo*)method->interpData;
-		const byte* actualIp;
-		if (ip >= imi->codes && ip < imi->codes + imi->codeLength)
-		{
-			actualIp = (const byte*)ip;
-		}
-		else
-		{
-			actualIp = *(byte**)ip;
-			IL2CPP_ASSERT(actualIp >= imi->codes && actualIp < imi->codes + imi->codeLength);
-		}
+		IL2CPP_ASSERT(ip >= imi->codes && ip < imi->codes + imi->codeLength);
+		const byte* actualIp = (const byte*)ip;
 
 		uint32_t irOffset = (uint32_t)((uintptr_t)actualIp - (uintptr_t)imi->codes);
 		uint32_t ilOffset = FindILOffsetByIROffset(methodInfoData->ilMapper, irOffset);
@@ -134,14 +122,15 @@ namespace metadata
 		{
 			--ilOffset;
 		}
+		stackFrame.ilOffset = ilOffset;
 
 		const SymbolSequencePoint* ssp = FindSequencePoint(methodData->sequencePoints, ilOffset);
 		if (!ssp)
 		{
+			stackFrame.sourceCodeLineNumber = 0;
 			return;
 		}
 
-		stackFrame.ilOffset = ilOffset;
 		stackFrame.sourceCodeLineNumber = ssp->line;
 
 		stackFrame.filePath = GetDocumentName(ssp->document);
@@ -149,12 +138,15 @@ namespace metadata
 
 	void PDBImage::SetMethodDebugInfo(const MethodInfo* method, const il2cpp::utils::dynamic_array<ILMapper>& ilMapper)
 	{
-		il2cpp::os::FastAutoLock lock(&s_pdbLock);
 		IL2CPP_ASSERT(_methodInfos.find(method) == _methodInfos.end());
+		SymbolMethodDefData* methodData = GetMethodDataFromCache(method->token);
+		if (!methodData)
+		{
+			return;
+		}
 
 		SymbolMethodInfoData* methodInfoData = new (HYBRIDCLR_MALLOC_ZERO(sizeof(SymbolMethodInfoData))) SymbolMethodInfoData();
-		methodInfoData->methodData = GetMethodDataFromCache(method->token);
-		IL2CPP_ASSERT(methodInfoData->methodData);
+		methodInfoData->methodData = methodData;
 		methodInfoData->ilMapper = ilMapper;
 		_methodInfos.add(method, methodInfoData);
 	}
@@ -162,14 +154,12 @@ namespace metadata
 
 	PDBImage::SymbolMethodDefData* PDBImage::GetMethodDataFromCache(uint32_t methodToken)
 	{
-		const Table& tableMeta = GetTable(TableType::METHODBODY);
+		const Table& tableMeta = GetTable(TableType::METHODDEBUGINFORMATION);
 		uint32_t rowIndex = hybridclr::metadata::DecodeTokenRowIndex(methodToken);
 		if (rowIndex == 0 || rowIndex > tableMeta.rowNum)
 		{
 			return nullptr;
 		}
-
-		il2cpp::os::FastAutoLock lock(&s_pdbLock);
 
 		auto it = _methods.find(methodToken);
 		if (it != _methods.end())
@@ -180,7 +170,7 @@ namespace metadata
 		SymbolMethodDefData* methodData = new (HYBRIDCLR_MALLOC_ZERO(sizeof(SymbolMethodDefData))) SymbolMethodDefData();
 
 		// see https://github.com/dotnet/runtime/blob/main/docs/design/specs/PortablePdb-Metadata.md
-		TbSymbolMethodBody smb = ReadSymbolMethodBody(rowIndex);
+		TbMethodDebugInformation smb = ReadMethodDebugInformation(rowIndex);
 		methodData->document = smb.document;
 		if (smb.sequencePoints > 0)
 		{

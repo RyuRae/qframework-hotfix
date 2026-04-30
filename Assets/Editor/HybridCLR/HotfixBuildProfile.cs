@@ -236,24 +236,7 @@ namespace HybridCLR.Editor
 
         private static string GetRuntimePlatformName(BuildTarget target)
         {
-            switch (target)
-            {
-                case BuildTarget.Android:
-                    return "Android";
-                case BuildTarget.iOS:
-                    return "iOS";
-                case BuildTarget.WebGL:
-                    return "WebGL";
-                case BuildTarget.StandaloneWindows:
-                case BuildTarget.StandaloneWindows64:
-                    return "Windows";
-                case BuildTarget.StandaloneOSX:
-                    return "macOS";
-                case BuildTarget.StandaloneLinux64:
-                    return "Linux";
-                default:
-                    return target.ToString();
-            }
+            return HotfixUtility.GetPlatformNameForBuildTarget(target);
         }
 
         private static HotfixRuntimeSettings GetOrCreateRuntimeSettings()

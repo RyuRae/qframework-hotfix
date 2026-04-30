@@ -11,6 +11,7 @@
 /[Uu]ser[Ss]ettings/
 /[Bb]undle/
 /[Bb]undles/
+/[Hh]ybridCLRData/
 
 # MemoryCaptures can get excessive in size.
 # They also could contain extremely sensitive data

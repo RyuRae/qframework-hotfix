@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bab96c53c4a54767aba92a43e3858229, type: 3}
   m_Name: HotfixRemoteSettings
   m_EditorClassIdentifier: 
-  defaultEnvironment: 0
+  defaultEnvironment: 1
   defaultChannel: default
   defaultRegion: global
   enableRuntimeOverride: 1

@@ -13,13 +13,6 @@ namespace Framework.Procedure
         private const int DownloadingMaxNum = 10;
         private const int FailedTryAgain = 3;
 
-        private enum DownloadFailureDecision
-        {
-            Retry,
-            UseLocalCache,
-            Exit
-        }
-
         public ProcedureDownloadPackageFiles(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)
         {
         }
@@ -104,23 +97,38 @@ namespace Framework.Procedure
                 }
 
                 string error = $"{packageName} download failed: {downloader.Error}";
-                DownloadFailureDecision decision = DownloadFailureDecision.Retry;
-                yield return WaitForDownloadFailureDecision(packageName, error, value => decision = value);
+                LogKit.E(error);
+                StartupFailureDecision decision = StartupFailureDecision.Retry;
+                yield return ProcedureFailureHandler.WaitForStartupFailureDecision(
+                    mTarget,
+                    HotfixText.Get(HotfixTextKey.PackageDownloadFailedPrompt),
+                    error,
+                    mTarget.CanUseLocalCacheFallback,
+                    value => decision = value);
 
                 if (mTarget.IsDone || mTarget.IsDownloadCancelRequested)
                 {
                     yield break;
                 }
 
-                if (decision == DownloadFailureDecision.UseLocalCache)
+                if (decision == StartupFailureDecision.UseLocalCache)
                 {
-                    yield return TryUseLocalManifestFallback(HotfixText.Get(
-                        HotfixTextKey.DownloadFailedUseLocalCacheReason,
-                        GetFailureHint(error)));
+                    yield return ProcedureFailureHandler.TryUseLocalManifestFallback(
+                        mTarget,
+                        HotfixText.Get(HotfixTextKey.DownloadFailedUseLocalCacheReason,
+                            ProcedureFailureHandler.GetFailureHint(error)),
+                        succeeded =>
+                        {
+                            if (succeeded)
+                            {
+                                UIPanelRoot.Instance.CloseLoadingPanel();
+                                mFSM.ChangeState(ResPackageStates.DownloadPackageOver);
+                            }
+                        });
                     yield break;
                 }
 
-                if (decision == DownloadFailureDecision.Exit)
+                if (decision == StartupFailureDecision.Exit)
                 {
                     mTarget.CancelDownload(HotfixText.Get(HotfixTextKey.DownloadFailedExitReason, error));
                     yield break;
@@ -150,86 +158,6 @@ namespace Framework.Procedure
             downloader.DownloadFileBeginCallback = null;
             downloader.DownloadUpdateCallback = null;
             downloader.DownloadFinishCallback = null;
-        }
-
-        private IEnumerator WaitForDownloadFailureDecision(string packageName, string error, Action<DownloadFailureDecision> onDecision)
-        {
-            bool hasDecision = false;
-            DownloadFailureDecision decision = DownloadFailureDecision.Retry;
-            string fallbackText = mTarget.CanUseLocalCacheFallback
-                ? HotfixText.Get(HotfixTextKey.RetryOrUseCachePrompt)
-                : HotfixText.Get(HotfixTextKey.RetryOrExitPrompt);
-
-            LogKit.E(error);
-            UIPanelRoot.Instance.CloseLoadingPanel();
-            UIPanelRoot.Instance.ShowMessageBox(
-                HotfixText.Get(HotfixTextKey.PackageDownloadFailedPrompt, packageName, GetFailureHint(error), error, fallbackText),
-                () =>
-                {
-                    decision = DownloadFailureDecision.Retry;
-                    hasDecision = true;
-                },
-                () =>
-                {
-                    decision = mTarget.CanUseLocalCacheFallback
-                        ? DownloadFailureDecision.UseLocalCache
-                        : DownloadFailureDecision.Exit;
-                    hasDecision = true;
-                },
-                true);
-
-            while (!hasDecision && !mTarget.IsDone)
-            {
-                yield return null;
-            }
-
-            onDecision?.Invoke(decision);
-        }
-
-        private IEnumerator TryUseLocalManifestFallback(string reason)
-        {
-            bool succeeded = false;
-            string error = string.Empty;
-            yield return mTarget.TryUseLocalManifestFallback(reason, (result, resultError) =>
-            {
-                succeeded = result;
-                error = resultError;
-            });
-
-            if (succeeded)
-            {
-                UIPanelRoot.Instance.CloseLoadingPanel();
-                mFSM.ChangeState(ResPackageStates.DownloadPackageOver);
-                yield break;
-            }
-
-            mTarget.SetFailed(HotfixText.Get(HotfixTextKey.LocalCacheStartupFailed, error));
-        }
-
-        private static string GetFailureHint(string error)
-        {
-            string lowerError = (error ?? string.Empty).ToLowerInvariant();
-            if (lowerError.Contains("404") || lowerError.Contains("not found"))
-            {
-                return HotfixText.Get(HotfixTextKey.BundleNotFoundHint);
-            }
-
-            if (lowerError.Contains("resolve") || lowerError.Contains("dns"))
-            {
-                return HotfixText.Get(HotfixTextKey.DnsResolveFailedHint);
-            }
-
-            if (lowerError.Contains("timeout") || lowerError.Contains("connect") || lowerError.Contains("unreachable"))
-            {
-                return HotfixText.Get(HotfixTextKey.ServerUnreachableHint);
-            }
-
-            if (lowerError.Contains("verify") || lowerError.Contains("crc") || lowerError.Contains("hash"))
-            {
-                return HotfixText.Get(HotfixTextKey.DownloadVerifyFailedHint);
-            }
-
-            return HotfixText.Get(HotfixTextKey.NetworkOrRemoteResourceErrorHint);
         }
 
         private ResourceDownloaderOperation CreateDownloader(string packageName, bool isRawFilePackage)

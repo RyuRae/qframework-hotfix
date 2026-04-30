@@ -113,11 +113,11 @@ namespace Framework.Procedure
             }
 
             var candidates = new List<string>();
-            AddVersionCandidate(candidates, preferredVersion);
-            AddVersionCandidate(candidates, GetLastUsablePackageVersion(package.PackageName));
+            HotfixUtility.AddVersionCandidate(candidates, preferredVersion);
+            HotfixUtility.AddVersionCandidate(candidates, GetLastUsablePackageVersion(package.PackageName));
             if (package.PackageValid)
             {
-                AddVersionCandidate(candidates, package.GetPackageVersion());
+                HotfixUtility.AddVersionCandidate(candidates, package.GetPackageVersion());
             }
 
             if (!YooAssetLocalManifestBridge.TryCreate(package, out var bridge, out var bridgeError))
@@ -221,18 +221,5 @@ namespace Framework.Procedure
             }
         }
 
-        private static void AddVersionCandidate(List<string> candidates, string packageVersion)
-        {
-            if (string.IsNullOrWhiteSpace(packageVersion))
-            {
-                return;
-            }
-
-            string normalizedVersion = packageVersion.Trim();
-            if (!candidates.Contains(normalizedVersion))
-            {
-                candidates.Add(normalizedVersion);
-            }
-        }
     }
 }

@@ -203,7 +203,7 @@ namespace Framework
 
         public bool TryValidateForPlayerBuild(bool allowDevelopmentEnvironment, out string error)
         {
-            return TryValidateForPlayerBuild(allowDevelopmentEnvironment, GetRuntimePlatformName(), out error);
+            return TryValidateForPlayerBuild(allowDevelopmentEnvironment, HotfixUtility.GetRuntimePlatformName(), out error);
         }
 
         public bool TryValidateForPlayerBuild(bool allowDevelopmentEnvironment, string platform, out string error)
@@ -275,7 +275,7 @@ namespace Framework
                 return false;
             }
 
-            string platform = GetRuntimePlatformName();
+            string platform = HotfixUtility.GetRuntimePlatformName();
             string channel = ResolveSelector(defaultChannel, channelOverrideKey, channelCommandLineKey);
             string region = ResolveSelector(defaultRegion, regionOverrideKey, regionCommandLineKey);
             string normalizedPackageName = string.IsNullOrWhiteSpace(packageName) ? "DefaultPackage" : packageName.Trim();
@@ -348,7 +348,7 @@ namespace Framework
                 return defaultEnvironment;
             }
 
-            string environmentName = GetCommandLineValue(environmentCommandLineKey);
+            string environmentName = HotfixUtility.GetCommandLineValue(environmentCommandLineKey);
             if (string.IsNullOrWhiteSpace(environmentName))
             {
                 environmentName = PlayerPrefs.GetString(environmentOverrideKey, string.Empty);
@@ -361,7 +361,7 @@ namespace Framework
 
         private string ResolveSelector(string defaultValue, string playerPrefsKey, string commandLineKey)
         {
-            string value = enableRuntimeOverride ? GetCommandLineValue(commandLineKey) : string.Empty;
+            string value = enableRuntimeOverride ? HotfixUtility.GetCommandLineValue(commandLineKey) : string.Empty;
             if (enableRuntimeOverride && string.IsNullOrWhiteSpace(value))
             {
                 value = PlayerPrefs.GetString(playerPrefsKey, string.Empty);
@@ -377,7 +377,7 @@ namespace Framework
                 return string.Empty;
             }
 
-            string value = GetCommandLineValue(commandLineKey);
+            string value = HotfixUtility.GetCommandLineValue(commandLineKey);
             if (string.IsNullOrWhiteSpace(value))
             {
                 value = PlayerPrefs.GetString(playerPrefsKey, string.Empty);
@@ -512,10 +512,13 @@ namespace Framework
             }
 
             string seed = $"{SystemInfo.deviceUniqueIdentifier}:{channel}:{region}:{config.GrayReleaseSalt}";
-            return ComputeStableHash(seed) % 100 < config.GrayReleasePercent;
+            return ComputeFnv1aHash(seed) % 100 < config.GrayReleasePercent;
         }
 
-        private static uint ComputeStableHash(string value)
+        /// <summary>
+        /// FNV-1a 哈希，用于灰度分流。不使用 string.GetHashCode() 以保证跨运行时稳定性。
+        /// </summary>
+        private static uint ComputeFnv1aHash(string value)
         {
             // 不使用 string.GetHashCode()，因为不同运行时实现可能导致同一设备灰度命中结果漂移。
             unchecked
@@ -533,43 +536,5 @@ namespace Framework
             }
         }
 
-        private static string GetRuntimePlatformName()
-        {
-#if UNITY_ANDROID
-            return "Android";
-#elif UNITY_IOS
-            return "iOS";
-#elif UNITY_WEBGL
-            return "WebGL";
-#elif UNITY_STANDALONE_WIN
-            return "Windows";
-#elif UNITY_STANDALONE_OSX
-            return "macOS";
-#elif UNITY_STANDALONE_LINUX
-            return "Linux";
-#else
-            return Application.platform.ToString();
-#endif
-        }
-
-        private static string GetCommandLineValue(string key)
-        {
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                return string.Empty;
-            }
-
-            string normalizedKey = $"--{key.Trim()}=";
-            var args = Environment.GetCommandLineArgs();
-            foreach (var arg in args)
-            {
-                if (arg.StartsWith(normalizedKey, StringComparison.OrdinalIgnoreCase))
-                {
-                    return arg.Substring(normalizedKey.Length).Trim();
-                }
-            }
-
-            return string.Empty;
-        }
     }
 }

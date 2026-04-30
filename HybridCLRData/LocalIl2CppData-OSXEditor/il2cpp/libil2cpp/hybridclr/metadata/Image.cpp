@@ -25,10 +25,23 @@
 #include "BlobReader.h"
 #include "MetadataPool.h"
 
+//!!!{{INCLUDE_RAW_IMAGE_HEADERS
+
+
+//!!!}}INCLUDE_RAW_IMAGE_HEADERS
+
 namespace hybridclr
 {
 namespace metadata
 {
+    LoadImageErrorCode Image::InitRawImage(const void* imageData, size_t length)
+    {
+        //!!!{{INIT_RAW_IMAGE
+		_rawImage = new RawImage();
+		return LoadImageErrorCode::OK;
+
+        //!!!}}INIT_RAW_IMAGE
+    }
 
     static const char* s_netstandardRefs[]
     {
@@ -534,12 +547,12 @@ namespace metadata
         SigType sigType = DecodeSigType(rawSigFlags);
         if (sigType == SigType::FIELD)
         {
-            signature.memberType = TableType::FIELD_POINTER;
+            signature.memberType = TableType::FIELDPTR;
             ReadFieldRefSig(reader, klassGenericContainer, signature.field);
         }
         else
         {
-            signature.memberType = TableType::METHOD_POINTER;
+            signature.memberType = TableType::METHODPTR;
             ReadMethodRefSig(reader, signature.method);
         }
     }
@@ -617,7 +630,7 @@ namespace metadata
         ResolveMemberRef rmr = {};
         ReadResolveMemberRefFromMemberRef(klassGenericContainer, methodGenericContainer, rowIndex, rmr);
         IL2CPP_ASSERT(rmr.parent.parentType == TableType::TYPEDEF || rmr.parent.parentType == TableType::TYPEREF || rmr.parent.parentType == TableType::TYPESPEC);
-        IL2CPP_ASSERT(rmr.signature.memberType == TableType::METHOD_POINTER);
+        IL2CPP_ASSERT(rmr.signature.memberType == TableType::METHODPTR);
         ret.containerType = rmr.parent.type;
         ret.methodDef = ResolveMethodDefinition(rmr.parent.type, rmr.name, rmr.signature.method);
     }
@@ -654,7 +667,7 @@ namespace metadata
         ResolveMemberRef rmr = {};
         ReadResolveMemberRefFromMemberRef(klassGenericContainer, methodGenericContainer, rowIndex, rmr);
         IL2CPP_ASSERT(rmr.parent.parentType == TableType::TYPEDEF || rmr.parent.parentType == TableType::TYPEREF || rmr.parent.parentType == TableType::TYPESPEC);
-        IL2CPP_ASSERT(rmr.signature.memberType == TableType::FIELD_POINTER);
+        IL2CPP_ASSERT(rmr.signature.memberType == TableType::FIELDPTR);
         ret.containerType = rmr.parent.type;
         ResolveFieldThrow(rmr.parent.type, rmr.name, rmr.signature.field.type, ret.field);
     }
@@ -853,26 +866,8 @@ namespace metadata
 
     const MethodInfo* Image::FindImplMethod(Il2CppClass* klass, const MethodInfo* method)
     {
-        if (!IsVirtualMethod(method->flags))
-        {
-            return method;
-        }
         il2cpp::vm::Class::Init(klass);
-        const MethodInfo* result;
-        if (hybridclr::metadata::IsInterface(method->klass->flags))
-        {
-            result = il2cpp::vm::ClassInlines::GetInterfaceInvokeDataFromVTable(klass, method->klass, method->slot)->method;
-        }
-        else
-        {
-            result = klass->vtable[method->slot].method;
-        }
-        IL2CPP_ASSERT(!method->genericMethod || method->is_inflated);
-        if (method->genericMethod && method->genericMethod->context.method_inst/* && method->genericMethod*/) // means it's genericInstance method 或generic method
-        {
-            result = GetGenericVirtualMethod(result, method);
-        }
-        return result;
+        return il2cpp::vm::Class::GetVirtualMethod(klass, method);
     }
 
 
@@ -898,7 +893,7 @@ namespace metadata
 
     Il2CppClass* Image::GetClassFromToken(Token2RuntimeHandleMap& tokenCache, uint32_t token, const Il2CppGenericContainer* klassGenericContainer, const Il2CppGenericContainer* methodGenericContainer, const Il2CppGenericContext* genericContext)
     {
-        TokenGenericContextType key = { token, genericContext };
+        TokenGenericContextType key(token, genericContext);
         auto it = tokenCache.find(key);
         if (it != tokenCache.end())
         {
@@ -977,7 +972,7 @@ namespace metadata
     {
         ResolveMemberRef rmr = {};
         ReadResolveMemberRefFromMemberRef(klassGenericContainer, methodGenericContainer, rowIndex, rmr);
-        if (rmr.signature.memberType == TableType::FIELD_POINTER)
+        if (rmr.signature.memberType == TableType::FIELDPTR)
         {
             const Il2CppFieldDefinition* fieldDef = nullptr;
             ResolveFieldThrow(rmr.parent.type, rmr.name, rmr.signature.field.type, fieldDef);
@@ -989,7 +984,7 @@ namespace metadata
             const FieldInfo* fieldInfo = GetFieldInfoFromFieldRef(*parentType, fieldDef);
             return fieldInfo;
         }
-        else if (rmr.signature.memberType == TableType::METHOD_POINTER)
+        else if (rmr.signature.memberType == TableType::METHODPTR)
         {
             const Il2CppType* parentType = genericContext != nullptr ? il2cpp::metadata::GenericMetadata::InflateIfNeeded(rmr.parent.type, genericContext, true) : rmr.parent.type;
             return ResolveMethodInfo(parentType, rmr.name, rmr.signature.method, nullptr, genericContext);
@@ -1048,7 +1043,7 @@ namespace metadata
 
     const FieldInfo* Image::GetFieldInfoFromToken(Token2RuntimeHandleMap& tokenCache, uint32_t token, const Il2CppGenericContainer* klassGenericContainer, const Il2CppGenericContainer* methodGenericContainer, const Il2CppGenericContext* genericContext)
     {
-        TokenGenericContextType key = { token, genericContext };
+        TokenGenericContextType key(token, genericContext);
         auto it = tokenCache.find(key);
         if (it != tokenCache.end())
         {
@@ -1088,7 +1083,7 @@ namespace metadata
             ResolveMemberRef rmr = {};
             ReadResolveMemberRefFromMemberRef(klassGenericContainer, methodGenericContainer, rowIndex, rmr);
             IL2CPP_ASSERT(rmr.parent.parentType == TableType::TYPEDEF || rmr.parent.parentType == TableType::TYPEREF || rmr.parent.parentType == TableType::TYPESPEC);
-            IL2CPP_ASSERT(rmr.signature.memberType == TableType::METHOD_POINTER);
+            IL2CPP_ASSERT(rmr.signature.memberType == TableType::METHODPTR);
             if (genericContext)
             {
                 rmr.parent.type = TryInflateIfNeed(rmr.parent.type, genericContext, true);

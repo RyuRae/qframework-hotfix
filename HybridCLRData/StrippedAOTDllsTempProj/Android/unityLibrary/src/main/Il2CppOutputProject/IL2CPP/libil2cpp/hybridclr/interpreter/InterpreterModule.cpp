@@ -84,6 +84,8 @@ namespace interpreter
 		}
 	}
 
+    constexpr int32_t kMaxSignatureNameLength = 1024 * 4;
+
 	Il2CppMethodPointer InterpreterModule::GetReversePInvokeWrapper(const Il2CppImage* image, const MethodInfo* method, Il2CppCallConvention callConvention)
 	{
 		if (!hybridclr::metadata::IsStaticMethod(method))
@@ -100,7 +102,7 @@ namespace interpreter
 			}
 		}
 
-		char sigName[1000];
+		char sigName[kMaxSignatureNameLength];
 		sigName[0] = 'A' + callConvention;
 		ComputeSignature(method, false, sigName + 1, sizeof(sigName) - 2);
 
@@ -215,14 +217,14 @@ namespace interpreter
 
 	static void* NotSupportInvoke(Il2CppMethodPointer, const MethodInfo* method, void*, void**)
 	{
-		char sigName[1000];
+		char sigName[kMaxSignatureNameLength];
 		ComputeSignature(method, true, sigName, sizeof(sigName) - 1);
 		TEMP_FORMAT(errMsg, "Invoke method missing. sinature:%s %s.%s::%s", sigName, method->klass->namespaze, method->klass->name, method->name);
 		il2cpp::vm::Exception::Raise(il2cpp::vm::Exception::GetExecutionEngineException(errMsg));
 		return nullptr;
 	}
 
-	static void NotSupportManaged2NativeFunctionMethod(const void* methodPointer, uint16_t* argVarIndexs, StackObject* localVarBase, void* ret)
+	static void NotSupportManaged2NativeFunctionMethod(Il2CppMethodPointer methodPointer, uint16_t* argVarIndexs, StackObject* localVarBase, void* ret)
 	{
 		il2cpp::vm::Exception::Raise(il2cpp::vm::Exception::GetExecutionEngineException("NotSupportManaged2NativeFunctionMethod"));
 	}
@@ -230,7 +232,7 @@ namespace interpreter
 	template<typename T>
 	const Managed2NativeCallMethod GetManaged2NativeMethod(const T* method, bool forceStatic)
 	{
-		char sigName[1000];
+		char sigName[kMaxSignatureNameLength];
 		ComputeSignature(method, !forceStatic, sigName, sizeof(sigName) - 1);
 		auto it = s_managed2natives.find(sigName);
 		return it != s_managed2natives.end() ? it->second : nullptr;
@@ -239,7 +241,7 @@ namespace interpreter
 	template<typename T>
 	const Il2CppMethodPointer GetNative2ManagedMethod(const T* method, bool forceStatic)
 	{
-		char sigName[1000];
+		char sigName[kMaxSignatureNameLength];
 		ComputeSignature(method, !forceStatic, sigName, sizeof(sigName) - 1);
 		auto it = s_native2manageds.find(sigName);
 		return it != s_native2manageds.end() ? it->second : InterpreterModule::NotSupportNative2Managed;
@@ -248,7 +250,7 @@ namespace interpreter
 	template<typename T>
 	const Il2CppMethodPointer GetNativeAdjustMethodMethod(const T* method, bool forceStatic)
 	{
-		char sigName[1000];
+		char sigName[kMaxSignatureNameLength];
 		ComputeSignature(method, !forceStatic, sigName, sizeof(sigName) - 1);
 		auto it = s_adjustThunks.find(sigName);
 		return it != s_adjustThunks.end() ? it->second : InterpreterModule::NotSupportAdjustorThunk;
@@ -298,7 +300,7 @@ namespace interpreter
 		}
 		if (method->invoker_method == nullptr)
 		{
-			char sigName[1000];
+			char sigName[kMaxSignatureNameLength];
 			ComputeSignature(method, true, sigName, sizeof(sigName) - 1);
 
 			TEMP_FORMAT(errMsg, "GetManaged2NativeMethodPointer. sinature:%s not support.", sigName);
@@ -371,7 +373,7 @@ namespace interpreter
 		{
 			return Managed2NativeCallByReflectionInvoke;
 		}
-		char sigName[1000];
+		char sigName[kMaxSignatureNameLength];
 		ComputeSignature(method, !forceStatic, sigName, sizeof(sigName) - 1);
 		auto it = s_managed2natives.find(sigName);
 		return it != s_managed2natives.end() ? it->second : Managed2NativeCallByReflectionInvoke;
@@ -379,16 +381,25 @@ namespace interpreter
 
 	Managed2NativeCallMethod InterpreterModule::GetManaged2NativeMethodPointer(const metadata::ResolveStandAloneMethodSig& method)
 	{
-		char sigName[1000];
+		char sigName[kMaxSignatureNameLength];
 		ComputeSignature(method.returnType, method.params, metadata::IsPrologHasThis(method.flags), sigName, sizeof(sigName) - 1);
 		auto it = s_managed2natives.find(sigName);
 		return it != s_managed2natives.end() ? it->second : Managed2NativeCallByReflectionInvoke;
 	}
 
+	Managed2NativeFunctionPointerCallMethod InterpreterModule::GetManaged2NativeFunctionPointerMethodPointer(const MethodInfo* method, Il2CppCallConvention callConvention)
+	{
+		char sigName[kMaxSignatureNameLength];
+		sigName[0] = 'A' + callConvention;
+		ComputeSignature(method, false, sigName + 1, sizeof(sigName) - 1);
+		auto it = s_managed2nativeFunctionPointers.find(sigName);
+		return it != s_managed2nativeFunctionPointers.end() ? it->second : NotSupportManaged2NativeFunctionMethod;
+	}
+
 	Managed2NativeFunctionPointerCallMethod InterpreterModule::GetManaged2NativeFunctionPointerMethodPointer(const metadata::ResolveStandAloneMethodSig& method)
 	{
 		int32_t callConvention = method.flags & 0x7;
-		char sigName[1000];
+		char sigName[kMaxSignatureNameLength];
 		sigName[0] = 'A' + callConvention;
 		ComputeSignature(method.returnType, method.params, metadata::IsPrologHasThis(method.flags), sigName + 1, sizeof(sigName) - 1);
 		auto it = s_managed2nativeFunctionPointers.find(sigName);
@@ -437,6 +448,7 @@ namespace interpreter
 		else
 		{
 			firstSubDel = (Il2CppDelegate**)&del;
+			firstSubDel[0] = &del->delegate;
 			subDelCount = 1;
 		}
 
@@ -479,7 +491,7 @@ namespace interpreter
 			}
 			case 1:
 			{
-				IL2CPP_ASSERT(hybridclr::metadata::IsInstanceMethod(curMethod) && curMethod->parameters_count);
+				IL2CPP_ASSERT(hybridclr::metadata::IsInstanceMethod(curMethod));
 				curTarget = (Il2CppObject*)__args[0];
 				if (!curTarget)
 				{
@@ -538,6 +550,7 @@ namespace interpreter
 		else
 		{
 			firstSubDel = (Il2CppDelegate**)&del;
+			firstSubDel[0] = &del->delegate;
 			subDelCount = 1;
 		}
 		void* ret = nullptr;
@@ -580,7 +593,7 @@ namespace interpreter
 			}
 			case 1:
 			{
-				IL2CPP_ASSERT(hybridclr::metadata::IsInstanceMethod(curMethod) && curMethod->parameters_count);
+				IL2CPP_ASSERT(hybridclr::metadata::IsInstanceMethod(curMethod));
 				curTarget = (Il2CppObject*)__args[0];
 				if (!curTarget)
 				{
@@ -621,7 +634,6 @@ namespace interpreter
 
 	InterpMethodInfo* InterpreterModule::GetInterpMethodInfo(const MethodInfo* methodInfo)
 	{
-		RuntimeInitClassCCtor(methodInfo);
 		il2cpp::os::FastAutoLock lock(&il2cpp::vm::g_MetadataLock);
 
 		if (methodInfo->interpData)
@@ -630,6 +642,7 @@ namespace interpreter
 		}
 		IL2CPP_ASSERT(methodInfo->isInterpterImpl);
 
+		il2cpp::vm::Class::Init(methodInfo->klass);
 		InterpMethodInfo* imi = transform::HiTransform::Transform(methodInfo);
 		il2cpp::os::Atomic::FullMemoryBarrier();
 		const_cast<MethodInfo*>(methodInfo)->interpData = imi;

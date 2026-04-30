@@ -202,7 +202,7 @@ namespace Framework
         {
             if (enableRuntimeOverride)
             {
-                string languageName = GetCommandLineValue(languageCommandLineKey);
+                string languageName = HotfixUtility.GetCommandLineValue(languageCommandLineKey);
                 if (string.IsNullOrWhiteSpace(languageName))
                 {
                     languageName = PlayerPrefs.GetString(languageOverrideKey, string.Empty);
@@ -229,25 +229,6 @@ namespace Framework
                 : HotfixLanguage.English;
         }
 
-        private static string GetCommandLineValue(string key)
-        {
-            if (string.IsNullOrWhiteSpace(key))
-            {
-                return string.Empty;
-            }
-
-            string normalizedKey = $"--{key.Trim()}=";
-            var args = Environment.GetCommandLineArgs();
-            foreach (var arg in args)
-            {
-                if (arg.StartsWith(normalizedKey, StringComparison.OrdinalIgnoreCase))
-                {
-                    return arg.Substring(normalizedKey.Length).Trim();
-                }
-            }
-
-            return string.Empty;
-        }
     }
 
     public static class HotfixText

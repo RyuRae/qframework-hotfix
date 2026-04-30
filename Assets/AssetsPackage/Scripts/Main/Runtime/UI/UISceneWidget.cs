@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 using System;
 using UnityEngine.EventSystems;
@@ -11,7 +11,6 @@ namespace Framework.UI
     /// </summary>
     public class UISceneWidget : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IDropHandler, ISelectHandler, IPointerClickHandler, IPointerEnterHandler
     {
-        DateTime OnClickTime;
         [Tooltip("单击的冷却时间")]
         [SerializeField]
         private float Throughtime = 0.5f;
@@ -21,13 +20,6 @@ namespace Framework.UI
         [Tooltip("双击的最大事件间隔")]
         [SerializeField]
         private float DoubleClickThreshold = 0.25f;
-        /// - OnHover (isOver) 悬停，悬停时传入true，移出时传入false
-        //public delegate void onMouseHover(UISceneWidget eventObj, bool isOver);
-        //public onMouseHover OnMouseHover = null;
-        //void OnHover(bool isOver)
-        //{
-        //    if (OnMouseHover != null) OnMouseHover(this, isOver);
-        //}
         /// - OnPress （isDown）按下时传入true，抬起时传入false
         public delegate void onMousePress(UISceneWidget eventObj, bool isDown);
         public onMousePress OnMousePress = null;
@@ -84,13 +76,6 @@ namespace Framework.UI
                 return;
             }
 
-            //Debug.Log(DateTime.UtcNow);
-            //if (Throughtime > (float)(DateTime.UtcNow - OnClickTime).TotalSeconds)
-            //{
-            //    return;
-            //}
-            //OnClickTime = DateTime.UtcNow;
-            //if (Input.GetMouseButtonUp(0) && OnMouseClick != null) OnMouseClick(this);
             //单击处理
             if (currTime >= _nextAllowedClickTime)
             {

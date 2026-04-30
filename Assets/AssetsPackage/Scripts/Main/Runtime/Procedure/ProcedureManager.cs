@@ -25,8 +25,6 @@ namespace Framework.Procedure
 
     public class ProcedureManager : GameAsyncOperation
     {
-        public const string DefaultEntrySceneAddress = "main";
-
         public readonly string _packageName;
         public readonly string _rawfilwPkgName;
         public readonly EPlayMode _playMode;
@@ -45,7 +43,7 @@ namespace Framework.Procedure
         private bool _useLocalManifestFallback;
         private IUnRegister _downloadCancelRequestUnregister;
 
-        public string EntrySceneAddress { get; private set; } = DefaultEntrySceneAddress;
+        public string EntrySceneAddress { get; private set; } = HotfixUtility.DefaultEntrySceneAddress;
         public string EntryTypeName { get; private set; } = string.Empty;
         public string EntryMethodName { get; private set; } = string.Empty;
         public HotfixAssemblyLoadContext AssemblyLoadContext { get; } = new HotfixAssemblyLoadContext();
@@ -67,15 +65,15 @@ namespace Framework.Procedure
             string[] rawfileDownloadTags = null,
             string rawfilePackageName = null)
         {
-            _packageName = NormalizePackageName(packageName, HotfixRuntimeSettings.DefaultMainPackageName);
+            _packageName = HotfixUtility.NormalizePackageName(packageName, HotfixRuntimeSettings.DefaultMainPackageName);
             _playMode = playMode;
             _isIncludeRawFile = IsIncludeRawFile;
             _startupDownloadMode = startupDownloadMode;
             _startupUpdatePolicy = startupUpdatePolicy;
             _startupPackageMode = startupPackageMode;
-            _downloadTags = NormalizeTags(downloadTags);
-            _rawfileDownloadTags = NormalizeTags(rawfileDownloadTags);
-            _rawfilwPkgName = NormalizePackageName(rawfilePackageName, HotfixRuntimeSettings.DefaultRawFilePackageName);
+            _downloadTags = HotfixUtility.NormalizeTags(downloadTags);
+            _rawfileDownloadTags = HotfixUtility.NormalizeTags(rawfileDownloadTags);
+            _rawfilwPkgName = HotfixUtility.NormalizePackageName(rawfilePackageName, HotfixRuntimeSettings.DefaultRawFilePackageName);
 
             _mFSM.AddState(ResPackageStates.InitializePackage, new ProcedureInitializePackage(_mFSM, this));
             _mFSM.AddState(ResPackageStates.LoadAOTMetadata, new ProcedureLoadAOTMetadata(_mFSM, this));
@@ -280,40 +278,9 @@ namespace Framework.Procedure
 
         public void SetHotfixEntry(string sceneAddress, string typeName, string methodName)
         {
-            EntrySceneAddress = string.IsNullOrWhiteSpace(sceneAddress) ? DefaultEntrySceneAddress : sceneAddress;
+            EntrySceneAddress = string.IsNullOrWhiteSpace(sceneAddress) ? HotfixUtility.DefaultEntrySceneAddress : sceneAddress;
             EntryTypeName = typeName ?? string.Empty;
             EntryMethodName = methodName ?? string.Empty;
-        }
-
-        private static string[] NormalizeTags(string[] tags)
-        {
-            if (tags == null || tags.Length == 0)
-            {
-                return Array.Empty<string>();
-            }
-
-            var results = new List<string>();
-            var exists = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var tag in tags)
-            {
-                if (string.IsNullOrWhiteSpace(tag))
-                {
-                    continue;
-                }
-
-                var normalizedTag = tag.Trim();
-                if (exists.Add(normalizedTag))
-                {
-                    results.Add(normalizedTag);
-                }
-            }
-
-            return results.ToArray();
-        }
-
-        private static string NormalizePackageName(string packageName, string fallback)
-        {
-            return string.IsNullOrWhiteSpace(packageName) ? fallback : packageName.Trim();
         }
 
         private void RegisterDownloadControlEvents()

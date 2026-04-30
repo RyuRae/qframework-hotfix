@@ -9,15 +9,11 @@ namespace Framework.Procedure
 {
     public class ProcedureInitializePackage : AbstractState<ResPackageStates, ProcedureManager>
     {
-        private readonly ProcedureManager manager;
-        private readonly FSM<ResPackageStates> fsm;
         private ResourcePackage rawFilePackage;
         private InitializationOperation initRawFileOperation;
 
         public ProcedureInitializePackage(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)
         {
-            this.fsm = fsm;
-            this.manager = manager;
         }
 
         protected override bool OnCondition()
@@ -33,42 +29,42 @@ namespace Framework.Procedure
 
         private IEnumerator InitPackage()
         {
-            var playMode = manager._playMode;
-            if (manager._startupPackageMode == StartupPackageMode.EmptyPackage &&
+            var playMode = mTarget._playMode;
+            if (mTarget._startupPackageMode == StartupPackageMode.EmptyPackage &&
                 playMode == EPlayMode.OfflinePlayMode)
             {
-                manager.SetFailed("Startup package mode EmptyPackage requires HostPlayMode or WebPlayMode so the client can request the remote package version and manifest before downloading AOT metadata, hotfix DLLs, and entry resources.");
+                mTarget.SetFailed("Startup package mode EmptyPackage requires HostPlayMode or WebPlayMode so the client can request the remote package version and manifest before downloading AOT metadata, hotfix DLLs, and entry resources.");
                 yield break;
             }
 
-            if (manager._startupPackageMode == StartupPackageMode.OfflinePackage &&
+            if (mTarget._startupPackageMode == StartupPackageMode.OfflinePackage &&
                 playMode != EPlayMode.OfflinePlayMode)
             {
-                manager.SetFailed($"Startup package mode OfflinePackage requires OfflinePlayMode, current play mode is {playMode}.");
+                mTarget.SetFailed($"Startup package mode OfflinePackage requires OfflinePlayMode, current play mode is {playMode}.");
                 yield break;
             }
 
-            var package = YooAssets.TryGetPackage(manager._packageName) ?? YooAssets.CreatePackage(manager._packageName);
+            var package = YooAssets.TryGetPackage(mTarget._packageName) ?? YooAssets.CreatePackage(mTarget._packageName);
             YooAssets.SetDefaultPackage(package);
 
-            if (manager._isIncludeRawFile)
+            if (mTarget._isIncludeRawFile)
             {
-                rawFilePackage = YooAssets.TryGetPackage(manager._rawfilwPkgName) ?? YooAssets.CreatePackage(manager._rawfilwPkgName);
+                rawFilePackage = YooAssets.TryGetPackage(mTarget._rawfilwPkgName) ?? YooAssets.CreatePackage(mTarget._rawfilwPkgName);
             }
 
             InitializationOperation initializationOperation = null;
             if (playMode == EPlayMode.EditorSimulateMode)
             {
-                initializationOperation = InitEditorSimulatePackage(package, manager._packageName);
-                if (manager._isIncludeRawFile)
+                initializationOperation = InitEditorSimulatePackage(package, mTarget._packageName);
+                if (mTarget._isIncludeRawFile)
                 {
-                    initRawFileOperation = InitEditorSimulatePackage(rawFilePackage, manager._rawfilwPkgName);
+                    initRawFileOperation = InitEditorSimulatePackage(rawFilePackage, mTarget._rawfilwPkgName);
                 }
             }
             else if (playMode == EPlayMode.OfflinePlayMode)
             {
                 initializationOperation = InitOfflinePackage(package);
-                if (manager._isIncludeRawFile)
+                if (mTarget._isIncludeRawFile)
                 {
                     initRawFileOperation = InitOfflinePackage(rawFilePackage);
                 }
@@ -76,16 +72,16 @@ namespace Framework.Procedure
             else if (playMode == EPlayMode.HostPlayMode)
             {
                 // Host/Web 模式需要远端服务。主包和 RawFile 包分别解析，避免不同包名目录被拼错。
-                if (!TryCreateRemoteServices(manager._packageName, out var remoteServices, out var error))
+                if (!TryCreateRemoteServices(mTarget._packageName, out var remoteServices, out var error))
                 {
                     FailRemoteConfig(error);
                     yield break;
                 }
 
                 initializationOperation = InitHostPackage(package, remoteServices);
-                if (manager._isIncludeRawFile)
+                if (mTarget._isIncludeRawFile)
                 {
-                    if (!TryCreateRemoteServices(manager._rawfilwPkgName, out var rawFileRemoteServices, out error))
+                    if (!TryCreateRemoteServices(mTarget._rawfilwPkgName, out var rawFileRemoteServices, out error))
                     {
                         FailRemoteConfig(error);
                         yield break;
@@ -97,16 +93,16 @@ namespace Framework.Procedure
             else if (playMode == EPlayMode.WebPlayMode)
             {
                 // WebGL 场景也复用同一份远端配置，保证各平台 CDN 地址规则一致。
-                if (!TryCreateRemoteServices(manager._packageName, out var remoteServices, out var error))
+                if (!TryCreateRemoteServices(mTarget._packageName, out var remoteServices, out var error))
                 {
                     FailRemoteConfig(error);
                     yield break;
                 }
 
                 initializationOperation = InitWebPackage(package, remoteServices);
-                if (manager._isIncludeRawFile)
+                if (mTarget._isIncludeRawFile)
                 {
-                    if (!TryCreateRemoteServices(manager._rawfilwPkgName, out var rawFileRemoteServices, out error))
+                    if (!TryCreateRemoteServices(mTarget._rawfilwPkgName, out var rawFileRemoteServices, out error))
                     {
                         FailRemoteConfig(error);
                         yield break;
@@ -118,12 +114,12 @@ namespace Framework.Procedure
 
             if (initializationOperation == null)
             {
-                manager.SetFailed($"Unsupported YooAsset play mode: {playMode}");
+                mTarget.SetFailed($"Unsupported YooAsset play mode: {playMode}");
                 yield break;
             }
 
             yield return initializationOperation;
-            if (manager._isIncludeRawFile)
+            if (mTarget._isIncludeRawFile)
             {
                 yield return initRawFileOperation;
             }
@@ -132,20 +128,20 @@ namespace Framework.Procedure
             {
                 Debug.LogWarning(initializationOperation.Error);
                 UIPanelRoot.Instance.ShowMessage(HotfixText.Get(HotfixTextKey.ResourcePackageInitializeFailed));
-                manager.SetFailed(initializationOperation.Error);
+                mTarget.SetFailed(initializationOperation.Error);
                 yield break;
             }
 
-            if (manager._isIncludeRawFile && initRawFileOperation.Status != EOperationStatus.Succeed)
+            if (mTarget._isIncludeRawFile && initRawFileOperation.Status != EOperationStatus.Succeed)
             {
                 Debug.LogWarning(initRawFileOperation.Error);
                 UIPanelRoot.Instance.ShowMessage(HotfixText.Get(HotfixTextKey.RawFilePackageInitializeFailed));
-                manager.SetFailed(initRawFileOperation.Error);
+                mTarget.SetFailed(initRawFileOperation.Error);
                 yield break;
             }
 
             Debug.Log(HotfixText.Get(HotfixTextKey.ResourcePackageInitializeSucceed));
-            fsm.ChangeState(ResPackageStates.RequestPackageVersion);
+            mFSM.ChangeState(ResPackageStates.RequestPackageVersion);
         }
 
         protected override void OnExit()
@@ -227,7 +223,7 @@ namespace Framework.Procedure
         {
             Debug.LogError(error);
             UIPanelRoot.Instance.ShowMessage(error);
-            manager.SetFailed(error);
+            mTarget.SetFailed(error);
         }
 
         private class RemoteServices : IRemoteServices
@@ -256,24 +252,5 @@ namespace Framework.Procedure
             }
         }
 
-        private class WebDecryption : IWebDecryptionServices
-        {
-            public const byte KEY = 64;
-
-            public WebDecryptResult LoadAssetBundle(WebDecryptFileInfo fileInfo)
-            {
-                byte[] copyData = new byte[fileInfo.FileData.Length];
-                Buffer.BlockCopy(fileInfo.FileData, 0, copyData, 0, fileInfo.FileData.Length);
-                for (int i = 0; i < copyData.Length; i++)
-                {
-                    copyData[i] ^= KEY;
-                }
-
-                return new WebDecryptResult
-                {
-                    Result = AssetBundle.LoadFromMemory(copyData)
-                };
-            }
-        }
     }
 }

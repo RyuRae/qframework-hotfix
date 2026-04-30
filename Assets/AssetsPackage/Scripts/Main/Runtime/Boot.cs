@@ -15,9 +15,6 @@ namespace Framework
         [SerializeField]
         private int targetFrame = 45;
 
-        [SerializeField]
-        private Camera mCamera;
-
         void Awake()
         {
             Application.targetFrameRate = targetFrame;//设置目标帧率

@@ -111,7 +111,7 @@ namespace metadata
 		aname.flags = data.flags;
 		aname.public_key = _rawImage->GetBlobFromRawIndex(data.publicKey);
 		aname.name = _rawImage->GetStringFromRawIndex(data.name);
-		aname.culture = _rawImage->GetStringFromRawIndex(data.culture);
+		aname.culture = _rawImage->GetStringFromRawIndex(data.locale);
 	}
 
 	void InterpreterImage::BuildIl2CppImage(Il2CppImage* image2)
@@ -167,6 +167,8 @@ namespace metadata
 		InitMethodSemantics();
 		InitConsts();
 		InitCustomAttributes();
+		InitModuleRefs();
+		InitImplMaps();
 		InitClassLayouts0();
 		InitTypeDefs_2();
 		InitClassLayouts();
@@ -1361,6 +1363,34 @@ namespace metadata
 	}
 #endif
 
+	void InterpreterImage::InitModuleRefs()
+	{
+		const Table& moduleRefTb = _rawImage->GetTable(TableType::MODULEREF);
+		_moduleRefs.reserve(moduleRefTb.rowNum);
+		for (uint32_t rid = 1; rid <= moduleRefTb.rowNum; rid++)
+		{
+			TbModuleRef moduleRef = _rawImage->ReadModuleRef(rid);
+			const char* moduleName = _rawImage->GetStringFromRawIndex(moduleRef.name);
+			_moduleRefs.push_back(moduleName);
+		}
+	}
+
+	void InterpreterImage::InitImplMaps()
+	{
+		const Table& implMapTb = _rawImage->GetTable(TableType::IMPLMAP);
+		_implMapInfos.reserve(implMapTb.rowNum);
+		for (uint32_t rid = 1; rid <= implMapTb.rowNum; rid++)
+		{
+			TbImplMap implMap = _rawImage->ReadImplMap(rid);
+			ImplMapInfo info = {};
+			info.moduleName = _moduleRefs[DecodeTokenRowIndex(implMap.importScope) - 1];
+			info.importName = _rawImage->GetStringFromRawIndex(implMap.importName);
+			info.mappingFlags = implMap.mappingFlags;
+			uint32_t memberForwardedToken = hybridclr::metadata::ConvertMemberForwardedToken2Token(implMap.memberForwarded);
+			_implMapInfos.insert({ memberForwardedToken, info });
+		}
+	}
+
 	void InterpreterImage::InitMethodDefs0()
 	{
 		const Table& typeDefTb = _rawImage->GetTable(TableType::TYPEDEF);
@@ -1457,6 +1487,11 @@ namespace metadata
 				uint32_t actualParamCount = (uint32_t)_params.size() - actualParamStart;
 				md.parameterStart = actualParamStart;
 				md.parameterCount = actualParamCount;
+				if (md.parameterCount >= 256)
+				{
+					TEMP_FORMAT(errMsg, "method:%s.%s parameter count:%d is too large", _rawImage->GetStringFromRawIndex(DecodeMetadataIndex(typeDef.nameIndex)), methodName, md.parameterCount);
+                    RaiseExecutionEngineException(errMsg);
+				}
 				for (uint32_t paramRowIndex = namedParamStart + 1; paramRowIndex <= namedParamStart + namedParamCount; paramRowIndex++)
 				{
 					TbParam data = _rawImage->ReadParam(paramRowIndex);

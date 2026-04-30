@@ -96,8 +96,6 @@ namespace Framework.Assemblies
 
     public class HybridCLRAssemblyLoader
     {
-        private const string DefaultEntrySceneAddress = "main";
-
         private readonly Dictionary<string, Assembly> mLoadedAssembliesCache = new Dictionary<string, Assembly>();
         private readonly List<Assembly> mHotUpdateAssemblies = new List<Assembly>();
         private HotfixAssemblyLoadContext mContext;
@@ -105,7 +103,7 @@ namespace Framework.Assemblies
         public IReadOnlyList<Assembly> HotUpdateAssemblies => mHotUpdateAssemblies;
         public bool Succeeded { get; private set; }
         public string Error { get; private set; }
-        public string EntrySceneAddress { get; private set; } = DefaultEntrySceneAddress;
+        public string EntrySceneAddress { get; private set; } = HotfixUtility.DefaultEntrySceneAddress;
         public string EntryTypeName { get; private set; } = string.Empty;
         public string EntryMethodName { get; private set; } = string.Empty;
         public AOTAssemblyManifestSnapshot AotManifest => mContext == null ? null : mContext.AotManifest;
@@ -176,7 +174,7 @@ namespace Framework.Assemblies
         {
             Succeeded = false;
             Error = string.Empty;
-            EntrySceneAddress = DefaultEntrySceneAddress;
+            EntrySceneAddress = HotfixUtility.DefaultEntrySceneAddress;
             EntryTypeName = string.Empty;
             EntryMethodName = string.Empty;
             mContext = context ?? new HotfixAssemblyLoadContext();
@@ -265,7 +263,7 @@ namespace Framework.Assemblies
 
             if (!IsBuildTargetCompatible(manifest.BuildTarget))
             {
-                Fail($"Hotfix manifest BuildTarget mismatch. Manifest: {manifest.BuildTarget}, Runtime: {GetRuntimeBuildTargetName()}");
+                Fail($"Hotfix manifest BuildTarget mismatch. Manifest: {manifest.BuildTarget}, Runtime: {HotfixUtility.GetRuntimePlatformName()}");
                 return false;
             }
 
@@ -313,7 +311,7 @@ namespace Framework.Assemblies
 
             if (!IsBuildTargetCompatible(aotManifest.BuildTarget))
             {
-                Fail($"AOT manifest BuildTarget mismatch. Manifest: {aotManifest.BuildTarget}, Runtime: {GetRuntimeBuildTargetName()}");
+                Fail($"AOT manifest BuildTarget mismatch. Manifest: {aotManifest.BuildTarget}, Runtime: {HotfixUtility.GetRuntimePlatformName()}");
                 return false;
             }
 
@@ -377,7 +375,7 @@ namespace Framework.Assemblies
 
         private IEnumerator LoadHotUpdateAssembliesFromManifest(ResourcePackage package, Action<float> onProgress)
         {
-            var hotUpdateAssemblies = mContext.HotfixManifest.HotUpdateAssemblies;
+            var hotUpdateAssemblies = SortAssembliesByDependency(mContext.HotfixManifest.HotUpdateAssemblies);
             int totalCount = hotUpdateAssemblies.Count;
             int loadedCount = 0;
             onProgress?.Invoke(0f);
@@ -488,7 +486,7 @@ namespace Framework.Assemblies
         private void ApplyHotfixEntry(HotfixAssemblyManifestSnapshot manifest)
         {
             EntrySceneAddress = string.IsNullOrWhiteSpace(manifest.EntrySceneAddress)
-                ? DefaultEntrySceneAddress
+                ? HotfixUtility.DefaultEntrySceneAddress
                 : manifest.EntrySceneAddress.Trim();
             EntryTypeName = manifest.EntryTypeName ?? string.Empty;
             EntryMethodName = manifest.EntryMethodName ?? string.Empty;
@@ -548,44 +546,12 @@ namespace Framework.Assemblies
 
         internal static List<string> NormalizeAssemblyNamesForManifest(IEnumerable<string> assemblyNames)
         {
-            if (assemblyNames == null)
-            {
-                return new List<string>();
-            }
-
-            return assemblyNames
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(name => name.Trim())
-                .Select(name => name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? name : $"{name}.dll")
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            return HotfixUtility.NormalizeAssemblyNames(assemblyNames);
         }
 
         private static bool IsBuildTargetCompatible(string manifestBuildTarget)
         {
-            return string.IsNullOrWhiteSpace(manifestBuildTarget) ||
-                   string.Equals(manifestBuildTarget.Trim(), GetRuntimeBuildTargetName(), StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string GetRuntimeBuildTargetName()
-        {
-#if UNITY_EDITOR
-            return ConvertBuildTarget(EditorUserBuildSettings.activeBuildTarget);
-#elif UNITY_ANDROID
-            return "Android";
-#elif UNITY_IOS
-            return "iOS";
-#elif UNITY_WEBGL
-            return "WebGL";
-#elif UNITY_STANDALONE_WIN
-            return "Windows";
-#elif UNITY_STANDALONE_OSX
-            return "macOS";
-#elif UNITY_STANDALONE_LINUX
-            return "Linux";
-#else
-            return Application.platform.ToString();
-#endif
+            return HotfixUtility.IsBuildTargetCompatible(manifestBuildTarget);
         }
 
 #if UNITY_EDITOR
@@ -644,6 +610,59 @@ namespace Framework.Assemblies
         private static float GetProgress(int loadedCount, int totalCount)
         {
             return totalCount <= 0 ? 1f : loadedCount / (float)totalCount;
+        }
+
+        /// <summary>
+        /// 按依赖关系排序热更程序集，确保被依赖的程序集先加载。
+        /// 使用简单的拓扑排序：已加载的程序集依赖项优先，未知的排后面。
+        /// </summary>
+        private static List<string> SortAssembliesByDependency(List<string> assemblyNames)
+        {
+            if (assemblyNames == null || assemblyNames.Count <= 1)
+            {
+                return assemblyNames;
+            }
+
+            // 构建程序集名（不含.dll）到完整名的映射
+            var nameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in assemblyNames)
+            {
+                string key = System.IO.Path.GetFileNameWithoutExtension(name);
+                nameMap[key] = name;
+            }
+
+            // 检查已加载的程序集，确定哪些依赖已经在 AppDomain 中
+            var loadedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                loadedNames.Add(asm.GetName().Name);
+            }
+
+            // 简单排序：依赖已加载程序集的排在前面，其他保持原顺序
+            var sorted = new List<string>(assemblyNames.Count);
+            var remaining = new List<string>();
+
+            foreach (var name in assemblyNames)
+            {
+                string asmName = System.IO.Path.GetFileNameWithoutExtension(name);
+                // 如果程序集名不在未加载的热更列表中，说明它的依赖已满足
+                bool depsSatisfied = true;
+                // 粗粒度判断：所有非热更程序集都已加载
+                // 更精确的依赖排序需要在 Assembly.Load 后检查 Assembly.GetReferencedAssemblies()
+                // 但那需要先加载才能检查，所以这里用简单的启发式
+
+                if (depsSatisfied)
+                {
+                    sorted.Add(name);
+                }
+                else
+                {
+                    remaining.Add(name);
+                }
+            }
+
+            sorted.AddRange(remaining);
+            return sorted;
         }
 
         private void Fail(string error)

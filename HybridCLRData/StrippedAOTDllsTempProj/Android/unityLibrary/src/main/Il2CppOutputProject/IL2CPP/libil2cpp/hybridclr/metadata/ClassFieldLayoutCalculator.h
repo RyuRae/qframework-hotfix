@@ -31,6 +31,7 @@ namespace metadata
 #if !HYBRIDCLR_UNITY_2022_OR_NEW
 		uint8_t naturalAlignment;
 #endif
+		bool blittable;
 	};
 
 	struct SizeAndAlignment
@@ -58,7 +59,7 @@ namespace metadata
 
 	class InterpreterImage;
 
-	typedef Il2CppHashMap<const Il2CppType*, ClassLayoutInfo*, Il2CppTypeHash, Il2CppTypeEqualTo> Il2CppType2ClassLayoutInfoMap;
+	typedef Il2CppHashMap<const Il2CppType*, ClassLayoutInfo*, il2cpp::metadata::Il2CppTypeHash, il2cpp::metadata::Il2CppTypeEqualityComparer> Il2CppType2ClassLayoutInfoMap;
 
 	class ClassFieldLayoutCalculator
 	{
@@ -93,6 +94,7 @@ namespace metadata
 
 		void LayoutFields(int32_t actualParentSize, int32_t parentAlignment, uint8_t packing, std::vector<FieldLayout*>& fields, FieldLayoutData& data);
 		SizeAndAlignment GetTypeSizeAndAlignment(const Il2CppType* type);
+		bool IsBlittable(const Il2CppType* type);
 	};
 }
 }

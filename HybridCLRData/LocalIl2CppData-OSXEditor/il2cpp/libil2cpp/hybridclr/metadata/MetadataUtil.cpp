@@ -240,7 +240,7 @@ namespace metadata
 
 		case IL2CPP_TYPE_ARRAY:
 		{
-			if (t1->data.array->rank < t2->data.array->rank)
+			if (t1->data.array->rank != t2->data.array->rank)
 			{
 				return false;
 			}
@@ -383,7 +383,7 @@ namespace metadata
 
 		case IL2CPP_TYPE_ARRAY:
 		{
-			if (dstType->data.array->rank < sigType->data.array->rank)
+			if (dstType->data.array->rank != sigType->data.array->rank)
 			{
 				return false;
 			}
@@ -474,7 +474,7 @@ namespace metadata
 
 		case IL2CPP_TYPE_ARRAY:
 		{
-			if (dstType->data.array->rank < sigType->data.array->rank)
+			if (dstType->data.array->rank != sigType->data.array->rank)
 			{
 				return false;
 			}
@@ -576,7 +576,7 @@ namespace metadata
 
 	bool IsMatchMethodSig(const MethodInfo* methodDef, const MethodRefSig& resolveSig, const Il2CppGenericContainer* klassGenericContainer)
 	{
-		if (methodDef->parameters_count != (uint16_t)resolveSig.params.size())
+		if ((size_t)methodDef->parameters_count != resolveSig.params.size())
 		{
 			return false;
 		}
@@ -615,7 +615,7 @@ namespace metadata
 
 	bool IsMatchMethodSig(const MethodInfo* methodDef, const MethodRefSig& resolveSig, const Il2CppType** klassInstArgv, const Il2CppType** methodInstArgv)
 	{
-		if (methodDef->parameters_count != (uint16_t)resolveSig.params.size())
+		if ((size_t)methodDef->parameters_count != resolveSig.params.size())
 		{
 			return false;
 		}
@@ -772,11 +772,26 @@ namespace metadata
 		case IL2CPP_TYPE_PTR:
 		case IL2CPP_TYPE_SZARRAY: return HasNotInstantiatedGenericType(type->data.type);
 		case IL2CPP_TYPE_ARRAY: return HasNotInstantiatedGenericType(type->data.array->etype);
+		case IL2CPP_TYPE_CLASS:
+		case IL2CPP_TYPE_VALUETYPE:
+		{
+#if HYBRIDCLR_UNITY_2019
+			const Il2CppTypeDefinition* typeDefinition = (const Il2CppTypeDefinition*)il2cpp::vm::GlobalMetadata::GetTypeDefinitionFromIl2CppType(type);
+#else
+			const Il2CppTypeDefinition* typeDefinition = (const Il2CppTypeDefinition*)il2cpp::vm::GlobalMetadata::GetTypeHandleFromType(type);
+#endif
+			return typeDefinition->genericContainerIndex != kGenericContainerIndexInvalid;
+		}
 		case IL2CPP_TYPE_GENERICINST:
 		{
 			Il2CppGenericClass* genericClass = type->data.generic_class;
 			return HasNotInstantiatedGenericType(genericClass->context.class_inst);
 		}
+		case IL2CPP_TYPE_VAR:
+        case IL2CPP_TYPE_MVAR:
+        {
+            return true;
+        }
 		default: return false;
 		}
 	}

@@ -176,6 +176,13 @@ namespace metadata
 		return index & 0xFFFFFF;
 	}
 
+	struct SectionHeader
+	{
+		uint32_t virtualAddressBegin;
+		uint32_t virtualAddressEnd;
+		uint32_t ptrRawDataRelatedToVirtualAddress;
+	};
+
 	struct ColumnOffsetSize
 	{
 		uint32_t size;
@@ -452,6 +459,13 @@ namespace metadata
 		return codedIndex >> 3;
 	}
 
+	inline uint32_t ConvertMemberForwardedToken2Token(uint32_t memberForwardedToken)
+	{
+		TableType tableType = memberForwardedToken & 0x1 ? TableType::METHOD : TableType::FIELD;
+		uint32_t rowIndex = memberForwardedToken >> 1;
+		return EncodeToken(tableType, rowIndex);
+	}
+
 	enum class UserStringEncoding
 	{
 		ASCII = 0,
@@ -543,7 +557,7 @@ namespace metadata
 
 	struct ResolveMemberRefSig
 	{
-		TableType memberType; // FIELD_POINTER OR METHOD_POINTER
+		TableType memberType; // FIELDPTR OR METHODPTR
 		MethodRefSig method;
 		FieldRefSig field;
 	};

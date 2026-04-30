@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: AOTAssemblyManifest
   m_EditorClassIdentifier: 
   AppVersion: 0.1
-  BuildTarget: macOS
-  AotVersion: aot-c39ee76d75bc897a
+  BuildTarget: Android
+  AotVersion: aot-a8e46b0639e6e257
   AotMetadataAssemblies:
   - QFramework.CoreKit.dll
   - QFramework.dll
@@ -38,14 +38,14 @@ MonoBehaviour:
     Sha256: 3077e1ae32b41bda3d8d676a7c225545858b9bfaf09bceb6bd0e441297760ca5
     Size: 552448
   - AssemblyName: UnityEngine.CoreModule.dll
-    Sha256: 550ed43f9c08f351dfd33a286b86176fa09e901cf29a8177a73ce8b2f57dcb1e
+    Sha256: 8476368fec0765fa62fa8c633d16ab328c6a5211095b3e8a0ae3e43f6e8107c9
     Size: 446464
   - AssemblyName: YooAsset.dll
-    Sha256: f8e93b8d1485cf7601ee18aac12d4e90643c7fed207599b28117d53c0913bf3a
-    Size: 225280
+    Sha256: 038a0d5a7b590b6177827f1b00c0205f412743411c8b0dbc8b13a0bdeebf7080
+    Size: 234496
   - AssemblyName: YooAssetKit.dll
-    Sha256: da6fb010f14068f72f0a08ba858401d5d2e2667f2ea5cc272751384a777bb4a4
-    Size: 18432
+    Sha256: ad3e37aecef5eb55604f38297dbeb06d3d0d6042c8ef3cb481fea33ec5e1254e
+    Size: 26112
   - AssemblyName: mscorlib.dll
-    Sha256: 15c838bff7beaa48e933375653bfb2cdbcc9b2c54ca9e16aa5101b4dc84564bf
-    Size: 2235392
+    Sha256: 3d4e28a203a1f1846ac35237263b1037cf3cf8e1ba6b58fbef052de72b3968be
+    Size: 2236928

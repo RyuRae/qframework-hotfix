@@ -120,49 +120,18 @@ namespace Framework
         }
 
         public EPlayMode PlayerPlayMode => playerPlayMode;
-        public string MainPackageName => NormalizePackageName(mainPackageName, DefaultMainPackageName);
+        public string MainPackageName => HotfixUtility.NormalizePackageName(mainPackageName, DefaultMainPackageName);
         public bool IncludeRawFilePackage => includeRawFilePackage && !string.IsNullOrEmpty(RawFilePackageName);
-        public string RawFilePackageName => NormalizePackageName(rawfilePackageName, DefaultRawFilePackageName);
+        public string RawFilePackageName => HotfixUtility.NormalizePackageName(rawfilePackageName, DefaultRawFilePackageName);
         public StartupDownloadMode StartupDownloadMode => startupDownloadMode;
         public StartupUpdatePolicy StartupUpdatePolicy => startupUpdatePolicy;
         public StartupPackageMode StartupPackageMode => startupPackageMode;
-        public string[] StartupDownloadTags => NormalizeTags(startupDownloadTags);
-        public string[] RawFileStartupDownloadTags => NormalizeTags(rawfileStartupDownloadTags);
+        public string[] StartupDownloadTags => HotfixUtility.NormalizeTags(startupDownloadTags);
+        public string[] RawFileStartupDownloadTags => HotfixUtility.NormalizeTags(rawfileStartupDownloadTags);
 
         public static HotfixRuntimeSettings Load()
         {
             return Resources.Load<HotfixRuntimeSettings>(ResourcesPath);
-        }
-
-        private static string NormalizePackageName(string packageName, string fallback)
-        {
-            return string.IsNullOrWhiteSpace(packageName) ? fallback : packageName.Trim();
-        }
-
-        private static string[] NormalizeTags(string[] tags)
-        {
-            if (tags == null || tags.Length == 0)
-            {
-                return Array.Empty<string>();
-            }
-
-            var results = new List<string>();
-            var exists = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var tag in tags)
-            {
-                if (string.IsNullOrWhiteSpace(tag))
-                {
-                    continue;
-                }
-
-                var normalizedTag = tag.Trim();
-                if (exists.Add(normalizedTag))
-                {
-                    results.Add(normalizedTag);
-                }
-            }
-
-            return results.ToArray();
         }
 
 #if UNITY_EDITOR
@@ -176,9 +145,9 @@ namespace Framework
             bool includeRawFilePackage,
             string rawfilePackageName)
         {
-            this.mainPackageName = NormalizePackageName(mainPackageName, DefaultMainPackageName);
+            this.mainPackageName = HotfixUtility.NormalizePackageName(mainPackageName, DefaultMainPackageName);
             this.includeRawFilePackage = includeRawFilePackage;
-            this.rawfilePackageName = NormalizePackageName(rawfilePackageName, DefaultRawFilePackageName);
+            this.rawfilePackageName = HotfixUtility.NormalizePackageName(rawfilePackageName, DefaultRawFilePackageName);
         }
 #endif
     }

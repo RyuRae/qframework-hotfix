@@ -84,7 +84,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	// QFramework.Pool<object>
 	// QFramework.SimpleObjectPool<object>
 	// QFramework.Singleton<object>
-	// QFramework.YooAssetKit.<>c__DisplayClass6_0<object>
+	// QFramework.YooAssetKit.<>c__DisplayClass9_0<object>
 	// System.Action<Common.Loom.DelayedQueueItem>
 	// System.Action<object,object>
 	// System.Action<object>
@@ -311,7 +311,7 @@ public class AOTGenericReferences : UnityEngine.MonoBehaviour
 	public void RefMethods()
 	{
 		// System.Void Cysharp.Threading.Tasks.CompilerServices.AsyncUniTaskMethodBuilder<object>.AwaitUnsafeOnCompleted<Cysharp.Threading.Tasks.UniTask.Awaiter<object>,Test.<LoadTable>d__2>(Cysharp.Threading.Tasks.UniTask.Awaiter<object>&,Test.<LoadTable>d__2&)
-		// System.Void Cysharp.Threading.Tasks.CompilerServices.AsyncUniTaskMethodBuilder<object>.Start<QFramework.YooAssetKit.<LoadAssetAsync>d__7<object>>(QFramework.YooAssetKit.<LoadAssetAsync>d__7<object>&)
+		// System.Void Cysharp.Threading.Tasks.CompilerServices.AsyncUniTaskMethodBuilder<object>.Start<QFramework.YooAssetKit.<LoadAssetAsync>d__10<object>>(QFramework.YooAssetKit.<LoadAssetAsync>d__10<object>&)
 		// System.Void Cysharp.Threading.Tasks.CompilerServices.AsyncUniTaskMethodBuilder<object>.Start<Test.<LoadTable>d__2>(Test.<LoadTable>d__2&)
 		// Cysharp.Threading.Tasks.UniTask<object> QFramework.YooAssetKit.LoadAssetAsync<object>(string)
 		// System.Void QFramework.YooAssetKit.LoadAssetAsync<object>(string,System.Action<object>)

@@ -75,14 +75,22 @@ namespace transform
 
 	static bool IH_object_ctor(TransformContext& ctx, const MethodInfo* method)
 	{
-#if IL2CPP_DEBUG
-		IRCommon* last = ctx.GetCurbb()->insts.back();
-		IL2CPP_ASSERT(last->type == HiOpcodeEnum::LdlocVarVar);
-		IRLdlocVarVar* ldthis = (IRLdlocVarVar*)last;
-		IL2CPP_ASSERT(ldthis->dst == ctx.GetEvalStackTopOffset());
-#endif
-		ctx.GetCurbb()->insts.pop_back();
 		ctx.PopStack();
+		auto& insts = ctx.GetCurbb()->insts;
+		if (!insts.empty())
+		{
+			IRCommon* last = insts.back();
+			if (last->type != HiOpcodeEnum::LdlocVarVar)
+			{
+				return true;
+			}
+			IRLdlocVarVar* ldthis = (IRLdlocVarVar*)last;
+			if (ldthis->dst == ctx.GetEvalStackNewTopOffset())
+			{
+				// pop ldthis
+				insts.pop_back();
+			}
+		}
 		return true;
 	}
 
@@ -285,6 +293,15 @@ namespace transform
 		return true;
 	}
 
+	static bool IH_JitHelpers_Array_UnsafeMov(TransformContext& ctx, const MethodInfo* method)
+	{
+		IL2CPP_ASSERT(ctx.GetEvalStackTop() >= 1);
+		const Il2CppType* dstType = method->genericMethod->context.method_inst->type_argv[1];
+		ctx.PopStack();
+		ctx.PushStackByType(dstType);
+		return true;
+	}
+
 	static bool IH_JitHelpers_UnsafeEnumCast(TransformContext& ctx, const MethodInfo* method)
 	{
 		IL2CPP_ASSERT(ctx.GetEvalStackTop() >= 1);
@@ -312,11 +329,17 @@ namespace transform
 
 	static bool IH_JitHelpers_UnsafeCast(TransformContext& ctx, const MethodInfo* method)
 	{
+		const Il2CppType* dstType = method->genericMethod->context.method_inst->type_argv[0];
+		ctx.PopStack();
+		ctx.PushStackByType(dstType);
 		return true;
 	}
 
 	static bool IH_JitHelpers_UnsafeEnumCastLong(TransformContext& ctx, const MethodInfo* method)
 	{
+		IL2CPP_ASSERT(ctx.GetEvalStackTop() >= 1);
+		ctx.PopStack();
+		ctx.PushStackByReduceType(EvalStackReduceDataType::I8);
 		return true;
 	}
 
@@ -436,6 +459,67 @@ namespace transform
 		return true;
 	}
 
+	static const MethodInfo* FindZeroArgumentCtor(Il2CppClass* klass)
+	{
+		il2cpp::vm::Class::Init(klass);
+		for (uint16_t i = 0; i < klass->method_count; i++)
+		{
+            const MethodInfo* method = klass->methods[i];
+			if (!std::strcmp(method->name, ".ctor") && method->parameters_count == 0)
+			{
+				return method;
+            }
+		}
+		return nullptr;
+    }
+
+	static bool IH_Activator_CreateInstance(TransformContext& ctx, const MethodInfo* method)
+	{
+		if (!method->is_inflated || method->genericMethod->context.method_inst->type_argc != 1 || method->parameters_count != 0)
+		{
+			return false;
+		}
+		const Il2CppType* instType = method->genericMethod->context.method_inst->type_argv[0];
+		Il2CppClass* instanceKlass = il2cpp::vm::Class::FromIl2CppType(instType);
+		if (instanceKlass == nullptr)
+		{
+			return false;
+		}
+		if (IS_CLASS_VALUE_TYPE(instanceKlass))
+		{
+			if (instanceKlass->castClass->byval_arg.type < IL2CPP_TYPE_I4)
+			{
+				return false;
+			}
+			IHCreateAddIR(ir, NewValueTypeVar_Ctor_0);
+			uint32_t objSize = GetTypeValueSize(instanceKlass);
+			ir->obj = ctx.GetEvalStackNewTopOffset();
+			ir->size = objSize;
+			ctx.PushStackByType(&instanceKlass->byval_arg);
+			return true;
+		}
+		else
+		{
+			return false;
+			/*
+			const MethodInfo* ctorMethod = FindZeroArgumentCtor(instanceKlass);
+			if (ctorMethod == nullptr)
+			{
+				return false;
+			}
+			if (!InitAndGetInterpreterDirectlyCallMethodPointer(ctorMethod))
+			{
+				RaiseAOTGenericMethodNotInstantiatedException(ctorMethod);
+			}
+			//return false;
+			IHCreateAddIR(ir, NewClassVar_Ctor_0);
+			ir->method = ctx.GetOrAddResolveDataIndex(ctorMethod);
+			ir->obj = ctx.GetEvalStackNewTopOffset();
+			ctx.PushStackByReduceType(NATIVE_INT_REDUCE_TYPE);
+			*/
+		}
+	}
+
 
 	struct InstinctHandlerInfo
 	{
@@ -458,6 +542,7 @@ namespace transform
 		{"System.Threading", "Interlocked", "Exchange", IH_Interlocked_Exchange},
 		{"System.Runtime.CompilerServices", "JitHelpers", "UnsafeEnumCast", IH_JitHelpers_UnsafeEnumCast},
 		{"System.Runtime.CompilerServices", "JitHelpers", "UnsafeCast", IH_JitHelpers_UnsafeCast},
+		{"System", "Array", "UnsafeMov", IH_JitHelpers_Array_UnsafeMov},
 		{"System.Runtime.CompilerServices", "JitHelpers", "UnsafeEnumCastLong", IH_JitHelpers_UnsafeEnumCastLong},
 		{"System.Reflection", "Assembly", "GetExecutingAssembly", IH_Assembly_GetExecutingAssembly},
 		{"System.Reflection", "MethodBase", "GetCurrentMethod", IH_MethodBase_GetCurrentMethod},
@@ -465,6 +550,7 @@ namespace transform
 		{"UnityEngine", "Vector3", ".ctor", IH_UnityEngine_Vector3_ctor},
 		{"UnityEngine", "Vector4", ".ctor", IH_UnityEngine_Vector4_ctor},
 		{"System", "ByReference`1", "get_Value", IH_ByReference_get_Value},
+		{"System", "Activator", "CreateInstance", IH_Activator_CreateInstance},
 	};
 
 	struct CtorInstinctHandlerInfo
@@ -585,7 +671,6 @@ namespace transform
 
 	static bool CIH_Delegate(TransformContext& ctx, const MethodInfo* method)
 	{
-		uint8_t paramCount = method->parameters_count;
 		Il2CppClass* klass = method->klass;
 		IL2CPP_ASSERT(ctx.GetEvalStackTop() >= 2);
 #if HYBRIDCLR_UNITY_2021_OR_NEW
@@ -785,7 +870,7 @@ namespace transform
 		if (klass->byval_arg.type == IL2CPP_TYPE_ARRAY)
 		{
 			const char* methodName = method->name;
-			uint8_t paramCount = method->parameters_count + 1;
+			int32_t paramCount = method->parameters_count + 1;
 			const Il2CppType* eleType = &klass->element_class->byval_arg;
 			LocationDescInfo desc = ComputLocationDescInfo(eleType);
 			if (strcmp(methodName, "Get") == 0)
