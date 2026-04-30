@@ -130,6 +130,251 @@ Assets/AssetsPackage
 | `Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset` | Hotfix 版本、兼容 App 版本、RequiredAotVersion、热更 DLL、入口资源 |
 | `Assets/AssetsPackage/AssetsHotFix/Configs/AssemblyManifest.asset` | 旧清单，保留用于兼容和迁移 |
 
+## 首包构建流程
+
+```mermaid
+flowchart TD
+    A[切换 Unity 目标平台] --> B[执行 HybridCLR/Generate/All]
+    B --> C[配置 HotfixRuntimeSettings.asset]
+    C --> D[配置 HotfixRemoteSettings.asset]
+    D --> E[执行 Build/Build Initial YooAsset Package]
+    E --> F[编译 AOT + 热更 DLL]
+    F --> G[复制 AOT DLL 到 AOTCodes/*.dll.bytes]
+    G --> H[复制热更 DLL 到 HotfixCodes/*.dll.bytes]
+    H --> I[生成 AOTAssemblyManifest.asset]
+    I --> J[生成 HotfixAssemblyManifest.asset]
+    J --> K[同步旧 AssemblyManifest.asset 兼容]
+    K --> L[校验首包必需资源]
+    L --> M{StartupPackageMode?}
+    M -->|FirstPackage / OfflinePackage| N[构建 YooAsset 包 + 复制到 StreamingAssets]
+    M -->|EmptyPackage| O[构建 YooAsset 包 不复制到 StreamingAssets]
+    N --> P[构建 Player Build/Win64 等]
+    O --> Q[上传输出目录到 CDN]
+    Q --> P
+    P --> R[完成]
+```
+
+## 热更包构建流程
+
+```mermaid
+flowchart TD
+    A[修改热更代码/资源/场景/配置] --> B[执行 Build/Build Hotfix YooAsset Package]
+    B --> C[编译热更 DLL]
+    C --> D[复制热更 DLL 到 HotfixCodes/*.dll.bytes]
+    D --> E[复用现有 AOTAssemblyManifest.asset]
+    E --> F[生成新 HotfixAssemblyManifest.asset\nRequiredAotVersion 指向当前 AOT 版本]
+    F --> G[校验 AOT 与 Hotfix manifest 兼容性]
+    G --> H[构建远端 YooAsset 包\n不复制到 StreamingAssets]
+    H --> I[上传输出目录到 CDN]
+    I --> J[完成]
+
+    style E fill:#f9f,stroke:#333
+    style F fill:#bbf,stroke:#333
+```
+
+## 运行时启动流程
+
+```mermaid
+flowchart TD
+    START([App 启动]) --> BOOT[Boot.cs 读取 HotfixRuntimeSettings]
+    BOOT --> INIT[ProcedureInitializePackage\n初始化 YooAsset 主包 + 可选 RawFile 包]
+
+    INIT --> VER{需要请求远端版本?}
+    VER -->|WifiOnly / BackgroundDownload\n且本地有可用缓存| LOCAL1[使用本地缓存]
+    VER -->|需要远端| REQ[ProcedureRequestPackageVersion\n请求远端 PackageVersion]
+
+    REQ --> REQ_OK{请求成功?}
+    REQ_OK -->|成功| MANIFEST[ProcedureUpdatePackageManifest\n更新 PackageManifest]
+    REQ_OK -->|失败| POLICY1{StartupUpdatePolicy?}
+    POLICY1 -->|MustUpdate| RETRY1[重试 / 退出]
+    POLICY1 -->|AllowCached / WifiOnly / BackgroundDownload| LOCAL2[使用本地缓存降级]
+
+    MANIFEST --> MAN_OK{更新成功?}
+    MAN_OK -->|成功| CREATE[ProcedureCreateDownloader\n创建资源下载器]
+    MAN_OK -->|失败| POLICY2{StartupUpdatePolicy?}
+    POLICY2 -->|MustUpdate| RETRY2[重试 / 退出]
+    POLICY2 -->|AllowCached 等| LOCAL3[使用本地缓存降级]
+
+    LOCAL1 --> CREATE
+    LOCAL2 --> CREATE
+    LOCAL3 --> CREATE
+
+    CREATE --> DL_MODE{StartupDownloadMode?}
+    DL_MODE -->|DownloadAll| DA[创建全量下载器\npackage.CreateResourceDownloader]
+    DL_MODE -->|DownloadByTags| DT[创建 Tag 下载器\npackage.CreateResourceDownloader tags]
+    DL_MODE -->|Skip| SKIP[跳过下载]
+
+    DA --> DL_CNT{有文件需要下载?}
+    DT --> DL_CNT
+    DL_CNT -->|无差异| AOT
+    DL_CNT -->|有差异| CONFIRM[弹出下载确认框\n显示文件数和大小]
+    SKIP --> AOT
+
+    CONFIRM --> USER{用户选择}
+    USER -->|确认| DOWNLOAD[ProcedureDownloadPackageFiles\n下载差异资源]
+    USER -->|取消| CANCEL[OnDownloadCancelRequestEvent\n热更流程失败]
+
+    DOWNLOAD --> DL_OK{下载成功?}
+    DL_OK -->|成功| OVER[ProcedureDownloadPackageOver]
+    DL_OK -->|失败| POLICY3{更新策略}
+    POLICY3 -->|MustUpdate| RETRY3[重试 / 退出]
+    POLICY3 -->|AllowCached 等| LOCAL4[使用本地缓存降级]
+
+    LOCAL4 --> AOT
+    OVER --> AOT
+
+    AOT[ProcedureLoadAOTMetadata\n加载 HotfixAssemblyManifest\n加载匹配的 AOTAssemblyManifest\n加载 AOT 元数据 DLL] --> HOTFIX[ProcedureLoadAssembly\n加载热更 DLL\n调用入口方法]
+    HOTFIX --> CLEAR[ProcedureClearCacheBundle\n清理未使用缓存]
+    CLEAR --> GAME[ProcedureStartGame\n热更流程完成]
+    GAME --> SCENE[Boot 加载入口场景\n默认地址 main]
+    SCENE --> END([进入游戏])
+
+    style AOT fill:#fbb,stroke:#333
+    style HOTFIX fill:#bfb,stroke:#333
+    style CANCEL fill:#f66,stroke:#333
+```
+
+## 用例图
+
+```mermaid
+flowchart LR
+    subgraph 开发者
+        DEV[游戏开发者]
+    end
+
+    subgraph 运维
+        OPS[运维人员]
+    end
+
+    subgraph 玩家
+        PLAYER[终端玩家]
+    end
+
+    subgraph 构建系统
+        B1[构建首包\nBuild Initial YooAsset Package]
+        B2[构建热更包\nBuild Hotfix YooAsset Package]
+        B3[构建 Player\nBuild/Win64 等]
+        B4[配置运行时参数\nHotfixRuntimeSettings]
+        B5[配置 CDN 地址\nHotfixRemoteSettings]
+        B6[配置多语言\nHotfixLocalizationSettings]
+        B7[同步包名\nSync Package Names]
+    end
+
+    subgraph 运行时系统
+        R1[初始化资源包\nInitializePackage]
+        R2[请求版本号\nRequestPackageVersion]
+        R3[更新清单\nUpdatePackageManifest]
+        R4[创建下载器\nCreateDownloader]
+        R5[下载资源\nDownloadPackageFiles]
+        R6[加载 AOT 元数据\nLoadAOTMetadata]
+        R7[加载热更 DLL\nLoadAssemblies]
+        R8[进入游戏\nStartGame]
+    end
+
+    subgraph CDN 服务
+        CDN1[主 CDN]
+        CDN2[备 CDN]
+    end
+
+    DEV --> B4
+    DEV --> B5
+    DEV --> B6
+    DEV --> B7
+    DEV --> B1
+    DEV --> B2
+    DEV --> B3
+
+    OPS --> CDN1
+    OPS --> CDN2
+    OPS -->|上传构建产物| CDN1
+
+    PLAYER --> R1
+    R1 --> R2
+    R2 --> R3
+    R3 --> R4
+    R4 --> R5
+    R5 --> R6
+    R6 --> R7
+    R7 --> R8
+
+    R2 -.->|请求版本| CDN1
+    R3 -.->|下载清单| CDN1
+    R5 -.->|下载资源| CDN1
+    CDN1 -.->|主 CDN 失败时| CDN2
+```
+
+## 角色与职责
+
+| 角色 | 职责 | 关键操作 |
+| --- | --- | --- |
+| 游戏开发者 | 开发热更代码和资源，配置构建参数 | 编写热更代码、配置 Settings、构建首包/热更包、构建 Player |
+| 运维人员 | 管理 CDN 和版本发布 | 上传构建产物到 CDN、监控版本分发、回滚版本 |
+| 终端玩家 | 运行游戏客户端 | 启动 App、确认下载、等待热更完成、进入游戏 |
+
+## 构建与热更时序
+
+```mermaid
+sequenceDiagram
+    participant Dev as 开发者
+    participant Unity as Unity 编辑器
+    participant Build as 构建系统
+    participant CDN as CDN 服务器
+    participant Player as 玩家客户端
+
+    Note over Dev,CDN: === 首包构建阶段 ===
+
+    Dev->>Unity: 切换目标平台
+    Dev->>Unity: HybridCLR/Generate/All
+    Dev->>Unity: 配置 HotfixRuntimeSettings
+    Dev->>Unity: Build/Build Initial YooAsset Package
+    Unity->>Build: 编译 AOT + 热更 DLL
+    Build->>Build: 复制 DLL.bytes 到 AssetsHotFix
+    Build->>Build: 生成 AOTAssemblyManifest
+    Build->>Build: 生成 HotfixAssemblyManifest
+    Build->>Build: 校验首包资源完整性
+    Build->>Build: 构建 YooAsset 包
+    Build-->>CDN: 上传构建产物
+
+    Dev->>Unity: Build/Win64
+    Unity->>Build: 构建 Player (含 StreamingAssets)
+
+    Note over Player,CDN: === 玩家首次启动 ===
+
+    Player->>CDN: 请求 PackageVersion
+    CDN-->>Player: 返回版本号
+    Player->>CDN: 下载 PackageManifest
+    CDN-->>Player: 返回清单
+    Player->>CDN: 下载差异资源
+    CDN-->>Player: 返回资源
+    Player->>Player: 加载 AOT 元数据
+    Player->>Player: 加载热更 DLL
+    Player->>Player: 进入游戏
+
+    Note over Dev,CDN: === 热更发布阶段 ===
+
+    Dev->>Unity: 修改热更代码/资源
+    Dev->>Unity: Build/Build Hotfix YooAsset Package
+    Unity->>Build: 编译热更 DLL
+    Build->>Build: 复制热更 DLL.bytes
+    Build->>Build: 复用 AOTAssemblyManifest
+    Build->>Build: 生成新 HotfixAssemblyManifest
+    Build->>Build: 构建远端 YooAsset 包
+    Build-->>CDN: 上传新版本
+
+    Note over Player,CDN: === 玩家热更启动 ===
+
+    Player->>CDN: 请求 PackageVersion
+    CDN-->>Player: 返回新版本号
+    Player->>CDN: 下载新 PackageManifest
+    CDN-->>Player: 返回新清单
+    Player->>Player: 对比本地 manifest
+    Player->>CDN: 下载差异资源 (仅变化的 bundle)
+    CDN-->>Player: 返回差异资源
+    Player->>Player: 加载 AOT 元数据
+    Player->>Player: 加载新热更 DLL
+    Player->>Player: 进入游戏
+```
+
 ## 运行时流程
 
 入口脚本：
