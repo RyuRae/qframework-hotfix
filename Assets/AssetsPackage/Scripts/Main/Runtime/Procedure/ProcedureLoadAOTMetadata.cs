@@ -54,7 +54,7 @@ namespace Framework.Procedure
 
             var package = YooAssets.GetPackage(mTarget._packageName);
             var loader = new HybridCLRAssemblyLoader();
-            yield return loader.LoadAotMetadata(package, progress => rawProgress = progress);
+            yield return loader.LoadAotMetadata(package, mTarget.AssemblyLoadContext, progress => rawProgress = progress);
 
             isLoading = false;
             if (!loader.Succeeded)

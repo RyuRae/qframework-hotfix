@@ -16,7 +16,6 @@ namespace Framework.Procedure
         protected override void OnEnter()
         {
             LogKit.I("Download package files completed.");
-            mTarget.SaveUsablePackageVersions();
             mFSM.ChangeState(ResPackageStates.LoadAOTMetadata);
         }
 

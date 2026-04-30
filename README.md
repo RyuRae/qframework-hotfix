@@ -2,219 +2,272 @@
 
 基于 **QFramework + YooAsset + HybridCLR** 的 Unity 热更新示例工程。
 
-当前工程的发布策略是：
+当前工程已支持：
 
-- **AOT 元数据随首包发布**：首包内置 `AOTCodes`、首版热更 DLL、配置清单和基础资源。
-- **后续热更包增量发布**：远端只发布变更后的热更 DLL、资源、配置清单等内容，不再重复发布 AOT 元数据。
-- **客户端按 YooAsset Manifest 差异下载**：远端构建产物是一个完整版本目录，但运行时 downloader 只会下载本地缺失或 hash 变化的 bundle。
+- YooAsset 资源版本、远端 manifest、差异下载和本地缓存兜底。
+- HybridCLR 热更 DLL 加载和 AOT 元数据补充。
+- `AOTAssemblyManifest` 和 `HotfixAssemblyManifest` 分离，支持根据 `RequiredAotVersion` 匹配 AOT 版本。
+- 首包、空包、离线包三种启动策略。
+- 开发、测试、预发、正式环境 CDN 配置，支持主/备 CDN、平台、渠道、地区组合。
+- 启动阶段下载确认、取消、重试、本地缓存降级和多语言提示。
 
-## 技术栈
+## 环境要求
 
-- [QFramework](https://github.com/liangxiegame/QFramework)：项目框架、事件、状态机、UI 等基础能力。
-- [YooAsset](https://github.com/tuyoogame/YooAsset)：资源打包、内置资源、远端资源、版本清单、差异下载。
-- [HybridCLR](https://github.com/focus-creative-games/hybridclr)：IL2CPP 平台 C# 代码热更新和 AOT 泛型元数据补充。
+- Unity：`2022.3.62f2`
+- YooAsset：`2.3.0-preview`
+- HybridCLR：项目 `Packages/manifest.json` 中的 `com.code-philosophy.hybridclr`
+- Luban：项目 `Packages/manifest.json` 中的 `com.code-philosophy.luban`
+- 目标平台需先在 Unity Hub 安装对应 Build Support，例如 Android、iOS、WebGL、Windows、macOS。
+
+首次打开工程后，建议先等待 Unity 完成 Package 导入和脚本编译。
+
+## 快速开始
+
+1. 打开项目。
+
+   ```text
+   /Users/mac/UnityFramework/qframework-hotfix
+   ```
+
+2. 切换目标平台。
+
+   在 Unity 菜单 `File/Build Settings` 中选择目标平台并点击 `Switch Platform`。热更 DLL、AOT metadata 和 AssetBundle 都和平台相关，不能跨平台混用。
+
+3. 安装并生成 HybridCLR 数据。
+
+   ```text
+   HybridCLR/Installer/Install
+   HybridCLR/Generate/All
+   ```
+
+4. 检查 HybridCLR 热更程序集。
+
+   打开 `ProjectSettings/HybridCLRSettings.asset`，确认 `Hot Update Assembly Definitions` 包含需要热更的 asmdef。当前示例包括：
+
+   ```text
+   HotfixCommon
+   HotfixDemo
+   ```
+
+5. 检查 YooAsset 收集器。
+
+   打开 `YooAsset/AssetBundle Collector`，确认 `DefaultPackage` 至少收集以下路径：
+
+   ```text
+   Assets/AssetsPackage/AssetsHotFix/AOTCodes
+   Assets/AssetsPackage/AssetsHotFix/HotfixCodes
+   Assets/AssetsPackage/AssetsHotFix/Configs
+   Assets/AssetsPackage/AssetsHotFix/HotfixDemo
+   Assets/AssetsPackage/AssetsHotFix/Datas
+   ```
+
+6. 同步运行时包名。
+
+   ```text
+   Build/Hotfix/Sync Package Names From YooAsset Collector
+   ```
+
+7. 选择启动包策略。
+
+   打开 `Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset`，设置：
+
+   - `StartupPackageMode = FirstPackage`：首包内置启动资源，最常用。
+   - `StartupPackageMode = EmptyPackage`：空包不内置资源，首次启动必须能访问远端。
+   - `StartupPackageMode = OfflinePackage`：离线包完整内置资源，必须搭配 `OfflinePlayMode`。
+
+8. 构建 YooAsset 包。
+
+   首包或首次远端资源：
+
+   ```text
+   Build/Build Initial YooAsset Package
+   ```
+
+   后续热更资源：
+
+   ```text
+   Build/Build Hotfix YooAsset Package
+   ```
+
+9. 构建 Player。
+
+   Windows 示例菜单：
+
+   ```text
+   Build/Win64
+   ```
+
+   其他平台可以使用 Unity `Build Settings`，构建前预处理器会校验 Player PlayMode、远端配置和启动包策略。
 
 ## 目录结构
 
 ```text
 Assets/AssetsPackage
 ├── AssetsHotFix
-│   ├── AOTCodes          # AOT 元数据 DLL.bytes，首包内置，后续热更默认不发布
-│   ├── HotfixCodes       # 热更新程序集 DLL.bytes
-│   ├── Configs           # AssemblyManifest.asset 等热更配置
+│   ├── AOTCodes          # AOT metadata DLL.bytes
+│   ├── HotfixCodes       # 热更程序集 DLL.bytes
+│   ├── Configs           # AOTAssemblyManifest、HotfixAssemblyManifest、兼容旧清单
 │   ├── HotfixDemo        # 示例热更资源
-│   │   ├── Entities      # 示例预制体
-│   │   └── Scenes        # 示例热更场景，当前入口地址为 main
+│   │   ├── Entities
+│   │   └── Scenes        # 示例入口场景，默认地址 main
 │   └── Datas             # 配表等热更数据
 └── Scripts
-    ├── Main              # 首包主工程代码，负责启动、下载、加载热更
-    └── Hotfix            # 热更新业务代码，编译为热更程序集
+    ├── Main              # 首包主工程代码，负责启动、下载和加载热更
+    └── Hotfix            # 热更业务代码，编译为热更程序集
 ```
 
-关键配置文件：
+关键配置：
 
-- `ProjectSettings/HybridCLRSettings.asset`：HybridCLR 热更程序集配置。当前热更程序集来自 asmdef，包括 `HotfixCommon`、`HotfixDemo`。
-- `Assets/Resources/AssetBundleCollectorSetting.asset`：YooAsset 收集器配置。当前 `DefaultPackage` 收集 `AOTCodes`、`HotfixCodes`、`Configs`、示例资源和数据。
-- `Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset`：热更新运行配置，记录 YooAsset play mode、主资源包名、RawFile 包名和启动阶段下载策略。
-- `Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset`：热更新远端配置，记录开发、测试、预发、正式环境的主/备 CDN 地址和运行时选择规则。
-- `Assets/AssetsPackage/Resources/HotfixLocalizationSettings.asset`：热更新启动阶段本地化文本配置，记录中文、英文提示文案和运行时语言选择规则。
-- `Assets/AssetsPackage/AssetsHotFix/Configs/AssemblyManifest.asset`：运行时程序集加载清单，记录 AOT 元数据 DLL、热更 DLL、入口场景和可选入口方法。
+| 路径 | 用途 |
+| --- | --- |
+| `ProjectSettings/HybridCLRSettings.asset` | HybridCLR 热更程序集和 AOT metadata 配置 |
+| `Assets/Resources/AssetBundleCollectorSetting.asset` | YooAsset 包和资源收集器配置 |
+| `Assets/Editor/HybridCLR/HotfixBuildProfile.asset` | 构建时按平台自动设置 Player PlayMode |
+| `Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset` | 启动包策略、下载策略、更新策略、包名 |
+| `Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset` | 环境、渠道、地区、主/备 CDN 地址 |
+| `Assets/AssetsPackage/Resources/HotfixLocalizationSettings.asset` | 启动阶段中文和英文提示 |
+| `Assets/AssetsPackage/AssetsHotFix/Configs/AOTAssemblyManifest.asset` | AOT 版本、平台、App 版本、AOT DLL 列表和 hash |
+| `Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset` | Hotfix 版本、兼容 App 版本、RequiredAotVersion、热更 DLL、入口资源 |
+| `Assets/AssetsPackage/AssetsHotFix/Configs/AssemblyManifest.asset` | 旧清单，保留用于兼容和迁移 |
 
-`HotfixRuntimeSettings.asset` 核心字段：
+## 运行时流程
 
-- `MainPackageName`：主资源包名，默认 `DefaultPackage`。
-- `IncludeRawFilePackage`：是否初始化并更新 RawFile 包。
-- `RawFilePackageName`：RawFile 包名，默认 `RawFilePackage`。
-- `StartupDownloadMode`：启动阶段下载策略，可选 `DownloadAll`、`DownloadByTags`、`Skip`。
-- `StartupUpdatePolicy`：启动阶段更新策略，可选 `MustUpdate`、`AllowCached`、`WifiOnly`、`BackgroundDownload`。
-- `StartupDownloadTags`：主资源包启动阶段按 Tag 下载的 Tag 列表。
-- `RawFileStartupDownloadTags`：RawFile 包启动阶段按 Tag 下载的 Tag 列表。
-
-包名可通过菜单 `Build/Hotfix/Sync Package Names From YooAsset Collector` 从 YooAsset Collector 配置同步。常规构建菜单也会在构建前自动同步包名到运行时配置。
-
-## 运行时热更流程
-
-入口脚本是 `Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs`。
-
-启动后流程如下：
-
-1. `Boot` 从 `HotfixRuntimeSettings.asset` 读取 play mode、package 名称和启动下载策略。
-2. `YooAssets.Initialize()` 初始化 YooAsset。
-3. 创建 `ProcedureManager`，进入资源初始化和热更状态机。
-4. `ProcedureInitializePackage` 初始化主资源包；如启用 RawFile 包，会同时初始化 RawFile 包。Host/Web 模式会配置远端文件系统。
-5. `ProcedureRequestPackageVersion` 请求远端最新包版本；失败时按 `StartupUpdatePolicy` 选择重试、退出或使用本地缓存。
-6. `ProcedureUpdatePackageManifest` 更新远端 manifest；manifest 请求或校验失败时可回退到上次可用缓存或首包内置 manifest。
-7. `ProcedureCreateDownloader` 根据 `StartupDownloadMode` 创建启动阶段差异下载器。
-8. 如有差异文件，`ProcedureDownloadPackageFiles` 下载变更 bundle。
-9. `ProcedureLoadAOTMetadata` 从当前可用包中加载 `AssemblyManifest`，再加载 AOT 元数据并调用 `RuntimeApi.LoadMetadataForAOTAssembly`。
-10. `ProcedureLoadAssembly` 根据最新 `AssemblyManifest` 加载热更 DLL。
-11. `ProcedureClearCacheBundle` 清理无用缓存。
-12. 状态机完成后，`Boot` 设置当前默认 YooAsset 包，并加载入口场景，默认地址为 `main`。
-
-`StartupDownloadMode` 语义：
-
-- `DownloadAll`：启动阶段下载全部差异资源。
-- `DownloadByTags`：启动阶段只下载 `StartupDownloadTags` / `RawFileStartupDownloadTags` 指定的资源；Tag 为空则不创建下载器。
-- `Skip`：跳过启动阶段下载，直接进入 AOT 和热更 DLL 加载流程。
-
-`StartupUpdatePolicy` 语义：
-
-- `MustUpdate`：强更策略。远端版本、manifest 或资源下载失败时只能重试或退出，不使用本地缓存。
-- `AllowCached`：默认弱更策略。远端失败时允许使用上次成功启动的缓存版本；没有缓存时尝试首包内置 manifest。
-- `WifiOnly`：仅 Wi-Fi 更新。非 Wi-Fi 环境优先使用本地可用版本，Wi-Fi 环境按正常热更流程请求远端。
-- `BackgroundDownload`：优先本地启动策略。如已有可用缓存，启动阶段直接使用本地版本；后续后台下载入口由业务层接入。
-
-Player 的 Host 模式初始化时会把首包内置 manifest 复制到 YooAsset 缓存目录，因此首次安装后即使远端版本接口不可达，也可以尝试用首包内置版本启动。
-
-### 启动下载取消与失败处理
-
-启动阶段如发现差异文件，`ProcedureCreateDownloader` 会发送 `OnDownloadInfoHandlerEvent`，由 `UIPanelRoot` 弹出下载确认框：
-
-- 点击“确定”：进入 `ProcedureDownloadPackageFiles` 开始下载。
-- 点击“取消”：发送 `OnDownloadCancelRequestEvent`，由 `ProcedureManager` 统一调用 `CancelDownload` 收口。
-
-下载取消请求可以由任意 UI 或业务代码触发：
-
-```csharp
-TypeEventSystem.Global.Send(new OnDownloadCancelRequestEvent
-{
-    reason = "用户取消资源下载。"
-});
-```
-
-如果是在 UI 层，也可以使用封装方法：
-
-```csharp
-UIPanelRoot.Instance.RequestCancelDownload();
-UIPanelRoot.Instance.RequestCancelDownloadWithReason("用户在下载中取消。");
-```
-
-`CancelDownload` 会执行以下收口动作：
-
-- 调用主包和 RawFile 包 downloader 的 `CancelDownload()`。
-- 发送 `OnDownloadCanceledEvent`，关闭 loading 并显示取消原因。
-- 将热更流程标记为失败，避免 FSM 或协程继续悬挂。
-
-下载过程中如果失败，会弹出“确定重试 / 取消使用本地缓存或退出更新”提示。点击确定会重新创建 downloader 并重试当前包；点击取消时，弱更策略会尝试使用本地缓存，强更策略会退出更新。`ProcedureManager` 也预留了 `TryPauseDownload()` 和 `TryResumeDownload()`，后续可接入弱网或大包下载 UI。
-
-在 `AllowCached`、`WifiOnly`、`BackgroundDownload` 策略下，网络失败弹窗的取消路径会优先变为“使用本地缓存启动”。本地缓存来源包括：
-
-- 上次完整完成启动下载后记录的可用 package version。
-- 首包内置 manifest 复制到缓存目录后的内置版本。
-- 当前已经激活的 YooAsset manifest。
-
-## 首包发布流程
-
-首包用于首次安装，必须包含：
-
-- HybridCLR 运行环境。
-- 首版 YooAsset 内置资源。
-- AOT 元数据补充 DLL。
-- 首版热更 DLL。
-- `AssemblyManifest.asset`。
-- 启动场景 `Assets/Scenes/Boot.unity`。
-
-推荐步骤：
-
-1. 切换到目标构建平台，例如 Windows、Android、iOS。
-2. 执行 `HybridCLR/Installer/Install`，确保 HybridCLR 已安装。
-3. 执行 `HybridCLR/Generate/All`，生成 AOT 泛型引用、桥接函数、裁剪后的 AOT DLL 等数据。
-4. 检查 `HybridCLR/Settings` 中的 `Hot Update Assembly Definitions`，确保热更 asmdef 已加入。
-5. 检查 `YooAsset/AssetBundle Collector`，确保首包资源和热更资源都被主资源包收集；默认主包名为 `DefaultPackage`。
-6. 执行菜单 `Build/Build Initial YooAsset Package`。
-7. 构建 Player。Windows 示例可执行菜单 `Build/Win64`。
-
-`Build/Build Initial YooAsset Package` 会自动完成：
-
-- 调用 `CompileDllCommand.CompileDll(target)` 编译热更 DLL。
-- 从 `HybridCLRData/AssembliesPostIl2CppStrip` 复制 AOT 元数据 DLL 到 `Assets/AssetsPackage/AssetsHotFix/AOTCodes/*.dll.bytes`。
-- 从 `HybridCLRData/HotUpdateDlls` 复制热更 DLL 到 `Assets/AssetsPackage/AssetsHotFix/HotfixCodes/*.dll.bytes`。
-- 生成或更新 `AssemblyManifest.asset`，写入 AOT DLL 列表和热更 DLL 列表。
-- 从 YooAsset Collector 同步运行时包名配置，并构建当前主资源包。
-- 使用 `ClearAndCopyAll` 将构建产物复制到 `StreamingAssets`，作为首包内置资源。
-
-Windows 的 `Build/Win64` 菜单额外封装了 Player 构建流程：先构建 `Assets/Scenes/Boot.unity`，再构建首包 YooAsset 资源，并把 `StreamingAssets` 复制到 `Release-Win64/HybridCLRTrial_Data/StreamingAssets`。
-
-## 热更包发布流程
-
-当只更新热更代码、资源、场景或配置时，走热更包流程。
-
-推荐步骤：
-
-1. 修改 `Assets/AssetsPackage/Scripts/Hotfix` 下的热更代码，或修改 `AssetsHotFix` 下被 YooAsset 收集的资源。
-2. 如新增热更代码模块，先创建 asmdef，并加入 `HybridCLR/Settings -> Hot Update Assembly Definitions`。
-3. 如新增热更资源目录，在 `YooAsset/AssetBundle Collector` 中加入当前主资源包的收集器。
-4. 执行菜单 `Build/Build Hotfix YooAsset Package`。
-5. 将本次 YooAsset 构建输出目录中的版本文件、manifest 文件和 bundle 文件上传到 CDN/资源服务器。
-6. 客户端重启或进入热更流程后，会请求最新版本并按 manifest 差异下载。
-
-`Build/Build Hotfix YooAsset Package` 的行为：
-
-- 重新编译热更 DLL。
-- 只复制 `HotfixCodes`。
-- 临时把 `AssemblyManifest.asset` 的 AOT 列表置空，让本次远端 manifest 不要求下载 AOT 元数据。
-- 构建时临时禁用 `AOTCodes` 收集器。
-- YooAsset 构建参数使用 `BuildinFileCopyOption.None`，不会覆盖 `StreamingAssets`。
-- 构建完成后恢复本地 `AssemblyManifest.asset` 中的 AOT 列表，保证工程配置仍可用于下一次首包构建。
-
-因此后续热更包默认只包含：
-
-- 变化后的热更 DLL。
-- 变化后的热更资源、场景、配表。
-- 最新 `AssemblyManifest.asset`。
-- YooAsset 版本和 manifest 文件。
-
-## 远端资源地址
-
-Host/Web 模式远端地址由 `Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset` 控制，不再写死在代码里。
-
-每个环境都可以独立配置：
-
-- `mainCdnUrlTemplate`：主 CDN 地址模板。
-- `fallbackCdnUrlTemplate`：备用 CDN 地址模板，启动时会校验它不能和主 CDN 完全相同。
-- `requireHttps`：是否强制 HTTPS，正式环境建议开启。
-- `allowedDomains`：允许访问的域名白名单，预留域名治理能力。
-- `certificatePinningEnabled` / `certificatePublicKeyPin`：证书 pinning 预留字段。
-- `enableGrayRelease` / `grayReleasePercent` / `grayMainCdnUrlTemplate`：CDN 灰度切换预留字段。
-
-地址模板支持以下 token：
+入口脚本：
 
 ```text
-{Environment}  # Development / Testing / Staging / Production
-{Platform}     # Android / iOS / WebGL / Windows / macOS / Linux
-{Channel}      # 渠道，例如 appstore、googleplay、tap、official
-{Region}       # 地区，例如 cn、us、global
-{PackageName}  # YooAsset 包名
+Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
+```
+
+启动流程：
+
+1. `Boot` 读取 `HotfixRuntimeSettings.asset`。
+2. 初始化 YooAsset。
+3. 创建 `ProcedureManager`。
+4. `ProcedureInitializePackage` 初始化主资源包和可选 RawFile 包。
+5. `ProcedureRequestPackageVersion` 请求远端 package version。
+6. `ProcedureUpdatePackageManifest` 更新 package manifest。
+7. `ProcedureCreateDownloader` 根据启动下载策略创建 downloader。
+8. `ProcedureDownloadPackageFiles` 下载缺失或 hash 变化的 bundle。
+9. `ProcedureLoadAOTMetadata` 先加载 `HotfixAssemblyManifest`，再加载匹配的 `AOTAssemblyManifest` 和 AOT metadata。
+10. `ProcedureLoadAssembly` 加载热更 DLL，并记录本次可用的 `HotfixVersion + AotVersion` 组合。
+11. `ProcedureClearCacheBundle` 清理缓存。
+12. `Boot` 加载入口场景，默认地址是 `main`。
+
+弱网或远端异常时，`StartupUpdatePolicy` 决定是否可以使用本地缓存或首包内置资源启动。
+
+## 启动包策略
+
+`HotfixRuntimeSettings.asset` 中的 `StartupPackageMode` 用来明确包体形态。
+
+### FirstPackage
+
+首包模式，推荐默认使用。
+
+首包必须包含：
+
+- 启动场景和主工程代码。
+- YooAsset 内置 package manifest。
+- `AOTAssemblyManifest.asset`。
+- `HotfixAssemblyManifest.asset`。
+- AOT metadata DLL.bytes。
+- 首版热更 DLL.bytes。
+- 入口场景或入口 prefab。
+- 展示更新 UI、错误提示、本地缓存降级所需资源。
+
+构建 `Build/Build Initial YooAsset Package` 时会校验上述资源是否存在，并把 YooAsset 构建产物复制到 `StreamingAssets`。
+
+### EmptyPackage
+
+空包模式不内置 YooAsset 启动资源，适合必须从远端拉取首个资源版本的场景。
+
+要求：
+
+- `PlayerPlayMode` 必须是 `HostPlayMode` 或 `WebPlayMode`。
+- 首次启动时远端必须可访问。
+- 启动下载策略建议使用 `DownloadAll`，或用 `DownloadByTags` 覆盖所有启动必需资源。
+- 构建 `Build/Build Initial YooAsset Package` 会生成远端资源包，但不会复制到 `StreamingAssets`。
+
+空包不能搭配 `OfflinePlayMode`。如果远端不可用且本地从未成功缓存过资源，首次启动会失败并给出明确错误。
+
+### OfflinePackage
+
+离线包模式完整内置启动资源，不依赖远端。
+
+要求：
+
+- `StartupPackageMode = OfflinePackage`
+- `PlayerPlayMode = OfflinePlayMode`
+- 构建阶段会校验 AOT、Hotfix、manifest 和入口资源完整性。
+
+离线包适合 Demo、审核包、展会包、内网包或不需要远端热更的发行形态。
+
+## Runtime Settings
+
+`Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset` 核心字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `EditorPlayMode` | Editor 下使用的 YooAsset PlayMode |
+| `PlayerPlayMode` | Player 下使用的 YooAsset PlayMode |
+| `MainPackageName` | 主包名，默认 `DefaultPackage` |
+| `IncludeRawFilePackage` | 是否启用 RawFile 包 |
+| `RawFilePackageName` | RawFile 包名，默认 `RawFilePackage` |
+| `StartupPackageMode` | `FirstPackage`、`EmptyPackage`、`OfflinePackage` |
+| `StartupDownloadMode` | `DownloadAll`、`DownloadByTags`、`Skip` |
+| `StartupUpdatePolicy` | `MustUpdate`、`AllowCached`、`WifiOnly`、`BackgroundDownload` |
+| `StartupDownloadTags` | 主包启动阶段下载 Tag |
+| `RawFileStartupDownloadTags` | RawFile 包启动阶段下载 Tag |
+
+`StartupDownloadMode`：
+
+- `DownloadAll`：下载全部差异资源。
+- `DownloadByTags`：只下载指定 Tag。Tag 为空时不会创建 downloader。
+- `Skip`：跳过启动下载，直接尝试加载当前本地可用资源。
+
+`StartupUpdatePolicy`：
+
+- `MustUpdate`：远端失败时只能重试或退出。
+- `AllowCached`：远端失败时允许使用上次可用缓存或首包内置资源。
+- `WifiOnly`：非 Wi-Fi 环境优先使用本地可用版本。
+- `BackgroundDownload`：已有可用缓存时优先本地启动，后台下载入口由业务层继续接入。
+
+## Remote Settings
+
+Host/Web 模式远端地址由：
+
+```text
+Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset
+```
+
+控制。不要在代码里写死 CDN 地址。
+
+每个环境可以配置：
+
+- `mainCdnUrlTemplate`：主 CDN 地址模板。
+- `fallbackCdnUrlTemplate`：备用 CDN 地址模板，不能和主 CDN 完全相同。
+- `requireHttps`：是否强制 HTTPS。
+- `allowedDomains`：允许访问的域名白名单。
+- `certificatePinningEnabled` 和 `certificatePublicKeyPin`：证书 pinning 预留。
+- `enableGrayRelease`、`grayReleasePercent`、灰度 CDN 模板：CDN 灰度预留。
+
+地址模板支持：
+
+```text
+{Environment}
+{Platform}
+{Channel}
+{Region}
+{PackageName}
 ```
 
 示例：
 
 ```text
-https://cdn.example.com/GameName/{Platform}/{Channel}/{Region}
-https://cdn-backup.example.com/GameName/{Platform}/{Channel}/{Region}
+https://cdn.example.com/GameName/{Platform}/{Channel}/{Region}/{PackageName}
+https://cdn-backup.example.com/GameName/{Platform}/{Channel}/{Region}/{PackageName}
 ```
 
-运行时可以通过 PlayerPrefs 或命令行切换环境、渠道和地区，不需要修改代码：
+运行时可以用 PlayerPrefs 覆盖环境、渠道、地区：
 
 ```csharp
 PlayerPrefs.SetString("Hotfix.Remote.Environment", "Production");
@@ -223,86 +276,294 @@ PlayerPrefs.SetString("Hotfix.Remote.Region", "cn");
 PlayerPrefs.Save();
 ```
 
-也可以直接覆盖本次使用的主/备 CDN 模板：
+也可以直接覆盖主/备 CDN 模板：
 
 ```csharp
-PlayerPrefs.SetString("Hotfix.Remote.MainUrl", "https://cdn.example.com/GameName/{Platform}/{Channel}/{Region}");
-PlayerPrefs.SetString("Hotfix.Remote.FallbackUrl", "https://cdn-backup.example.com/GameName/{Platform}/{Channel}/{Region}");
+PlayerPrefs.SetString("Hotfix.Remote.MainUrl", "https://cdn.example.com/GameName/{Platform}/{Channel}/{Region}/{PackageName}");
+PlayerPrefs.SetString("Hotfix.Remote.FallbackUrl", "https://cdn-backup.example.com/GameName/{Platform}/{Channel}/{Region}/{PackageName}");
 PlayerPrefs.Save();
 ```
 
-命令行示例：
+命令行覆盖：
 
 ```text
---hotfix-env=Production --hotfix-channel=official --hotfix-region=cn
---hotfix-main-url=https://cdn.example.com/GameName/{Platform}/{Channel}/{Region}
---hotfix-fallback-url=https://cdn-backup.example.com/GameName/{Platform}/{Channel}/{Region}
+--hotfix-env=Production
+--hotfix-channel=official
+--hotfix-region=cn
+--hotfix-main-url=https://cdn.example.com/GameName/{Platform}/{Channel}/{Region}/{PackageName}
+--hotfix-fallback-url=https://cdn-backup.example.com/GameName/{Platform}/{Channel}/{Region}/{PackageName}
 ```
 
-上传远端资源时，服务器目录需要和模板解析后的目录一致，并保持 YooAsset 构建输出中的文件结构和文件名不变。
+## Manifest 协议
 
-## 启动阶段多语言
+当前运行时不再依赖单一 `AssemblyManifest`，而是使用两份清单。
 
-启动、资源检查、下载确认、失败重试、本地缓存降级、AOT 元数据加载和热更程序集加载等提示文案由 `Assets/AssetsPackage/Resources/HotfixLocalizationSettings.asset` 管理。
+### AOTAssemblyManifest
 
-默认语言为 `FollowSystem`，运行时会跟随系统语言选择简体中文或英文。也可以通过 PlayerPrefs 或命令行覆盖：
+路径：
 
-```csharp
-PlayerPrefs.SetString("Hotfix.Language", "English");
-PlayerPrefs.Save();
+```text
+Assets/AssetsPackage/AssetsHotFix/Configs/AOTAssemblyManifest.asset
+```
+
+字段：
+
+- `AppVersion`：该 AOT metadata 对应的 App 版本。
+- `BuildTarget`：平台，例如 `Windows`、`Android`、`iOS`、`macOS`。
+- `AotVersion`：由 AppVersion、BuildTarget、AOT DLL 文件名、SHA256、大小生成。
+- `AotMetadataAssemblies`：需要加载 metadata 的 AOT DLL 列表。
+- `AotMetadataFiles`：AOT DLL 的 hash 和 size 记录。
+
+### HotfixAssemblyManifest
+
+路径：
+
+```text
+Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset
+```
+
+字段：
+
+- `AppVersionMin`：最小兼容 App 版本。
+- `AppVersionMax`：最大兼容 App 版本。
+- `BuildTarget`：平台。
+- `RequiredAotVersion`：本次热更需要的 AOT 版本。
+- `HotfixVersion`：由兼容版本、平台、RequiredAotVersion、热更 DLL 文件名、SHA256、大小生成。
+- `HotUpdateAssemblies`：热更 DLL 列表。
+- `HotUpdateFiles`：热更 DLL 的 hash 和 size 记录。
+- `EntrySceneAddress`：热更完成后加载的场景地址，默认 `main`。
+- `EntryPrefabAddress`：预留的入口 prefab 地址。
+- `EntryTypeName` 和 `EntryMethodName`：可选静态入口方法。
+
+运行时会校验：
+
+- Hotfix manifest 和 AOT manifest 是否存在。
+- `AppVersionMin <= Application.version <= AppVersionMax`。
+- `BuildTarget` 是否匹配当前运行平台。
+- `HotfixAssemblyManifest.RequiredAotVersion == AOTAssemblyManifest.AotVersion`。
+- AOT DLL 和热更 DLL 列表不能为空。
+- 入口场景或入口 prefab 至少配置一个。
+
+校验失败会终止热更流程并显示明确错误。
+
+## 构建首包
+
+常规首包推荐使用 `FirstPackage`。
+
+步骤：
+
+1. 切换 Unity 目标平台。
+2. 执行 `HybridCLR/Generate/All`。
+3. 检查 `HotfixRuntimeSettings.asset`：
+
+   ```text
+   StartupPackageMode = FirstPackage
+   PlayerPlayMode = HostPlayMode
+   StartupDownloadMode = DownloadAll
+   StartupUpdatePolicy = AllowCached
+   ```
+
+4. 检查 `HotfixRemoteSettings.asset`，确保目标平台对应环境的主/备 CDN 合法。
+5. 执行：
+
+   ```text
+   Build/Build Initial YooAsset Package
+   ```
+
+该菜单会：
+
+- 编译热更 DLL。
+- 复制 AOT metadata 到 `AOTCodes/*.dll.bytes`。
+- 复制热更 DLL 到 `HotfixCodes/*.dll.bytes`。
+- 生成或更新 `AOTAssemblyManifest.asset`。
+- 生成或更新 `HotfixAssemblyManifest.asset`。
+- 同步旧 `AssemblyManifest.asset`，用于兼容迁移。
+- 校验首包必需资源。
+- 构建 YooAsset 包。
+- `FirstPackage` 和 `OfflinePackage` 会复制构建产物到 `StreamingAssets`。
+
+YooAsset 默认输出目录：
+
+```text
+Bundles/{UnityBuildTarget}/{PackageName}/{PackageVersion}
+```
+
+示例：
+
+```text
+Bundles/StandaloneOSX/DefaultPackage/2026-04-30-153012
+Bundles/StandaloneWindows64/DefaultPackage/2026-04-30-153012
+```
+
+构建日志会输出：
+
+```text
+[BuildYooAssetPackage] Output: ...
+```
+
+## 构建空包首版远端资源
+
+空包不是不需要资源，而是不把资源内置进安装包。
+
+步骤：
+
+1. 设置：
+
+   ```text
+   StartupPackageMode = EmptyPackage
+   PlayerPlayMode = HostPlayMode 或 WebPlayMode
+   StartupDownloadMode = DownloadAll
+   ```
+
+2. 执行：
+
+   ```text
+   Build/Build Initial YooAsset Package
+   ```
+
+3. 将输出目录内容上传到 `HotfixRemoteSettings.asset` 解析出的 CDN 根目录。
+4. 构建 Player。
+
+空包构建会生成完整 YooAsset 远端资源，但不会复制到 `StreamingAssets`。首次启动必须能请求远端 package version 和 package manifest。
+
+## 构建离线包
+
+步骤：
+
+1. 设置：
+
+   ```text
+   StartupPackageMode = OfflinePackage
+   PlayerPlayMode = OfflinePlayMode
+   ```
+
+2. 执行：
+
+   ```text
+   Build/Build Initial YooAsset Package
+   ```
+
+3. 构建 Player。
+
+离线包不会依赖 CDN，适合固定内容交付。后续如果要切回热更模式，需要重新设置 `StartupPackageMode` 和 `PlayerPlayMode`。
+
+## 构建热更包
+
+当修改热更代码、资源、场景或配置后，执行：
+
+```text
+Build/Build Hotfix YooAsset Package
+```
+
+该菜单会：
+
+- 编译热更 DLL。
+- 更新 `HotfixCodes/*.dll.bytes`。
+- 复用当前 `AOTAssemblyManifest.asset`。
+- 生成新的 `HotfixAssemblyManifest.asset`，其中 `RequiredAotVersion` 指向当前 AOT 版本。
+- 校验 AOT 和 Hotfix manifest 兼容关系。
+- 构建远端 YooAsset 包。
+- 不复制到 `StreamingAssets`。
+
+热更构建不会移除 AOT 收集器。输出目录是一个完整资源版本目录，客户端会通过 YooAsset manifest 对比本地缓存，只下载缺失或 hash 变化的 bundle。AOT metadata 没变化时不会重复下载。
+
+如果修改导致 AOT metadata 也需要更新，先重新执行 `HybridCLR/Generate/All`，再构建首版资源或热更资源，让 `AOTAssemblyManifest.AotVersion` 发生变化。客户端会按新的 `RequiredAotVersion` 先下载并加载匹配的 AOT metadata，再加载热更 DLL。
+
+## 上传 CDN
+
+构建输出目录形如：
+
+```text
+Bundles/{UnityBuildTarget}/{PackageName}/{PackageVersion}
+```
+
+将该目录下的文件上传到 `HotfixRemoteSettings.asset` 最终解析出的 URL 根目录。YooAsset 请求文件时会把文件名拼到根目录后面。
+
+本地测试可以使用简单 HTTP 服务。示例：
+
+```bash
+cd Bundles/StandaloneOSX/DefaultPackage/2026-04-30-153012
+python3 -m http.server 8080
+```
+
+然后把开发环境 CDN 模板临时设置为：
+
+```text
+http://127.0.0.1:8080
+```
+
+备用 CDN 不能和主 CDN 完全相同，可以使用另一个端口或另一个本地目录：
+
+```bash
+python3 -m http.server 8081
 ```
 
 ```text
---hotfix-language=ChineseSimplified
---hotfix-language=English
+http://127.0.0.1:8081
 ```
 
-新增启动阶段提示时，优先在 `HotfixTextKey` 中添加 key，并在 `HotfixLocalizationSettings.asset` 中补齐对应语言文本，再通过 `HotfixText.Get(...)` 使用，避免把用户可见文案继续写死在流程代码里。
+正式环境建议：
 
-## AOT 元数据策略
+- 使用 HTTPS。
+- 主/备 CDN 域名不同。
+- 上传后校验版本文件、manifest 文件和 bundle 文件数量。
+- 保留上一稳定版本，便于回滚。
+- 不修改 YooAsset 生成的文件名。
 
-当前工程采用“首包固定 AOT 元数据”的策略：
+## 构建 Player
 
-- 首包构建时发布 `AOTCodes`。
-- 热更构建时排除 `AOTCodes`。
-- 运行时在 manifest 更新和启动下载策略处理后进入 AOT 元数据加载阶段；常规热更包不发布新的 AOT 元数据。
+Windows 示例：
 
-这个策略适合大多数业务热更，但要注意边界：
+```text
+Build/Win64
+```
 
-- 如果后续热更代码只是改业务逻辑、UI、资源、配表，通常只发热更包即可。
-- 如果后续热更引入新的 AOT 泛型需求，且首包 AOT 元数据无法覆盖，可能需要重新发 App 包。
-- 如果希望 AOT 元数据也能远端更新，需要调整当前流程：远端包不能清空 AOT 列表，也不能禁用 `AOTCodes` 收集器，并且运行时加载 AOT 的时机要能使用远端最新 manifest。
+该菜单会：
 
-## AssemblyManifest 配置
+- 校验目标平台是否为 Windows。
+- 应用 `HotfixBuildProfile.asset` 中的平台 PlayMode。
+- 执行 `PrebuildCommand.GenerateAll()`。
+- 构建 `Assets/Scenes/Boot.unity`。
+- 构建首包 YooAsset 资源。
+- 将 `StreamingAssets` 复制到 `Release-Win64/HybridCLRTrial_Data/StreamingAssets`。
 
-`AssemblyManifest.asset` 字段说明：
+其他平台可以用 Unity 原生 Build Settings。构建预处理器会调用：
 
-- `AotMetadataAssemblies`：需要加载元数据的 AOT DLL 列表。
-- `HotUpdateAssemblies`：需要加载的热更 DLL 列表。
-- `EntrySceneAddress`：热更完成后加载的 YooAsset 场景地址，当前默认 `main`。
-- `EntryTypeName`：可选，热更程序集里的静态入口类型完整名。
-- `EntryMethodName`：可选，热更入口静态方法名。
+```text
+HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild
+```
 
-通常不需要手动维护 DLL 列表，构建菜单会自动写入。入口场景或入口方法可以按项目需要手动配置。
+并校验：
 
-## 按 Tag 下载和加载
+- Player 不允许使用 `EditorSimulateMode`。
+- WebGL 必须使用 `WebPlayMode`。
+- 非 WebGL 不允许使用 `WebPlayMode`。
+- `OfflinePackage` 必须使用 `OfflinePlayMode`。
+- `EmptyPackage` 不允许使用 `OfflinePlayMode`。
+- 远端配置必须通过目标平台校验。
 
-当前框架已接入 YooAsset Tag 能力，可用于分阶段下载或按模块加载资源。
+## 按 Tag 下载
 
-使用步骤：
+步骤：
 
-1. 在 `YooAsset/AssetBundle Collector` 中给资源收集器配置 `AssetTags`，例如 `ui`、`battle`、`chapter_1`。
-2. 重新执行 `Build/Build Hotfix YooAsset Package`，让最新 manifest 包含资源 Tag 信息。
-3. 如希望启动热更阶段按 Tag 下载，在 `HotfixRuntimeSettings.asset` 中设置 `StartupDownloadMode = DownloadByTags`，并填写 `StartupDownloadTags`。
-4. 业务运行时可通过 `YooAssetKit` 按 Tag 下载或加载。
+1. 在 YooAsset Collector 中给资源收集器配置 `AssetTags`，例如：
 
-启动阶段下载策略统一由 `HotfixRuntimeSettings.asset` 控制：
+   ```text
+   ui
+   battle
+   chapter_1
+   ```
 
-- `DownloadAll`：启动阶段下载全部差异资源。
-- `DownloadByTags`：启动阶段只下载配置的 Tag；Tag 为空时不创建启动下载器。
-- `Skip`：跳过启动阶段下载，业务可在进入游戏后按需下载。
+2. 设置 `HotfixRuntimeSettings.asset`：
 
-按 Tag 下载：
+   ```text
+   StartupDownloadMode = DownloadByTags
+   StartupDownloadTags = ui,battle
+   ```
+
+3. 重新构建 YooAsset 包。
+
+业务中可以按 Tag 下载：
 
 ```csharp
 YooAssetKit.DownloadByTagsAsync(
@@ -310,7 +571,9 @@ YooAssetKit.DownloadByTagsAsync(
     onCompleted: downloader =>
     {
         if (downloader.Status != YooAsset.EOperationStatus.Succeed)
+        {
             UnityEngine.Debug.LogError(downloader.Error);
+        }
     },
     onUpdate: data =>
     {
@@ -324,72 +587,157 @@ YooAssetKit.DownloadByTagsAsync(
 var prefabs = await YooAssetKit.LoadAssetsByTagAsync<UnityEngine.GameObject>("ui");
 ```
 
-也可以只查询资源信息后自行加载：
+注意：按 Tag 加载前，相关 bundle 必须已经在本地可用。
+
+## 下载取消和失败处理
+
+启动阶段发现差异资源时，会弹出下载确认框：
+
+- 点击确定：开始下载。
+- 点击取消：触发 `OnDownloadCancelRequestEvent`，热更流程失败并显示取消原因。
+
+业务代码可以主动取消：
 
 ```csharp
-var assetInfos = YooAssetKit.GetAssetInfosByTag("ui");
-foreach (var assetInfo in assetInfos)
+TypeEventSystem.Global.Send(new OnDownloadCancelRequestEvent
 {
-    var handle = YooAsset.YooAssets.LoadAssetAsync(assetInfo);
-}
+    reason = "用户取消资源下载。"
+});
 ```
 
-注意：按 Tag 加载前，相关 bundle 必须已经在本地可用；如果是远端资源，先调用按 Tag 下载接口。
+UI 层也可以调用：
 
-## 开发注意事项
+```csharp
+UIPanelRoot.Instance.RequestCancelDownload();
+UIPanelRoot.Instance.RequestCancelDownloadWithReason("用户在下载中取消。");
+```
 
-- 热更代码必须放在热更 asmdef 管理的目录中，例如 `HotfixCommon`、`HotfixDemo`。
-- 主工程代码可以引用稳定基础设施，但不要直接依赖热更业务实现。
-- 热更资源必须被 YooAsset Collector 收集，否则远端 manifest 中不会出现。
-- 需要按 Tag 下载或加载的资源，必须在 YooAsset Collector 中配置 `AssetTags`。
-- 场景、Prefab、材质、Shader、配表等资源改动后，需要重新构建热更包。
-- Shader 相关资源上线前建议做变体收集，避免运行时丢变体。
-- 构建热更包前确保目标平台正确；不同平台的 DLL 和 AssetBundle 不能混用。
+下载失败后会提供重试或退出/使用本地缓存路径。`AllowCached`、`WifiOnly`、`BackgroundDownload` 会优先尝试上次可用缓存；`MustUpdate` 不使用缓存兜底。
+
+## 多语言提示
+
+启动阶段文案由：
+
+```text
+Assets/AssetsPackage/Resources/HotfixLocalizationSettings.asset
+```
+
+管理。
+
+默认跟随系统语言。也可以覆盖：
+
+```csharp
+PlayerPrefs.SetString("Hotfix.Language", "English");
+PlayerPrefs.Save();
+```
+
+命令行：
+
+```text
+--hotfix-language=ChineseSimplified
+--hotfix-language=English
+```
+
+新增用户可见文案时，优先在 `HotfixTextKey` 中添加 key，并在 `HotfixLocalizationSettings.asset` 中补齐文本，再通过 `HotfixText.Get(...)` 使用。
 
 ## 常用菜单
 
 ```text
-HybridCLR/Installer/Install              # 安装 HybridCLR
-HybridCLR/Generate/All                   # 生成 HybridCLR 必要数据
-Build/Build Initial YooAsset Package     # 构建首包内置 YooAsset 包
-Build/Build Hotfix YooAsset Package      # 构建后续远端热更包
-Build/Hotfix/Sync Package Names From YooAsset Collector # 同步运行时主包和 RawFile 包名
-Build/BuildAssetsAndCopyToAssetsPackage  # 只复制 AOT/热更 DLL 并刷新配置
-Build/CopyAotDllsToAssetsPackage         # 只复制 AOT 元数据 DLL
-Build/CopyHotUpdateDllsToAssetsPackage   # 只复制热更 DLL
-Build/Win64                              # Windows 示例 Player 构建
+HybridCLR/Installer/Install
+HybridCLR/Generate/All
+Build/Hotfix/Apply Build Play Mode To Runtime Settings
+Build/Hotfix/Sync Package Names From YooAsset Collector
+Build/Build Initial YooAsset Package
+Build/Build Hotfix YooAsset Package
+Build/BuildAssetsAndCopyToAssetsPackage
+Build/BuildAssetsAndCopyToStreamingAssets
+Build/CopyAotDllsToAssetsPackage
+Build/CopyHotUpdateDllsToAssetsPackage
+Build/Win64
 ```
+
+## 自检清单
+
+构建前检查：
+
+- 目标平台已切换。
+- `HybridCLR/Generate/All` 已执行。
+- 热更 asmdef 已加入 HybridCLR Settings。
+- YooAsset Collector 已收集 `AOTCodes`、`HotfixCodes`、`Configs` 和入口资源。
+- `HotfixRuntimeSettings.asset` 的包名与 Collector 一致。
+- `HotfixRemoteSettings.asset` 的主/备 CDN 不相同。
+- `FirstPackage` / `OfflinePackage` 的启动资源完整。
+- `EmptyPackage` 没有搭配 `OfflinePlayMode`。
+
+构建后检查：
+
+- `AOTAssemblyManifest.asset` 的 `BuildTarget` 和目标平台一致。
+- `HotfixAssemblyManifest.asset` 的 `RequiredAotVersion` 等于 `AOTAssemblyManifest.asset` 的 `AotVersion`。
+- `HotfixAssemblyManifest.asset` 的 App 兼容版本覆盖当前 `Application.version`。
+- 输出目录存在版本文件、manifest 文件和 bundle 文件。
+- 上传到 CDN 后，用浏览器或 curl 能访问版本文件和 manifest 文件。
 
 ## 常见问题
 
 ### 热更包是否是真正增量？
 
-构建目录是完整版本目录，客户端更新是增量。YooAsset 会通过远端 manifest 对比本地缓存，只下载缺失或 hash 变化的 bundle。
+构建输出是完整版本目录，客户端下载是增量。YooAsset 会通过 manifest 对比本地缓存，只下载缺失或 hash 变化的 bundle。
 
-### 为什么热更包里不包含 AOTCodes？
+### 为什么热更包里还能看到 AOT 相关资源？
 
-这是当前框架的设计：AOT 元数据随首包发布。热更构建时 `BuildHotfixYooAssetPackage` 会临时禁用 `AOTCodes` 收集器，并清空远端 manifest 中的 AOT 列表。
+热更构建保留 AOT 收集器，保证远端 manifest 能表达完整资源版本。只要 AOT metadata 文件 hash 没变，客户端不会重复下载。
+
+### App 版本不兼容怎么办？
+
+检查 `HotfixAssemblyManifest.asset`：
+
+- `AppVersionMin`
+- `AppVersionMax`
+
+当前 `Application.version` 必须落在这个区间内。不兼容时客户端会拒绝加载热更，并提示更新 App 或更新资源。
+
+### 平台不兼容怎么办？
+
+检查 `AOTAssemblyManifest.asset` 和 `HotfixAssemblyManifest.asset` 的 `BuildTarget`。Windows、Android、iOS、WebGL、macOS、Linux 的 DLL 和 AssetBundle 不能混用。
 
 ### 新增热更程序集后没有加载？
 
-检查三处：
+检查：
 
 1. 新 asmdef 是否加入 `HybridCLR/Settings -> Hot Update Assembly Definitions`。
-2. 是否执行了 `Build/Build Hotfix YooAsset Package`。
-3. `AssemblyManifest.asset` 的 `HotUpdateAssemblies` 是否包含新增 DLL。
+2. 是否执行 `HybridCLR/Generate/All` 或至少重新编译热更 DLL。
+3. 是否执行 `Build/Build Hotfix YooAsset Package`。
+4. `HotfixAssemblyManifest.asset` 的 `HotUpdateAssemblies` 是否包含新增 DLL。
 
-### 修改了资源但客户端下载不到？
+### 修改资源后客户端下载不到？
 
-检查资源是否在 `YooAsset/AssetBundle Collector` 中被收集，远端目录是否上传了最新版本文件和 bundle，`HotfixRemoteSettings.asset` 解析出的环境、平台、渠道、地区目录是否正确。
+检查：
+
+1. 资源是否被 YooAsset Collector 收集。
+2. 资源所在收集器是否有正确 Tag。
+3. 是否上传了最新 YooAsset 输出目录。
+4. `HotfixRemoteSettings.asset` 解析出的环境、平台、渠道、地区、包名目录是否正确。
+5. CDN 是否缓存了旧版本文件。
 
 ### 何时必须重新发 App 包？
 
-以下情况通常需要重新发 App 包：
+通常包括：
 
-- 修改了首包主工程代码。
-- HybridCLR、YooAsset、Unity 版本或构建平台配置发生关键变化。
-- 新热更代码需要的 AOT 泛型元数据首包未覆盖。
-- 启动流程、资源包初始化流程或平台原生能力发生变化。
+- 修改主工程启动代码。
+- 修改 Unity、HybridCLR、YooAsset 关键版本或平台配置。
+- 新热更代码需要的 AOT metadata 无法通过当前远端 AOT 版本覆盖。
+- 修改原生插件、平台权限、启动场景、包体内置配置。
+- 从离线包切换到远端热更包，或反向切换。
+
+### 如何回滚？
+
+回滚时不要只回滚热更 DLL。应回滚到一组兼容组合：
+
+```text
+HotfixVersion + RequiredAotVersion
+```
+
+也就是同时恢复对应的 `HotfixAssemblyManifest`、热更 DLL、资源文件，以及它要求的 AOT 版本。客户端会记录上次成功启动的 package version、AOT version、Hotfix version 和组合信息，用于本地缓存兜底。
 
 ## 致谢
 

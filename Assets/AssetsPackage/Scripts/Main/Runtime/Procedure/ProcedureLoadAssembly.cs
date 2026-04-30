@@ -57,7 +57,7 @@ namespace Framework.Procedure
 
             var package = YooAssets.GetPackage(mTarget._packageName);
             var loader = new HybridCLRAssemblyLoader();
-            yield return loader.LoadHotUpdateAssemblies(package, progress => rawProgress = progress);
+            yield return loader.LoadHotUpdateAssemblies(package, mTarget.AssemblyLoadContext, progress => rawProgress = progress);
 
             isLoading = false;
             if (!loader.Succeeded)
@@ -71,6 +71,8 @@ namespace Framework.Procedure
             }
 
             mTarget.SetHotfixEntry(loader.EntrySceneAddress, loader.EntryTypeName, loader.EntryMethodName);
+            mTarget.SaveUsablePackageVersions();
+            mTarget.SaveUsableAssemblyVersions();
             rawProgress = 1f;
             displayProgress = 1f;
             TypeEventSystem.Global.Send(new OnAssetloadProgressEvent

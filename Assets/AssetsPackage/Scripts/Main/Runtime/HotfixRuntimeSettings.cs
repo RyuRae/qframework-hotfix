@@ -41,6 +41,24 @@ namespace Framework
         BackgroundDownload
     }
 
+    public enum StartupPackageMode
+    {
+        /// <summary>
+        /// 首包必须包含启动 UI、YooAsset manifest、AOT metadata、热更 DLL 和入口资源。
+        /// </summary>
+        FirstPackage,
+
+        /// <summary>
+        /// 离线包必须完整内置启动所需资源，不依赖远端版本。
+        /// </summary>
+        OfflinePackage,
+
+        /// <summary>
+        /// 真正空包不内置 YooAsset 启动资源，启动后先拉远端版本和 manifest，再下载所需资源。
+        /// </summary>
+        EmptyPackage
+    }
+
     [CreateAssetMenu(fileName = "HotfixRuntimeSettings", menuName = "Hotfix/Runtime Settings", order = 0)]
     public sealed class HotfixRuntimeSettings : ScriptableObject
     {
@@ -77,6 +95,10 @@ namespace Framework
         [SerializeField]
         private StartupUpdatePolicy startupUpdatePolicy = StartupUpdatePolicy.AllowCached;
 
+        [Header("启动包策略")]
+        [SerializeField]
+        private StartupPackageMode startupPackageMode = StartupPackageMode.FirstPackage;
+
         [Header("启动阶段按Tag下载资源")]
         [SerializeField]
         private string[] startupDownloadTags = new string[0];
@@ -103,6 +125,7 @@ namespace Framework
         public string RawFilePackageName => NormalizePackageName(rawfilePackageName, DefaultRawFilePackageName);
         public StartupDownloadMode StartupDownloadMode => startupDownloadMode;
         public StartupUpdatePolicy StartupUpdatePolicy => startupUpdatePolicy;
+        public StartupPackageMode StartupPackageMode => startupPackageMode;
         public string[] StartupDownloadTags => NormalizeTags(startupDownloadTags);
         public string[] RawFileStartupDownloadTags => NormalizeTags(rawfileStartupDownloadTags);
 

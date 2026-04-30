@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Framework.Assemblies;
 using Framework.Events;
 using QFramework;
 using UnityEngine;
@@ -36,6 +37,7 @@ namespace Framework.Procedure
         public ResourceDownloaderOperation _downloaderRawfile;
         public readonly StartupDownloadMode _startupDownloadMode;
         public readonly StartupUpdatePolicy _startupUpdatePolicy;
+        public readonly StartupPackageMode _startupPackageMode;
         public readonly string[] _downloadTags;
         public readonly string[] _rawfileDownloadTags;
         private bool _downloadCancelRequested;
@@ -46,6 +48,7 @@ namespace Framework.Procedure
         public string EntrySceneAddress { get; private set; } = DefaultEntrySceneAddress;
         public string EntryTypeName { get; private set; } = string.Empty;
         public string EntryMethodName { get; private set; } = string.Empty;
+        public HotfixAssemblyLoadContext AssemblyLoadContext { get; } = new HotfixAssemblyLoadContext();
         public bool IsDownloadCancelRequested => _downloadCancelRequested;
         public bool IsDownloadPaused => _downloadPaused;
         public bool IsUsingLocalManifestFallback => _useLocalManifestFallback;
@@ -59,6 +62,7 @@ namespace Framework.Procedure
             bool IsIncludeRawFile = false,
             StartupDownloadMode startupDownloadMode = StartupDownloadMode.DownloadAll,
             StartupUpdatePolicy startupUpdatePolicy = StartupUpdatePolicy.AllowCached,
+            StartupPackageMode startupPackageMode = StartupPackageMode.FirstPackage,
             string[] downloadTags = null,
             string[] rawfileDownloadTags = null,
             string rawfilePackageName = null)
@@ -68,6 +72,7 @@ namespace Framework.Procedure
             _isIncludeRawFile = IsIncludeRawFile;
             _startupDownloadMode = startupDownloadMode;
             _startupUpdatePolicy = startupUpdatePolicy;
+            _startupPackageMode = startupPackageMode;
             _downloadTags = NormalizeTags(downloadTags);
             _rawfileDownloadTags = NormalizeTags(rawfileDownloadTags);
             _rawfilwPkgName = NormalizePackageName(rawfilePackageName, HotfixRuntimeSettings.DefaultRawFilePackageName);
@@ -223,6 +228,14 @@ namespace Framework.Procedure
             {
                 HotfixLocalManifestUtility.SaveLastUsablePackageVersion(_rawfilwPkgName, _rawfilePkgVersion);
             }
+        }
+
+        public void SaveUsableAssemblyVersions()
+        {
+            HotfixLocalManifestUtility.SaveLastUsableAssemblyVersions(
+                _packageName,
+                AssemblyLoadContext.HotfixManifest == null ? string.Empty : AssemblyLoadContext.HotfixManifest.HotfixVersion,
+                AssemblyLoadContext.AotManifest == null ? string.Empty : AssemblyLoadContext.AotManifest.AotVersion);
         }
 
         public IEnumerator TryUseLocalManifestFallback(string reason, Action<bool, string> onCompleted)

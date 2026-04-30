@@ -36,7 +36,6 @@ namespace Framework.Procedure
             if (mTarget.IsUsingLocalManifestFallback)
             {
                 Debug.Log("Using local manifest fallback, skip startup resource download.");
-                mTarget.SaveUsablePackageVersions();
                 mFSM.ChangeState(ResPackageStates.LoadAOTMetadata);
                 return;
             }
@@ -86,7 +85,6 @@ namespace Framework.Procedure
             if (totalDownloadCount == 0)
             {
                 Debug.Log("Not found any download files.");
-                mTarget.SaveUsablePackageVersions();
                 mFSM.ChangeState(ResPackageStates.LoadAOTMetadata);
                 return;
             }

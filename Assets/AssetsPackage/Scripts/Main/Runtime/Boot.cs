@@ -52,6 +52,7 @@ namespace Framework
                 settings.IncludeRawFilePackage,
                 settings.StartupDownloadMode,
                 settings.StartupUpdatePolicy,
+                settings.StartupPackageMode,
                 settings.StartupDownloadTags,
                 settings.RawFileStartupDownloadTags,
                 rawfilePackageName);

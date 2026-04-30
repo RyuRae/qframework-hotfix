@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using Framework;
 using Framework.Assemblies;
 using Framework.Utils;
@@ -21,6 +23,10 @@ namespace HybridCLR.Editor
         public const string HotfixCodesPath = "Assets/AssetsPackage/AssetsHotFix/HotfixCodes";
         public const string ConfigsPath = "Assets/AssetsPackage/AssetsHotFix/Configs";
         public const string AssemblyManifestAssetPath = ConfigsPath + "/AssemblyManifest.asset";
+        public const string AOTAssemblyManifestAssetPath = ConfigsPath + "/AOTAssemblyManifest.asset";
+        public const string HotfixAssemblyManifestAssetPath = ConfigsPath + "/HotfixAssemblyManifest.asset";
+        // Mirrors YooAsset's internal EBuildBundleType.AssetBundle without referencing an internal enum.
+        private const int YooAssetBuildBundleTypeAssetBundle = 2;
 
         public sealed class RuntimePackageConfig
         {
@@ -45,9 +51,12 @@ namespace HybridCLR.Editor
 
             var aotAssemblies = CopyAOTAssembliesToTargetPath(target);
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
+            var aotManifest = CreateOrUpdateAOTAssemblyManifest(target, aotAssemblies);
+            CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
             CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
+            ValidateStartupPackageForBuild(target);
 
-            BuildYooAssetPackage(packageConfig.MainPackageName, target, true);
+            BuildYooAssetPackage(packageConfig.MainPackageName, target, ShouldCopyPackageToStreamingAssets());
             AssetDatabase.Refresh();
         }
 
@@ -58,20 +67,13 @@ namespace HybridCLR.Editor
             var packageConfig = HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
             CompileDllCommand.CompileDll(target);
 
-            var previousAotAssemblies = GetManifestOrConfiguredAOTAssemblies();
+            var aotManifest = EnsureAOTAssemblyManifest(target);
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
-            try
-            {
-                CreateOrUpdateAssemblyManifest(new List<string>(), hotfixAssemblies);
-                BuildWithAOTCollectorDisabled(
-                    packageConfig.MainPackageName,
-                    () => BuildYooAssetPackage(packageConfig.MainPackageName, target, false));
-            }
-            finally
-            {
-                CreateOrUpdateAssemblyManifest(previousAotAssemblies, hotfixAssemblies);
-                AssetDatabase.Refresh();
-            }
+            CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
+            CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixAssemblies);
+            ValidateSplitAssemblyManifestsForBuild(target);
+            BuildYooAssetPackage(packageConfig.MainPackageName, target, false);
+            AssetDatabase.Refresh();
         }
 
         [MenuItem("Build/BuildAssetsAndCopyToAssetsPackage")]
@@ -82,7 +84,10 @@ namespace HybridCLR.Editor
 
             var aotAssemblies = CopyAOTAssembliesToTargetPath(target);
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
+            var aotManifest = CreateOrUpdateAOTAssemblyManifest(target, aotAssemblies);
+            CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
             CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
+            ValidateStartupPackageForBuild(target);
             AssetDatabase.Refresh();
         }
 
@@ -114,13 +119,18 @@ namespace HybridCLR.Editor
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
-            CreateOrUpdateAssemblyManifest(GetManifestOrConfiguredAOTAssemblies(), hotfixAssemblies);
+            var aotManifest = EnsureAOTAssemblyManifest(target);
+            CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
+            CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixAssemblies);
         }
 
         public static void CopyAotMetaDataDlls(BuildTarget target)
         {
             var aotAssemblies = CopyAOTAssembliesToTargetPath(target);
-            CreateOrUpdateAssemblyManifest(aotAssemblies, GetAllHotfixAssemblies());
+            var aotManifest = CreateOrUpdateAOTAssemblyManifest(target, aotAssemblies);
+            var hotfixAssemblies = GetManifestOrConfiguredHotfixAssemblies();
+            CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
+            CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
         }
 
         public static List<string> CopyAOTAssembliesToTargetPath()
@@ -183,9 +193,12 @@ namespace HybridCLR.Editor
 
         public static void CopyAssembiesSettingToTargetPath()
         {
-            CreateOrUpdateAssemblyManifest(
-                FindAllAOTMetaAssemblies(EditorUserBuildSettings.activeBuildTarget),
-                GetAllHotfixAssemblies());
+            BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+            var aotAssemblies = FindAllAOTMetaAssemblies(target);
+            var hotfixAssemblies = GetAllHotfixAssemblies();
+            var aotManifest = CreateOrUpdateAOTAssemblyManifest(target, aotAssemblies);
+            CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
+            CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
         }
 
         public static BuildResult BuildYooAssetPackage(string packageName, BuildTarget target, bool copyToStreamingAssets)
@@ -196,7 +209,7 @@ namespace HybridCLR.Editor
                 BuildOutputRoot = AssetBundleBuilderHelper.GetDefaultBuildOutputRoot(),
                 BuildinFileRoot = AssetBundleBuilderHelper.GetStreamingAssetsRoot(),
                 BuildPipeline = EBuildPipeline.BuiltinBuildPipeline.ToString(),
-                BuildBundleType = (int)EBuildBundleType.AssetBundle,
+                BuildBundleType = YooAssetBuildBundleTypeAssetBundle,
                 BuildTarget = target,
                 PackageName = packageName,
                 PackageVersion = CreatePackageVersion(),
@@ -272,6 +285,86 @@ namespace HybridCLR.Editor
                 .ToList();
         }
 
+        public static AOTAssemblyManifest CreateOrUpdateAOTAssemblyManifest(BuildTarget target, List<string> aotAssemblies)
+        {
+            Directory.CreateDirectory(ConfigsPath);
+
+            var manifest = AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(AOTAssemblyManifestAssetPath);
+            if (manifest == null)
+            {
+                manifest = ScriptableObject.CreateInstance<AOTAssemblyManifest>();
+                manifest.name = AOTAssemblyManifest.AssetName;
+                AssetDatabase.CreateAsset(manifest, AOTAssemblyManifestAssetPath);
+            }
+
+            manifest.AppVersion = GetAppVersion();
+            manifest.BuildTarget = GetRuntimePlatformName(target);
+            manifest.AotMetadataAssemblies = NormalizeDllNames(aotAssemblies);
+            manifest.AotMetadataFiles = CreateAssemblyFileRecords(AOTCodesPath, manifest.AotMetadataAssemblies);
+            manifest.AotVersion = CreateAotVersion(manifest.AppVersion, manifest.BuildTarget, manifest.AotMetadataFiles);
+
+            EditorUtility.SetDirty(manifest);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            return manifest;
+        }
+
+        public static HotfixAssemblyManifest CreateOrUpdateHotfixAssemblyManifest(
+            BuildTarget target,
+            List<string> hotfixAssemblies,
+            string requiredAotVersion)
+        {
+            Directory.CreateDirectory(ConfigsPath);
+
+            var oldManifest = AssetDatabase.LoadAssetAtPath<AssemblyManifest>(AssemblyManifestAssetPath);
+            var manifest = AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(HotfixAssemblyManifestAssetPath);
+            if (manifest == null)
+            {
+                manifest = ScriptableObject.CreateInstance<HotfixAssemblyManifest>();
+                manifest.name = HotfixAssemblyManifest.AssetName;
+                manifest.AppVersionMin = GetAppVersion();
+                manifest.AppVersionMax = GetAppVersion();
+                manifest.EntrySceneAddress = oldManifest == null || string.IsNullOrWhiteSpace(oldManifest.EntrySceneAddress)
+                    ? DefaultEntrySceneAddress
+                    : oldManifest.EntrySceneAddress;
+                manifest.EntryPrefabAddress = oldManifest == null ? string.Empty : oldManifest.EntryPrefabAddress;
+                manifest.EntryTypeName = oldManifest == null ? string.Empty : oldManifest.EntryTypeName;
+                manifest.EntryMethodName = oldManifest == null ? string.Empty : oldManifest.EntryMethodName;
+                AssetDatabase.CreateAsset(manifest, HotfixAssemblyManifestAssetPath);
+            }
+
+            if (string.IsNullOrWhiteSpace(manifest.AppVersionMin))
+            {
+                manifest.AppVersionMin = GetAppVersion();
+            }
+
+            if (string.IsNullOrWhiteSpace(manifest.AppVersionMax))
+            {
+                manifest.AppVersionMax = GetAppVersion();
+            }
+
+            manifest.BuildTarget = GetRuntimePlatformName(target);
+            manifest.RequiredAotVersion = requiredAotVersion ?? string.Empty;
+            manifest.HotUpdateAssemblies = NormalizeDllNames(hotfixAssemblies);
+            manifest.HotUpdateFiles = CreateAssemblyFileRecords(HotfixCodesPath, manifest.HotUpdateAssemblies);
+            manifest.HotfixVersion = CreateHotfixVersion(
+                manifest.AppVersionMin,
+                manifest.AppVersionMax,
+                manifest.BuildTarget,
+                manifest.RequiredAotVersion,
+                manifest.HotUpdateFiles);
+
+            if (string.IsNullOrWhiteSpace(manifest.EntrySceneAddress))
+            {
+                manifest.EntrySceneAddress = DefaultEntrySceneAddress;
+            }
+
+            EditorUtility.SetDirty(manifest);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            return manifest;
+        }
+
         public static AssemblyManifest CreateOrUpdateAssemblyManifest(List<string> aotAssemblies, List<string> hotfixAssemblies)
         {
             Directory.CreateDirectory(ConfigsPath);
@@ -314,6 +407,137 @@ namespace HybridCLR.Editor
             BuildHotfixYooAssetPackage();
         }
 
+        public static void ValidateStartupPackageForBuild(BuildTarget target)
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(HotfixBuildProfileUtility.RuntimeSettingsAssetPath);
+            var playerPlayMode = settings == null ? EPlayMode.HostPlayMode : settings.PlayerPlayMode;
+            ValidateStartupPackageForBuild(target, settings, playerPlayMode, true);
+        }
+
+        public static void ValidateStartupPackageForPlayerBuild(BuildTarget target, EPlayMode playerPlayMode)
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(HotfixBuildProfileUtility.RuntimeSettingsAssetPath);
+            ValidateStartupPackageForBuild(target, settings, playerPlayMode, false);
+        }
+
+        private static void ValidateStartupPackageForBuild(
+            BuildTarget target,
+            HotfixRuntimeSettings settings,
+            EPlayMode playerPlayMode,
+            bool validatePackageAssets)
+        {
+            var packageMode = settings == null ? StartupPackageMode.FirstPackage : settings.StartupPackageMode;
+            if (packageMode == StartupPackageMode.EmptyPackage &&
+                playerPlayMode == EPlayMode.OfflinePlayMode)
+            {
+                throw new InvalidOperationException(
+                    "StartupPackageMode.EmptyPackage requires HostPlayMode or WebPlayMode so the player can request the remote package version and manifest before downloading startup resources.");
+            }
+
+            if (packageMode == StartupPackageMode.OfflinePackage &&
+                playerPlayMode != EPlayMode.OfflinePlayMode)
+            {
+                throw new InvalidOperationException(
+                    $"StartupPackageMode.OfflinePackage requires OfflinePlayMode for player builds, current mode is {playerPlayMode}.");
+            }
+
+            if (packageMode == StartupPackageMode.EmptyPackage && !validatePackageAssets)
+            {
+                return;
+            }
+
+            ValidateSplitAssemblyManifestsForBuild(target);
+            var hotfixManifest = AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(HotfixAssemblyManifestAssetPath);
+            if (packageMode != StartupPackageMode.EmptyPackage)
+            {
+                ValidateFirstPackageAssetFiles(hotfixManifest);
+            }
+
+            if (validatePackageAssets)
+            {
+                ValidateCollectorContainsRequiredPath(ConfigsPath);
+                ValidateCollectorContainsRequiredPath(AOTCodesPath);
+                ValidateCollectorContainsRequiredPath(HotfixCodesPath);
+            }
+        }
+
+        public static void ValidateSplitAssemblyManifestsForBuild(BuildTarget target)
+        {
+            var aotManifest = AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(AOTAssemblyManifestAssetPath);
+            if (aotManifest == null)
+            {
+                throw new InvalidOperationException($"AOT manifest missing: {AOTAssemblyManifestAssetPath}");
+            }
+
+            var hotfixManifest = AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(HotfixAssemblyManifestAssetPath);
+            if (hotfixManifest == null)
+            {
+                throw new InvalidOperationException($"Hotfix manifest missing: {HotfixAssemblyManifestAssetPath}");
+            }
+
+            string buildTargetName = GetRuntimePlatformName(target);
+            if (!string.Equals(aotManifest.BuildTarget, buildTargetName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"AOT manifest target mismatch. Manifest={aotManifest.BuildTarget}, Build={buildTargetName}");
+            }
+
+            if (!string.Equals(hotfixManifest.BuildTarget, buildTargetName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"Hotfix manifest target mismatch. Manifest={hotfixManifest.BuildTarget}, Build={buildTargetName}");
+            }
+
+            if (string.IsNullOrWhiteSpace(aotManifest.AotVersion))
+            {
+                throw new InvalidOperationException("AOT manifest AotVersion is empty.");
+            }
+
+            if (string.IsNullOrWhiteSpace(hotfixManifest.RequiredAotVersion))
+            {
+                throw new InvalidOperationException("Hotfix manifest RequiredAotVersion is empty.");
+            }
+
+            if (!string.Equals(aotManifest.AotVersion, hotfixManifest.RequiredAotVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Hotfix manifest requires AOT version {hotfixManifest.RequiredAotVersion}, but AOT manifest version is {aotManifest.AotVersion}.");
+            }
+
+            if (aotManifest.AotMetadataAssemblies == null || aotManifest.AotMetadataAssemblies.Count == 0)
+            {
+                throw new InvalidOperationException("AOT manifest has no metadata assemblies.");
+            }
+
+            if (hotfixManifest.HotUpdateAssemblies == null || hotfixManifest.HotUpdateAssemblies.Count == 0)
+            {
+                throw new InvalidOperationException("Hotfix manifest has no hot update assemblies.");
+            }
+
+            if (string.IsNullOrWhiteSpace(hotfixManifest.EntrySceneAddress) &&
+                string.IsNullOrWhiteSpace(hotfixManifest.EntryPrefabAddress))
+            {
+                throw new InvalidOperationException("Hotfix manifest must configure EntrySceneAddress or EntryPrefabAddress.");
+            }
+
+            ValidateAssemblyFiles(AOTCodesPath, aotManifest.AotMetadataAssemblies, "AOT metadata");
+            ValidateAssemblyFiles(HotfixCodesPath, hotfixManifest.HotUpdateAssemblies, "Hotfix DLL");
+            ValidateEntryResource(hotfixManifest);
+        }
+
+        private static AOTAssemblyManifest EnsureAOTAssemblyManifest(BuildTarget target)
+        {
+            var manifest = AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(AOTAssemblyManifestAssetPath);
+            if (manifest != null &&
+                manifest.AotMetadataAssemblies != null &&
+                manifest.AotMetadataAssemblies.Count > 0 &&
+                string.Equals(manifest.BuildTarget, GetRuntimePlatformName(target), StringComparison.OrdinalIgnoreCase))
+            {
+                return manifest;
+            }
+
+            var aotAssemblies = GetManifestOrConfiguredAOTAssemblies();
+            return CreateOrUpdateAOTAssemblyManifest(target, aotAssemblies);
+        }
+
         private static List<string> GetConfiguredAOTMetaAssemblies()
         {
             return AOTGenericReferences.PatchedAOTAssemblyList
@@ -325,6 +549,12 @@ namespace HybridCLR.Editor
 
         private static List<string> GetManifestOrConfiguredAOTAssemblies()
         {
+            var aotManifest = AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(AOTAssemblyManifestAssetPath);
+            if (aotManifest != null && aotManifest.AotMetadataAssemblies != null && aotManifest.AotMetadataAssemblies.Count > 0)
+            {
+                return NormalizeDllNames(aotManifest.AotMetadataAssemblies);
+            }
+
             var manifest = AssetDatabase.LoadAssetAtPath<AssemblyManifest>(AssemblyManifestAssetPath);
             if (manifest != null && manifest.AotMetadataAssemblies != null && manifest.AotMetadataAssemblies.Count > 0)
             {
@@ -332,6 +562,233 @@ namespace HybridCLR.Editor
             }
 
             return GetConfiguredAOTMetaAssemblies();
+        }
+
+        private static List<string> GetManifestOrConfiguredHotfixAssemblies()
+        {
+            var hotfixManifest = AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(HotfixAssemblyManifestAssetPath);
+            if (hotfixManifest != null &&
+                hotfixManifest.HotUpdateAssemblies != null &&
+                hotfixManifest.HotUpdateAssemblies.Count > 0)
+            {
+                return NormalizeDllNames(hotfixManifest.HotUpdateAssemblies);
+            }
+
+            var manifest = AssetDatabase.LoadAssetAtPath<AssemblyManifest>(AssemblyManifestAssetPath);
+            if (manifest != null && manifest.HotUpdateAssemblies != null && manifest.HotUpdateAssemblies.Count > 0)
+            {
+                return NormalizeDllNames(manifest.HotUpdateAssemblies);
+            }
+
+            return GetAllHotfixAssemblies();
+        }
+
+        private static List<AssemblyFileRecord> CreateAssemblyFileRecords(string folder, IEnumerable<string> dllNames)
+        {
+            var records = new List<AssemblyFileRecord>();
+            foreach (var dllName in NormalizeDllNames(dllNames))
+            {
+                string filePath = GetAssemblyBytesPath(folder, dllName);
+                if (!File.Exists(filePath))
+                {
+                    throw new FileNotFoundException($"Assembly bytes file not found: {filePath}", filePath);
+                }
+
+                var fileInfo = new FileInfo(filePath);
+                records.Add(new AssemblyFileRecord
+                {
+                    AssemblyName = dllName,
+                    Sha256 = ComputeFileSha256(filePath),
+                    Size = fileInfo.Length
+                });
+            }
+
+            return records;
+        }
+
+        private static string CreateAotVersion(string appVersion, string buildTarget, IEnumerable<AssemblyFileRecord> records)
+        {
+            return "aot-" + ComputeStableHash(BuildVersionSeed(appVersion, buildTarget, string.Empty, records));
+        }
+
+        private static string CreateHotfixVersion(
+            string appVersionMin,
+            string appVersionMax,
+            string buildTarget,
+            string requiredAotVersion,
+            IEnumerable<AssemblyFileRecord> records)
+        {
+            string seed = BuildVersionSeed($"{appVersionMin}-{appVersionMax}", buildTarget, requiredAotVersion, records);
+            return "hotfix-" + ComputeStableHash(seed);
+        }
+
+        private static string BuildVersionSeed(
+            string appVersion,
+            string buildTarget,
+            string extra,
+            IEnumerable<AssemblyFileRecord> records)
+        {
+            var builder = new StringBuilder();
+            builder.Append(appVersion ?? string.Empty).Append('|');
+            builder.Append(buildTarget ?? string.Empty).Append('|');
+            builder.Append(extra ?? string.Empty).Append('|');
+            foreach (var record in records.OrderBy(record => record.AssemblyName, StringComparer.OrdinalIgnoreCase))
+            {
+                builder.Append(record.AssemblyName).Append(':');
+                builder.Append(record.Sha256).Append(':');
+                builder.Append(record.Size).Append('|');
+            }
+
+            return builder.ToString();
+        }
+
+        private static string ComputeStableHash(string value)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(value ?? string.Empty));
+                return BitConverter.ToString(bytes).Replace("-", string.Empty).Substring(0, 16).ToLowerInvariant();
+            }
+        }
+
+        private static string ComputeFileSha256(string filePath)
+        {
+            using (var sha256 = SHA256.Create())
+            using (var stream = File.OpenRead(filePath))
+            {
+                byte[] bytes = sha256.ComputeHash(stream);
+                return BitConverter.ToString(bytes).Replace("-", string.Empty).ToLowerInvariant();
+            }
+        }
+
+        private static void ValidateFirstPackageAssetFiles(HotfixAssemblyManifest hotfixManifest)
+        {
+            if (hotfixManifest == null)
+            {
+                throw new InvalidOperationException($"Hotfix manifest missing: {HotfixAssemblyManifestAssetPath}");
+            }
+
+            ValidateEntryResource(hotfixManifest);
+        }
+
+        private static void ValidateAssemblyFiles(string folder, IEnumerable<string> dllNames, string label)
+        {
+            foreach (var dllName in NormalizeDllNames(dllNames))
+            {
+                string filePath = GetAssemblyBytesPath(folder, dllName);
+                if (!File.Exists(filePath))
+                {
+                    throw new FileNotFoundException($"{label} bytes file missing: {filePath}", filePath);
+                }
+            }
+        }
+
+        private static void ValidateEntryResource(HotfixAssemblyManifest manifest)
+        {
+            if (!string.IsNullOrWhiteSpace(manifest.EntrySceneAddress))
+            {
+                string scenePath = FindAssetPathByAddress(manifest.EntrySceneAddress, ".unity");
+                if (string.IsNullOrEmpty(scenePath))
+                {
+                    throw new FileNotFoundException(
+                        $"Entry scene not found by address '{manifest.EntrySceneAddress}'. The current AddressByFileName rule expects a scene file with the same name.");
+                }
+
+                ValidateCollectorContainsRequiredAsset(scenePath);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(manifest.EntryPrefabAddress))
+            {
+                string prefabPath = FindAssetPathByAddress(manifest.EntryPrefabAddress, ".prefab");
+                if (string.IsNullOrEmpty(prefabPath))
+                {
+                    throw new FileNotFoundException(
+                        $"Entry prefab not found by address '{manifest.EntryPrefabAddress}'. The current AddressByFileName rule expects a prefab file with the same name.");
+                }
+
+                ValidateCollectorContainsRequiredAsset(prefabPath);
+            }
+        }
+
+        private static string FindAssetPathByAddress(string address, string extension)
+        {
+            string assetName = Path.GetFileNameWithoutExtension(address.Trim());
+            foreach (var guid in AssetDatabase.FindAssets(assetName))
+            {
+                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                if (string.Equals(Path.GetExtension(assetPath), extension, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(Path.GetFileNameWithoutExtension(assetPath), assetName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return assetPath;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static void ValidateCollectorContainsRequiredAsset(string assetPath)
+        {
+            if (!IsAssetPathCollected(assetPath))
+            {
+                throw new InvalidOperationException($"Required startup asset is not collected by YooAsset collector: {assetPath}");
+            }
+        }
+
+        private static void ValidateCollectorContainsRequiredPath(string requiredPath)
+        {
+            if (!IsAssetPathCollected(requiredPath))
+            {
+                throw new InvalidOperationException($"Required startup path is not collected by YooAsset collector: {requiredPath}");
+            }
+        }
+
+        private static bool IsAssetPathCollected(string assetPath)
+        {
+            string normalizedAssetPath = NormalizeAssetPath(assetPath);
+            var setting = AssetBundleCollectorSettingData.Setting;
+            if (setting == null || setting.Packages == null)
+            {
+                return false;
+            }
+
+            foreach (var package in setting.Packages)
+            {
+                if (package == null || package.Groups == null)
+                {
+                    continue;
+                }
+
+                foreach (var group in package.Groups)
+                {
+                    if (group == null || group.Collectors == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var collector in group.Collectors)
+                    {
+                        if (collector == null || string.IsNullOrWhiteSpace(collector.CollectPath))
+                        {
+                            continue;
+                        }
+
+                        string collectPath = NormalizeAssetPath(collector.CollectPath);
+                        if (string.Equals(normalizedAssetPath, collectPath, StringComparison.OrdinalIgnoreCase) ||
+                            normalizedAssetPath.StartsWith(collectPath + "/", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static string NormalizeAssetPath(string assetPath)
+        {
+            return (assetPath ?? string.Empty).Replace('\\', '/').Trim().TrimEnd('/');
         }
 
         private static List<string> NormalizeDllNames(IEnumerable<string> dllNames)
@@ -353,9 +810,49 @@ namespace HybridCLR.Editor
             return dllName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? dllName : $"{dllName}.dll";
         }
 
+        private static string GetAssemblyBytesPath(string folder, string dllName)
+        {
+            return Path.Combine(folder, $"{NormalizeDllName(dllName)}.bytes");
+        }
+
         private static string CreatePackageVersion()
         {
             return DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
+        }
+
+        private static bool ShouldCopyPackageToStreamingAssets()
+        {
+            var settings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(HotfixBuildProfileUtility.RuntimeSettingsAssetPath);
+            return settings == null || settings.StartupPackageMode != StartupPackageMode.EmptyPackage;
+        }
+
+        private static string GetRuntimePlatformName(BuildTarget target)
+        {
+            switch (target)
+            {
+                case BuildTarget.Android:
+                    return "Android";
+                case BuildTarget.iOS:
+                    return "iOS";
+                case BuildTarget.WebGL:
+                    return "WebGL";
+                case BuildTarget.StandaloneWindows:
+                case BuildTarget.StandaloneWindows64:
+                    return "Windows";
+                case BuildTarget.StandaloneOSX:
+                    return "macOS";
+                case BuildTarget.StandaloneLinux64:
+                    return "Linux";
+                default:
+                    return target.ToString();
+            }
+        }
+
+        private static string GetAppVersion()
+        {
+            return string.IsNullOrWhiteSpace(PlayerSettings.bundleVersion)
+                ? "1.0.0"
+                : PlayerSettings.bundleVersion.Trim();
         }
 
         private static void BuildWithAOTCollectorDisabled(string packageName, Action buildAction)

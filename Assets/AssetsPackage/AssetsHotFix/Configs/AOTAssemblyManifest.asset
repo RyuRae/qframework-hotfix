@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7adbd3b0d1da4a9fa0154700edf9a56b, type: 3}
+  m_Name: AOTAssemblyManifest
+  m_EditorClassIdentifier: 
+  AppVersion: 0.1
+  BuildTarget: macOS
+  AotVersion: aot-c39ee76d75bc897a
+  AotMetadataAssemblies:
+  - QFramework.CoreKit.dll
+  - QFramework.dll
+  - System.Core.dll
+  - UniTask.dll
+  - UnityEngine.CoreModule.dll
+  - YooAsset.dll
+  - YooAssetKit.dll
+  - mscorlib.dll
+  AotMetadataFiles:
+  - AssemblyName: QFramework.CoreKit.dll
+    Sha256: b39c0bee61b68e0686d6b0eb3ecee5e99c2be732633c42426718568676d26497
+    Size: 777728
+  - AssemblyName: QFramework.dll
+    Sha256: c196cc0b8c7bb27d64f4d28447afa2b1f6e1e534dbf610165f69373e1e031896
+    Size: 28160
+  - AssemblyName: System.Core.dll
+    Sha256: 387f5f15bab44b3d4b7434fd6ca04202cbde7cb8cc21dcf4d20e254a6dcae1b2
+    Size: 392704
+  - AssemblyName: UniTask.dll
+    Sha256: 3077e1ae32b41bda3d8d676a7c225545858b9bfaf09bceb6bd0e441297760ca5
+    Size: 552448
+  - AssemblyName: UnityEngine.CoreModule.dll
+    Sha256: 550ed43f9c08f351dfd33a286b86176fa09e901cf29a8177a73ce8b2f57dcb1e
+    Size: 446464
+  - AssemblyName: YooAsset.dll
+    Sha256: f8e93b8d1485cf7601ee18aac12d4e90643c7fed207599b28117d53c0913bf3a
+    Size: 225280
+  - AssemblyName: YooAssetKit.dll
+    Sha256: da6fb010f14068f72f0a08ba858401d5d2e2667f2ea5cc272751384a777bb4a4
+    Size: 18432
+  - AssemblyName: mscorlib.dll
+    Sha256: 15c838bff7beaa48e933375653bfb2cdbcc9b2c54ca9e16aa5101b4dc84564bf
+    Size: 2235392

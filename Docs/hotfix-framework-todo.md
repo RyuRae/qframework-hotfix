@@ -1,6 +1,6 @@
 # 热更新框架优化 TODO
 
-更新时间：2026-04-29
+更新时间：2026-04-30
 
 本文档用于记录当前 QFramework + YooAsset + HybridCLR 热更新框架后续需要改善的事项。优先级含义：
 
@@ -122,15 +122,21 @@
 - 切换 CDN 不需要改代码重新出包。
 - 一份安装包可以根据环境或渠道使用不同远端资源地址。
 
-### 5. 明确首包和空包启动策略
+### 5. 明确首包和空包启动策略（已完成）
 
-- [ ] 明确首包模式：首包是否必须包含启动所需的 manifest、AOT metadata、热更 DLL、入口场景。
-- [ ] 明确空包模式：如果支持真正空包，启动后应先拉取远端热更索引或 Hotfix manifest，再按需下载 AOT metadata、热更 DLL 和入口资源。
-- [ ] 明确离线模式：无网络时是否允许使用内置资源或上次缓存资源进入游戏。
-- [ ] 明确首包资源最小集合：至少包括能展示更新 UI、请求远端配置、处理错误和执行降级的资源。
-- [ ] 如果不支持空包，在构建阶段强校验首包必需资源完整性。
-- [ ] 为 manifest 缺失、AOT 缺失、DLL 缺失、入口资源缺失提供明确错误和恢复建议。
-- [ ] 第 6 条的 AOT / Hotfix manifest 拆分是本策略的具体实现基础，避免继续依赖单一 manifest。
+- [x] 明确首包模式：首包是否必须包含启动所需的 manifest、AOT metadata、热更 DLL、入口场景。
+- [x] 明确空包模式：如果支持真正空包，启动后应先拉取远端热更索引或 Hotfix manifest，再按需下载 AOT metadata、热更 DLL 和入口资源。
+- [x] 明确离线模式：无网络时是否允许使用内置资源或上次缓存资源进入游戏。
+- [x] 明确首包资源最小集合：至少包括能展示更新 UI、请求远端配置、处理错误和执行降级的资源。
+- [x] 首包 / 离线包在构建阶段强校验必需资源完整性。
+- [x] 为 manifest 缺失、AOT 缺失、DLL 缺失、入口资源缺失提供明确错误和恢复建议。
+- [x] 第 6 条的 AOT / Hotfix manifest 拆分是本策略的具体实现基础，避免继续依赖单一 manifest。
+
+实现说明：
+
+- `FirstPackage` / `OfflinePackage` 会在构建阶段校验 split manifest、AOT metadata、热更 DLL、入口资源以及 YooAsset 收集器路径。
+- `EmptyPackage` 不拷贝 YooAsset 资源到 StreamingAssets，启动后通过 Host/Web 远端版本和 package manifest 决定下载哪些 AOT metadata、热更 DLL 和入口资源；空包不能搭配 `OfflinePlayMode`。
+- `OfflinePackage` 必须搭配 `OfflinePlayMode`，无网络时只使用内置资源；Host/Web 模式仍按更新策略允许上次可用缓存兜底。
 
 相关位置：
 
@@ -147,10 +153,10 @@
 - 空包启动能先拿到远端版本信息，再决定下载哪个 AOT 和 Hotfix。
 - 无网络但本地存在可用缓存时，可以按策略进入游戏或给出明确阻断原因。
 
-### 6. 核心重构：AOT 和 Hotfix Manifest 真正分离
+### 6. 核心重构：AOT 和 Hotfix Manifest 真正分离（已完成）
 
-- [ ] 将当前单一 `AssemblyManifest` 拆分为 `AOTAssemblyManifest` 和 `HotfixAssemblyManifest`。
-- [ ] `AOTAssemblyManifest` 字段设计：
+- [x] 将当前单一 `AssemblyManifest` 拆分为 `AOTAssemblyManifest` 和 `HotfixAssemblyManifest`。
+- [x] `AOTAssemblyManifest` 字段设计：
 
 ```csharp
 public string AppVersion;
@@ -159,7 +165,7 @@ public string AotVersion;
 public List<string> AotMetadataAssemblies;
 ```
 
-- [ ] `HotfixAssemblyManifest` 字段设计：
+- [x] `HotfixAssemblyManifest` 字段设计：
 
 ```csharp
 public string AppVersionMin;
@@ -174,18 +180,24 @@ public string EntryTypeName;
 public string EntryMethodName;
 ```
 
-- [ ] 构建阶段分别生成 AOT manifest 和 Hotfix manifest。
-- [ ] `AotVersion` 建议由 AppVersion、BuildTarget、AOT metadata 列表和文件 hash 共同决定，避免只靠时间字符串。
-- [ ] `HotfixAssemblyManifest.RequiredAotVersion` 必须指向一个明确存在的 AOT 版本。
-- [ ] Runtime 启动时先解析 Hotfix manifest，再根据 `RequiredAotVersion` 查找本地或远端 AOT manifest。
-- [ ] 当 AOT 版本发生变化时，先下载并加载新版 AOT metadata，再加载热更 DLL。
+- [x] 构建阶段分别生成 AOT manifest 和 Hotfix manifest。
+- [x] `AotVersion` 建议由 AppVersion、BuildTarget、AOT metadata 列表和文件 hash 共同决定，避免只靠时间字符串。
+- [x] `HotfixAssemblyManifest.RequiredAotVersion` 必须指向一个明确存在的 AOT 版本。
+- [x] Runtime 启动时先解析 Hotfix manifest，再根据 `RequiredAotVersion` 查找本地或远端 AOT manifest。
+- [x] 当 AOT 版本发生变化时，先下载并加载新版 AOT metadata，再加载热更 DLL。
 - [x] 调整当前 AOT 加载时序，避免在请求远端 Hotfix manifest 前提前加载旧 AOT metadata。
-- [ ] 当 AOT 版本未变化时，热更包只更新 Hotfix manifest 和热更 DLL，不重复下载 AOT metadata。
-- [ ] 将 AOT manifest 和 Hotfix manifest 在启动流程中缓存到上下文，避免 `LoadAotMetadata` 和 `LoadHotUpdateAssemblies` 重复加载同一份 manifest。
-- [ ] 校验 `AppVersionMin <= 当前 AppVersion <= AppVersionMax`，不兼容时阻断热更并提示更新 App。
-- [ ] 校验 `BuildTarget` 必须和当前运行平台一致，避免跨平台加载错误 DLL。
-- [ ] AOT 缓存和 Hotfix 缓存需要分开记录版本，支持独立清理和回滚。
-- [ ] 回滚时必须以 `HotfixVersion + RequiredAotVersion` 作为一组兼容组合回滚，避免只回滚热更 DLL。
+- [x] 当 AOT 版本未变化时，热更包只更新 Hotfix manifest 和热更 DLL，不重复下载 AOT metadata。
+- [x] 将 AOT manifest 和 Hotfix manifest 在启动流程中缓存到上下文，避免 `LoadAotMetadata` 和 `LoadHotUpdateAssemblies` 重复加载同一份 manifest。
+- [x] 校验 `AppVersionMin <= 当前 AppVersion <= AppVersionMax`，不兼容时阻断热更并提示更新 App。
+- [x] 校验 `BuildTarget` 必须和当前运行平台一致，避免跨平台加载错误 DLL。
+- [x] AOT 缓存和 Hotfix 缓存需要分开记录版本，支持独立清理和回滚。
+- [x] 回滚时必须以 `HotfixVersion + RequiredAotVersion` 作为一组兼容组合回滚，避免只回滚热更 DLL。
+
+实现说明：
+
+- 旧 `AssemblyManifest` 保留为兼容迁移资产；运行时加载改为使用 `AOTAssemblyManifest` 和 `HotfixAssemblyManifest`。
+- `AotVersion` / `HotfixVersion` 基于 AppVersion、BuildTarget、RequiredAotVersion、程序集文件 SHA256 和大小生成。
+- 热更构建不再移除 AOT 收集器；YooAsset 会通过文件 hash 判断未变化的 AOT metadata，无需重复下载。
 
 相关位置：
 
@@ -552,16 +564,16 @@ public string EntryMethodName;
 
 ### 第一阶段：保证能安全启动
 
-- [ ] 修复 play mode 打包风险。
-- [ ] 修复取消下载卡死。
-- [ ] 增加网络失败本地兜底。
-- [ ] 明确首包资源必需项。
+- [x] 修复 play mode 打包风险。
+- [x] 修复取消下载卡死。
+- [x] 增加网络失败本地兜底。
+- [x] 明确首包资源必需项。
 
 ### 第二阶段：保证能商业化发布
 
-- [ ] 抽离 CDN 配置。
-- [ ] 拆分 AOTAssemblyManifest 和 HotfixAssemblyManifest。
-- [ ] 支持根据 `RequiredAotVersion` 自动选择、下载并加载新版 AOT。
+- [x] 抽离 CDN 配置。
+- [x] 拆分 AOTAssemblyManifest 和 HotfixAssemblyManifest。
+- [x] 支持根据 `RequiredAotVersion` 自动选择、下载并加载新版 AOT。
 - [ ] 建立版本协议。
 - [ ] 增加资源和 DLL 安全校验。
 - [ ] 统一构建入口。

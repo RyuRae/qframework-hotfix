@@ -34,6 +34,20 @@ namespace Framework.Procedure
         private IEnumerator InitPackage()
         {
             var playMode = manager._playMode;
+            if (manager._startupPackageMode == StartupPackageMode.EmptyPackage &&
+                playMode == EPlayMode.OfflinePlayMode)
+            {
+                manager.SetFailed("Startup package mode EmptyPackage requires HostPlayMode or WebPlayMode so the client can request the remote package version and manifest before downloading AOT metadata, hotfix DLLs, and entry resources.");
+                yield break;
+            }
+
+            if (manager._startupPackageMode == StartupPackageMode.OfflinePackage &&
+                playMode != EPlayMode.OfflinePlayMode)
+            {
+                manager.SetFailed($"Startup package mode OfflinePackage requires OfflinePlayMode, current play mode is {playMode}.");
+                yield break;
+            }
+
             var package = YooAssets.TryGetPackage(manager._packageName) ?? YooAssets.CreatePackage(manager._packageName);
             YooAssets.SetDefaultPackage(package);
 

@@ -30,6 +30,9 @@ namespace Framework.Procedure
     internal static class HotfixLocalManifestUtility
     {
         private const string LastUsablePackageVersionKeyPrefix = "Hotfix.LastUsablePackageVersion.";
+        private const string LastUsableAotVersionKeyPrefix = "Hotfix.LastUsableAotVersion.";
+        private const string LastUsableHotfixVersionKeyPrefix = "Hotfix.LastUsableHotfixVersion.";
+        private const string LastUsableAssemblyCombinationKeyPrefix = "Hotfix.LastUsableAssemblyCombination.";
 
         public static string GetLastUsablePackageVersion(string packageName)
         {
@@ -46,6 +49,47 @@ namespace Framework.Procedure
             }
 
             PlayerPrefs.SetString(GetLastUsablePackageVersionKey(packageName), packageVersion.Trim());
+            PlayerPrefs.Save();
+        }
+
+        public static string GetLastUsableAotVersion(string packageName)
+        {
+            return string.IsNullOrWhiteSpace(packageName)
+                ? string.Empty
+                : PlayerPrefs.GetString(GetVersionKey(LastUsableAotVersionKeyPrefix, packageName), string.Empty);
+        }
+
+        public static string GetLastUsableHotfixVersion(string packageName)
+        {
+            return string.IsNullOrWhiteSpace(packageName)
+                ? string.Empty
+                : PlayerPrefs.GetString(GetVersionKey(LastUsableHotfixVersionKeyPrefix, packageName), string.Empty);
+        }
+
+        public static string GetLastUsableAssemblyCombination(string packageName)
+        {
+            return string.IsNullOrWhiteSpace(packageName)
+                ? string.Empty
+                : PlayerPrefs.GetString(GetVersionKey(LastUsableAssemblyCombinationKeyPrefix, packageName), string.Empty);
+        }
+
+        public static void SaveLastUsableAssemblyVersions(string packageName, string hotfixVersion, string aotVersion)
+        {
+            if (string.IsNullOrWhiteSpace(packageName) ||
+                string.IsNullOrWhiteSpace(hotfixVersion) ||
+                string.IsNullOrWhiteSpace(aotVersion))
+            {
+                return;
+            }
+
+            string normalizedPackageName = packageName.Trim();
+            string normalizedHotfixVersion = hotfixVersion.Trim();
+            string normalizedAotVersion = aotVersion.Trim();
+            PlayerPrefs.SetString(GetVersionKey(LastUsableHotfixVersionKeyPrefix, normalizedPackageName), normalizedHotfixVersion);
+            PlayerPrefs.SetString(GetVersionKey(LastUsableAotVersionKeyPrefix, normalizedPackageName), normalizedAotVersion);
+            PlayerPrefs.SetString(
+                GetVersionKey(LastUsableAssemblyCombinationKeyPrefix, normalizedPackageName),
+                $"{normalizedHotfixVersion}|{normalizedAotVersion}");
             PlayerPrefs.Save();
         }
 
@@ -120,7 +164,12 @@ namespace Framework.Procedure
 
         private static string GetLastUsablePackageVersionKey(string packageName)
         {
-            return $"{LastUsablePackageVersionKeyPrefix}{packageName.Trim()}";
+            return GetVersionKey(LastUsablePackageVersionKeyPrefix, packageName);
+        }
+
+        private static string GetVersionKey(string prefix, string packageName)
+        {
+            return $"{prefix}{packageName.Trim()}";
         }
 
         private static bool TryUseActiveManifest(

@@ -106,7 +106,7 @@ namespace HybridCLR.Editor
             var profile = GetOrCreateProfile();
             var playMode = profile.GetPlayMode(target);
             ValidatePlayerPlayMode(playMode, target);
-            ValidateRemoteSettingsForBuild(target, allowDevelopmentEnvironment);
+            ValidateRemoteSettingsForBuild(target, allowDevelopmentEnvironment, playMode);
             SetRuntimeSettingsPlayMode(playMode, $"set to {playMode} for {target} build");
             SyncPackageNamesFromCollectorSettings();
             return playMode;
@@ -204,6 +204,16 @@ namespace HybridCLR.Editor
 
         public static void ValidateRemoteSettingsForBuild(BuildTarget target, bool allowDevelopmentEnvironment)
         {
+            var settings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(RuntimeSettingsAssetPath);
+            var playerPlayMode = settings == null ? EPlayMode.HostPlayMode : settings.PlayerPlayMode;
+            ValidateRemoteSettingsForBuild(target, allowDevelopmentEnvironment, playerPlayMode);
+        }
+
+        private static void ValidateRemoteSettingsForBuild(
+            BuildTarget target,
+            bool allowDevelopmentEnvironment,
+            EPlayMode playerPlayMode)
+        {
             var settings = AssetDatabase.LoadAssetAtPath<HotfixRemoteSettings>(RemoteSettingsAssetPath);
             if (settings == null)
             {
@@ -215,6 +225,8 @@ namespace HybridCLR.Editor
             {
                 throw new InvalidOperationException(error);
             }
+
+            BuildAssetsCommand.ValidateStartupPackageForPlayerBuild(target, playerPlayMode);
         }
 
         private static bool IsDevelopmentBuild(BuildOptions options)
