@@ -59,7 +59,7 @@ namespace Framework.Procedure
                 }
 
                 PackageVersionRequestResult packageResult = default;
-                yield return RequestPackageVersion(mTarget._packageName, result => packageResult = result);
+                yield return RequestPackageVersion(mTarget.MainPackageName, result => packageResult = result);
 
                 PackageVersionRequestResult rawfileResult = default;
                 if (mTarget._isIncludeRawFile)

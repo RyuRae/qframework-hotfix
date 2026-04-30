@@ -66,27 +66,6 @@ namespace Framework
                 yield break;
             }
 
-            // YooAssetKit.SetDefaultPackage(mainPackageName);
-
-            // string location = operation.EntrySceneAddress;
-            // //加载场景
-            // YooAssetKit.LoadSceneAsync(location, LoadSceneMode.Single, LocalPhysicsMode.None, false, (progress) =>
-            // {
-            //     //更新进度
-            //     TypeEventSystem.Global.Send(new OnSceneloadUpdateEvent
-            //     {
-            //         progress = progress,
-            //         desc = HotfixText.Get(HotfixTextKey.SceneLoading)
-            //     });
-            // }, (sceneHandle) =>
-            // {
-            //     //加载完成
-            //     ActionKit.Delay(0.2f, () =>
-            //     {
-            //         UIPanelRoot.Instance.CloseLoadingPanel();
-            //         UIPanelRoot.Instance.ClearScreen();
-            //     }).Start(this);
-            // }, mainPackageName);
         }
 
         private bool ValidatePlayModeForRuntime(EPlayMode playMode)

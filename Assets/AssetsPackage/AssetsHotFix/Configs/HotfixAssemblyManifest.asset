@@ -27,7 +27,7 @@ MonoBehaviour:
   - AssemblyName: HotfixDemo.dll
     Sha256: e3975c404b5c668f81c9c8cb6c8b844aacd5b21477a39e66c480341e769e4032
     Size: 11264
-  EntrySceneAddress: main
+  EntrySceneAddress: 
   EntryPrefabAddress: 
   EntryTypeName: HotfixDemo.HotfixCodeEntry
   EntryMethodName: Entrance

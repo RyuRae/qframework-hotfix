@@ -40,7 +40,7 @@ namespace Framework.Procedure
         {
             if (mTarget._downloaderOperation != null)
             {
-                yield return DownloadPackage(mTarget._downloaderOperation, mTarget._packageName, false);
+                yield return DownloadPackage(mTarget._downloaderOperation, mTarget.MainPackageName, false);
                 if (mTarget.IsDone || mTarget.IsUsingLocalManifestFallback)
                 {
                     yield break;

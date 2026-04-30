@@ -17,7 +17,7 @@ namespace Framework.Assemblies
         public List<AssemblyFileRecord> HotUpdateFiles = new List<AssemblyFileRecord>();
         
         [Tooltip("Deprecated. Scene loading should be handled by CodeEntry.")]
-        public string EntrySceneAddress = "main";
+        public string EntrySceneAddress = string.Empty;
         [Tooltip("Deprecated. Prefab loading should be handled by CodeEntry.")]
         public string EntryPrefabAddress = string.Empty;
 

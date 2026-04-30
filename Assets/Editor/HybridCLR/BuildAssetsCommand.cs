@@ -330,14 +330,17 @@ namespace HybridCLR.Editor
             {
                 manifest = ScriptableObject.CreateInstance<HotfixAssemblyManifest>();
                 manifest.name = HotfixAssemblyManifest.AssetName;
+
                 manifest.AppVersionMin = GetAppVersion();
                 manifest.AppVersionMax = GetAppVersion();
-                manifest.EntrySceneAddress = oldManifest == null || string.IsNullOrWhiteSpace(oldManifest.EntrySceneAddress)
-                    ? DefaultEntrySceneAddress
-                    : oldManifest.EntrySceneAddress;
-                manifest.EntryPrefabAddress = oldManifest == null ? string.Empty : oldManifest.EntryPrefabAddress;
-                manifest.EntryTypeName = oldManifest == null ? string.Empty : oldManifest.EntryTypeName;
-                manifest.EntryMethodName = oldManifest == null ? string.Empty : oldManifest.EntryMethodName;
+
+                // CodeEntry 模式下不再回填 scene / prefab
+                manifest.EntrySceneAddress = string.Empty;
+                manifest.EntryPrefabAddress = string.Empty;
+
+                manifest.EntryTypeName = "HotfixDemo.HotfixCodeEntry";
+                manifest.EntryMethodName = "Entrance";
+
                 AssetDatabase.CreateAsset(manifest, HotfixAssemblyManifestAssetPath);
             }
 
@@ -362,9 +365,14 @@ namespace HybridCLR.Editor
                 manifest.RequiredAotVersion,
                 manifest.HotUpdateFiles);
 
-            if (string.IsNullOrWhiteSpace(manifest.EntrySceneAddress))
+            if (string.IsNullOrWhiteSpace(manifest.EntryTypeName))
             {
-                manifest.EntrySceneAddress = DefaultEntrySceneAddress;
+                manifest.EntryTypeName = "HotfixDemo.HotfixCodeEntry";
+            }
+
+            if (string.IsNullOrWhiteSpace(manifest.EntryMethodName))
+            {
+                manifest.EntryMethodName = "Entrance";
             }
 
             EditorUtility.SetDirty(manifest);
@@ -455,11 +463,11 @@ namespace HybridCLR.Editor
             }
 
             ValidateSplitAssemblyManifestsForBuild(target);
-            var hotfixManifest = AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(HotfixAssemblyManifestAssetPath);
-            if (packageMode != StartupPackageMode.EmptyPackage)
-            {
-                ValidateFirstPackageAssetFiles(hotfixManifest);
-            }
+            // var hotfixManifest = AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(HotfixAssemblyManifestAssetPath);
+            // if (packageMode != StartupPackageMode.EmptyPackage)
+            // {
+            //     ValidateFirstPackageAssetFiles(hotfixManifest);
+            // }
 
             if (validatePackageAssets)
             {
@@ -520,15 +528,18 @@ namespace HybridCLR.Editor
                 throw new InvalidOperationException("Hotfix manifest has no hot update assemblies.");
             }
 
-            if (string.IsNullOrWhiteSpace(hotfixManifest.EntryTypeName) ||
-                string.IsNullOrWhiteSpace(hotfixManifest.EntryMethodName))
+            if (string.IsNullOrWhiteSpace(hotfixManifest.EntryTypeName))
             {
-                throw new InvalidOperationException("Hotfix manifest must configure EntryTypeName and EntryMethodName.");
+                throw new InvalidOperationException("Hotfix manifest EntryTypeName is empty. CodeEntry is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(hotfixManifest.EntryMethodName))
+            {
+                throw new InvalidOperationException("Hotfix manifest EntryMethodName is empty. CodeEntry is required.");
             }
 
             ValidateAssemblyFiles(AOTCodesPath, aotManifest.AotMetadataAssemblies, "AOT metadata");
             ValidateAssemblyFiles(HotfixCodesPath, hotfixManifest.HotUpdateAssemblies, "Hotfix DLL");
-            ValidateEntryResource(hotfixManifest);
         }
 
         public static void ValidateAOTManifestNotExpired(BuildTarget target, AOTAssemblyManifest manifest)
@@ -801,9 +812,8 @@ namespace HybridCLR.Editor
             {
                 throw new InvalidOperationException($"Hotfix manifest missing: {HotfixAssemblyManifestAssetPath}");
             }
-
-            ValidateEntryResource(hotfixManifest);
         }
+        
 
         private static void ValidateAssemblyFiles(string folder, IEnumerable<string> dllNames, string label)
         {
@@ -869,33 +879,6 @@ namespace HybridCLR.Editor
             return map;
         }
 
-        private static void ValidateEntryResource(HotfixAssemblyManifest manifest)
-        {
-            if (!string.IsNullOrWhiteSpace(manifest.EntrySceneAddress))
-            {
-                string scenePath = FindAssetPathByAddress(manifest.EntrySceneAddress, ".unity");
-                if (string.IsNullOrEmpty(scenePath))
-                {
-                    throw new FileNotFoundException(
-                        $"Entry scene not found by address '{manifest.EntrySceneAddress}'. The current AddressByFileName rule expects a scene file with the same name.");
-                }
-
-                ValidateCollectorContainsRequiredAsset(scenePath);
-                return;
-            }
-
-            if (!string.IsNullOrWhiteSpace(manifest.EntryPrefabAddress))
-            {
-                string prefabPath = FindAssetPathByAddress(manifest.EntryPrefabAddress, ".prefab");
-                if (string.IsNullOrEmpty(prefabPath))
-                {
-                    throw new FileNotFoundException(
-                        $"Entry prefab not found by address '{manifest.EntryPrefabAddress}'. The current AddressByFileName rule expects a prefab file with the same name.");
-                }
-
-                ValidateCollectorContainsRequiredAsset(prefabPath);
-            }
-        }
 
         private static string FindAssetPathByAddress(string address, string extension)
         {

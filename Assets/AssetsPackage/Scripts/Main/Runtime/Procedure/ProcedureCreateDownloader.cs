@@ -47,13 +47,13 @@ namespace Framework.Procedure
                 return;
             }
 
-            var package = YooAssets.GetPackage(mTarget._packageName);
+            var package = YooAssets.GetPackage(mTarget.MainPackageName);
             int downloadingMaxNum = 10;
             int failedTryAgain = 3;
 
             var downloader = CreateDownloader(
                 package,
-                mTarget._packageName,
+                mTarget.MainPackageName,
                 mTarget._startupDownloadMode,
                 mTarget._downloadTags,
                 downloadingMaxNum,

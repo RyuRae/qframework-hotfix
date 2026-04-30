@@ -25,7 +25,7 @@ namespace Framework.Procedure
 
     public class ProcedureManager : GameAsyncOperation
     {
-        public readonly string _packageName;
+        private readonly string _packageName;
         public readonly string _rawfilwPkgName;
         public readonly EPlayMode _playMode;
         public string _packageVersion;
@@ -53,6 +53,8 @@ namespace Framework.Procedure
         public bool CanUseLocalCacheFallback => _startupUpdatePolicy != StartupUpdatePolicy.MustUpdate;
 
         public FSM<ResPackageStates> _mFSM = new FSM<ResPackageStates>();
+
+        public string MainPackageName => _packageName;
 
         public ProcedureManager(
             string packageName,

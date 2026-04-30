@@ -55,7 +55,7 @@ namespace Framework.Procedure
         {
             isLoading = true;
 
-            var package = YooAssets.GetPackage(mTarget._packageName);
+            var package = YooAssets.GetPackage(mTarget.MainPackageName);
             var loader = new HybridCLRAssemblyLoader();
             yield return loader.LoadHotUpdateAssemblies(package, mTarget.AssemblyLoadContext, progress => rawProgress = progress);
 

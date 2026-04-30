@@ -17,7 +17,7 @@ namespace Framework.Procedure
         protected override void OnEnter()
         {
             LogKit.I("Current state: ProcedureClearCacheBundle");
-            var package = YooAssets.GetPackage(mTarget._packageName);
+            var package = YooAssets.GetPackage(mTarget.MainPackageName);
             var operation = package.ClearCacheFilesAsync(EFileClearMode.ClearUnusedBundleFiles);
             operation.Completed += OnClearCacheFilesCompleted;
         }

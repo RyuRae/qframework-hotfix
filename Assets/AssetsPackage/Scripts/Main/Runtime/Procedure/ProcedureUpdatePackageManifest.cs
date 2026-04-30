@@ -35,7 +35,7 @@ namespace Framework.Procedure
         {
             while (!mTarget.IsDone)
             {
-                var package = YooAssets.GetPackage(mTarget._packageName);
+                var package = YooAssets.GetPackage(mTarget.MainPackageName);
                 var operation = package.UpdatePackageManifestAsync(mTarget._packageVersion);
 
                 UpdatePackageManifestOperation rawfileOperation = null;
@@ -97,7 +97,7 @@ namespace Framework.Procedure
         {
             string error = operation.Status == EOperationStatus.Succeed
                 ? string.Empty
-                : $"{mTarget._packageName}: {operation.Error}";
+                : $"{mTarget.MainPackageName}: {operation.Error}";
 
             if (mTarget._isIncludeRawFile && rawfileOperation.Status != EOperationStatus.Succeed)
             {

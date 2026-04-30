@@ -44,7 +44,7 @@ namespace Framework.Procedure
                 yield break;
             }
 
-            var package = YooAssets.TryGetPackage(mTarget._packageName) ?? YooAssets.CreatePackage(mTarget._packageName);
+            var package = YooAssets.TryGetPackage(mTarget.MainPackageName) ?? YooAssets.CreatePackage(mTarget.MainPackageName);
             YooAssets.SetDefaultPackage(package);
 
             if (mTarget._isIncludeRawFile)
@@ -55,7 +55,7 @@ namespace Framework.Procedure
             InitializationOperation initializationOperation = null;
             if (playMode == EPlayMode.EditorSimulateMode)
             {
-                initializationOperation = InitEditorSimulatePackage(package, mTarget._packageName);
+                initializationOperation = InitEditorSimulatePackage(package, mTarget.MainPackageName);
                 if (mTarget._isIncludeRawFile)
                 {
                     initRawFileOperation = InitEditorSimulatePackage(rawFilePackage, mTarget._rawfilwPkgName);
@@ -72,7 +72,7 @@ namespace Framework.Procedure
             else if (playMode == EPlayMode.HostPlayMode)
             {
                 // Host/Web 模式需要远端服务。主包和 RawFile 包分别解析，避免不同包名目录被拼错。
-                if (!TryCreateRemoteServices(mTarget._packageName, out var remoteServices, out var error))
+                if (!TryCreateRemoteServices(mTarget.MainPackageName, out var remoteServices, out var error))
                 {
                     FailRemoteConfig(error);
                     yield break;
@@ -93,7 +93,7 @@ namespace Framework.Procedure
             else if (playMode == EPlayMode.WebPlayMode)
             {
                 // WebGL 场景也复用同一份远端配置，保证各平台 CDN 地址规则一致。
-                if (!TryCreateRemoteServices(mTarget._packageName, out var remoteServices, out var error))
+                if (!TryCreateRemoteServices(mTarget.MainPackageName, out var remoteServices, out var error))
                 {
                     FailRemoteConfig(error);
                     yield break;
