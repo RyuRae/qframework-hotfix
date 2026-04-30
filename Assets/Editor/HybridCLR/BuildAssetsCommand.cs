@@ -520,10 +520,10 @@ namespace HybridCLR.Editor
                 throw new InvalidOperationException("Hotfix manifest has no hot update assemblies.");
             }
 
-            if (string.IsNullOrWhiteSpace(hotfixManifest.EntrySceneAddress) &&
-                string.IsNullOrWhiteSpace(hotfixManifest.EntryPrefabAddress))
+            if (string.IsNullOrWhiteSpace(hotfixManifest.EntryTypeName) ||
+                string.IsNullOrWhiteSpace(hotfixManifest.EntryMethodName))
             {
-                throw new InvalidOperationException("Hotfix manifest must configure EntrySceneAddress or EntryPrefabAddress.");
+                throw new InvalidOperationException("Hotfix manifest must configure EntryTypeName and EntryMethodName.");
             }
 
             ValidateAssemblyFiles(AOTCodesPath, aotManifest.AotMetadataAssemblies, "AOT metadata");

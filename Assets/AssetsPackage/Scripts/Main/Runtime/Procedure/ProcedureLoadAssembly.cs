@@ -70,7 +70,7 @@ namespace Framework.Procedure
                 yield break;
             }
 
-            mTarget.SetHotfixEntry(loader.EntrySceneAddress, loader.EntryTypeName, loader.EntryMethodName);
+            mTarget.SetHotfixEntry(loader.EntryTypeName, loader.EntryMethodName);
             mTarget.SaveUsablePackageVersions();
             mTarget.SaveUsableAssemblyVersions();
             rawProgress = 1f;

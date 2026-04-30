@@ -43,7 +43,7 @@ namespace Framework.Procedure
         private bool _useLocalManifestFallback;
         private IUnRegister _downloadCancelRequestUnregister;
 
-        public string EntrySceneAddress { get; private set; } = HotfixUtility.DefaultEntrySceneAddress;
+        // public string EntrySceneAddress { get; private set; } = HotfixUtility.DefaultEntrySceneAddress;
         public string EntryTypeName { get; private set; } = string.Empty;
         public string EntryMethodName { get; private set; } = string.Empty;
         public HotfixAssemblyLoadContext AssemblyLoadContext { get; } = new HotfixAssemblyLoadContext();
@@ -276,9 +276,10 @@ namespace Framework.Procedure
             onCompleted?.Invoke(true, string.Empty);
         }
 
-        public void SetHotfixEntry(string sceneAddress, string typeName, string methodName)
+
+
+        public void SetHotfixEntry(string typeName, string methodName)
         {
-            EntrySceneAddress = string.IsNullOrWhiteSpace(sceneAddress) ? HotfixUtility.DefaultEntrySceneAddress : sceneAddress;
             EntryTypeName = typeName ?? string.Empty;
             EntryMethodName = methodName ?? string.Empty;
         }

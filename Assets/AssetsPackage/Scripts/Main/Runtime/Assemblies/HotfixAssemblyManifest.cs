@@ -15,9 +15,14 @@ namespace Framework.Assemblies
         public string HotfixVersion = string.Empty;
         public List<string> HotUpdateAssemblies = new List<string>();
         public List<AssemblyFileRecord> HotUpdateFiles = new List<AssemblyFileRecord>();
+        
+        [Tooltip("Deprecated. Scene loading should be handled by CodeEntry.")]
         public string EntrySceneAddress = "main";
+        [Tooltip("Deprecated. Prefab loading should be handled by CodeEntry.")]
         public string EntryPrefabAddress = string.Empty;
-        public string EntryTypeName = string.Empty;
-        public string EntryMethodName = string.Empty;
+
+        [Header("Code Entry")]
+        public string EntryTypeName = "HotfixDemo.HotfixCodeEntry";
+        public string EntryMethodName = "Entrance";
     }
 }

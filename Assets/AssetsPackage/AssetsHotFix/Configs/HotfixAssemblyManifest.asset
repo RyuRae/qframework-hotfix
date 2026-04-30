@@ -29,5 +29,5 @@ MonoBehaviour:
     Size: 11264
   EntrySceneAddress: main
   EntryPrefabAddress: 
-  EntryTypeName: 
-  EntryMethodName: 
+  EntryTypeName: HotfixDemo.HotfixCodeEntry
+  EntryMethodName: Entrance

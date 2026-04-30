@@ -267,7 +267,11 @@ namespace Framework.Assemblies
                 return false;
             }
 
-            if (!IsAppVersionCompatible(manifest.AppVersionMin, manifest.AppVersionMax, Application.version, out var versionError))
+            if (!IsAppVersionCompatible(
+                    manifest.AppVersionMin,
+                    manifest.AppVersionMax,
+                    Application.version,
+                    out var versionError))
             {
                 Fail(versionError);
                 return false;
@@ -285,16 +289,21 @@ namespace Framework.Assemblies
                 return false;
             }
 
-            if (manifest.HotUpdateAssemblies.Count == 0)
+            if (manifest.HotUpdateAssemblies == null || manifest.HotUpdateAssemblies.Count == 0)
             {
                 Fail("Hotfix manifest does not contain any hot update assembly.");
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(manifest.EntrySceneAddress) &&
-                string.IsNullOrWhiteSpace(manifest.EntryPrefabAddress))
+            if (string.IsNullOrWhiteSpace(manifest.EntryTypeName))
             {
-                Fail("Hotfix manifest entry resource is empty. Configure EntrySceneAddress or EntryPrefabAddress.");
+                Fail("Hotfix manifest EntryTypeName is empty. CodeEntry is required.");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(manifest.EntryMethodName))
+            {
+                Fail("Hotfix manifest EntryMethodName is empty. CodeEntry is required.");
                 return false;
             }
 
@@ -392,7 +401,7 @@ namespace Framework.Assemblies
                 onProgress?.Invoke(GetProgress(loadedCount, totalCount));
             }
 
-            InvokeEntryMethodIfConfigured();
+            // InvokeEntryMethodIfConfigured();
             if (!string.IsNullOrEmpty(Error))
             {
                 yield break;
@@ -508,42 +517,7 @@ namespace Framework.Assemblies
                 .FirstOrDefault(assembly => assembly.GetName().Name == assemblyName);
         }
 
-        private void InvokeEntryMethodIfConfigured()
-        {
-            if (string.IsNullOrWhiteSpace(EntryTypeName) ||
-                string.IsNullOrWhiteSpace(EntryMethodName))
-            {
-                return;
-            }
-
-            var entryType = mHotUpdateAssemblies
-                .Select(assembly => assembly.GetType(EntryTypeName))
-                .FirstOrDefault(type => type != null) ?? Type.GetType(EntryTypeName);
-            if (entryType == null)
-            {
-                Fail($"Hotfix entry type not found: {EntryTypeName}");
-                return;
-            }
-
-            var entryMethod = entryType.GetMethod(
-                EntryMethodName,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-            if (entryMethod == null)
-            {
-                Fail($"Hotfix entry method not found: {EntryTypeName}.{EntryMethodName}");
-                return;
-            }
-
-            try
-            {
-                entryMethod.Invoke(null, null);
-            }
-            catch (Exception exception)
-            {
-                Fail($"Invoke hotfix entry method failed: {EntryTypeName}.{EntryMethodName}. {exception}");
-            }
-        }
-
+       
         internal static List<string> NormalizeAssemblyNamesForManifest(IEnumerable<string> assemblyNames)
         {
             return HotfixUtility.NormalizeAssemblyNames(assemblyNames);
