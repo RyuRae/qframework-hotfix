@@ -2,6 +2,8 @@
 #
 # Get latest from https://github.com/github/gitignore/blob/main/Unity.gitignore
 #
+.DS_Store
+
 /[Ll]ibrary/
 /[Tt]emp/
 /[Oo]bj/
@@ -11,7 +13,26 @@
 /[Uu]ser[Ss]ettings/
 /[Bb]undle/
 /[Bb]undles/
-/[Hh]ybridCLRData/
+
+# HybridCLR generated/installed data
+/[Hh]ybridCLRData/[Ll]ocal[Ii]l2[Cc]pp[Dd]ata-*/
+/[Hh]ybridCLRData/[Hh]ot[Uu]pdate[Dd]lls/
+/[Hh]ybridCLRData/[Aa]ssemblies[Pp]ost[Ii]l2[Cc]pp[Ss]trip/
+/[Hh]ybridCLRData/[Ss]tripped[Aa][Oo][Tt][Dd]lls[Tt]emp[Pp]roj/
+/[Hh]ybridCLRData/hybridclr_repo/
+/[Hh]ybridCLRData/il2cpp_plus_repo/
+/[Hh]ybridCLRData/iOSBuild/
+
+# HybridCLR generated assets
+/[Aa]ssets/[Hh]ybridCLR[Bb]uild[Cc]ache/
+/[Aa]ssets/[Hh]ybridCLR[Bb]uild[Cc]ache.meta
+/[Aa]ssets/[Hh]ybridCLR[Gg]enerate/
+/[Aa]ssets/[Hh]ybridCLR[Gg]enerate.meta
+
+# YooAsset generated output
+/yoo/
+/[Aa]ssets/[Ss]treamingAssets/yoo/
+/[Aa]ssets/[Ss]treamingAssets/yoo.meta
 
 # MemoryCaptures can get excessive in size.
 # They also could contain extremely sensitive data
