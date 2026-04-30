@@ -23,7 +23,7 @@ namespace Framework.Procedure
             // 关键：在调用 CodeEntry 前设置默认资源包
             YooAssetKit.SetDefaultPackage(mTarget.MainPackageName);
 
-            if (!GameInvoker.InvokeEntryMethod(mTarget.EntryTypeName, mTarget.EntryMethodName, out var error))
+            if (!HotfixCodeEntryInvoker.InvokeEntryMethod(mTarget.EntryTypeName, mTarget.EntryMethodName, out var error))
             {
                 mTarget.SetFailed(error);
                 return;

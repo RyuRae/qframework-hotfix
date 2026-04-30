@@ -7,7 +7,7 @@ using QFramework;
 
 namespace Framework
 {
-    public class GameInvoker
+    public class HotfixCodeEntryInvoker
     {
         public static bool InvokeEntryMethod(string EntryTypeName, string EntryMethodName, out string error)
         {
@@ -32,8 +32,11 @@ namespace Framework
 
             var entryMethod = entryType.GetMethod(
                 EntryMethodName,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
-            if (entryMethod == null)
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
+                null,
+                Type.EmptyTypes,
+                null);
+            if (entryMethod.ReturnType != typeof(void))
             {
                
                 error = $"Hotfix entry method not found: {EntryTypeName}.{EntryMethodName}";
