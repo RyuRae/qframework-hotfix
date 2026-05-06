@@ -29,11 +29,11 @@ MonoBehaviour:
   - test-cdn.example.com
   - test-cdn-backup.example.com
   CertificatePinningEnabled: 0
-  CertificatePublicKeyPin: 
+  CertificatePublicKeyPin:
   EnableGrayRelease: 0
   GrayReleasePercent: 0
-  GrayMainCdnUrlTemplate: 
-  GrayFallbackCdnUrlTemplate: 
+  GrayMainCdnUrlTemplate:
+  GrayFallbackCdnUrlTemplate:
   GrayReleaseSalt: hotfix-test
   PlayerPlayMode: 2
   StartupPackageMode: 0

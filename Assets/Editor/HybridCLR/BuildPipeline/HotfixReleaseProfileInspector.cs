@@ -242,7 +242,10 @@ namespace HybridCLR.Editor
                 return;
             }
 
-            EditorGUILayout.PropertyField(property, new GUIContent(label), includeChildren);
+            var content = new GUIContent(
+                label,
+                string.IsNullOrWhiteSpace(property.tooltip) ? string.Empty : property.tooltip);
+            EditorGUILayout.PropertyField(property, content, includeChildren);
         }
 
         private static void DrawReadOnly(string label, string value)

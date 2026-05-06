@@ -14,41 +14,93 @@ namespace HybridCLR.Editor
         public const string DefaultAssetPath = "Assets/Editor/HybridCLR/HotfixReleaseProfile.asset";
         private const string SelectedProfileKeySuffix = ".HotfixBuildCenter.ReleaseProfile";
 
-        [Header("Identity")]
+        [Header("发布标识")]
+        [Tooltip("本次发布目标平台，需要和 Unity 当前切换的 BuildTarget 一致。不同平台的 DLL、AOT metadata 和 AssetBundle 不能混用。")]
         public BuildTarget BuildTarget = BuildTarget.StandaloneWindows64;
+
+        [Tooltip("App 包体版本，会同步写入 PlayerSettings.bundleVersion。")]
         public string AppVersion = "1.0.0";
+
+        [Tooltip("本次热更资源允许覆盖的最低 App 版本。热更包会写入 HotfixAssemblyManifest，用于阻断不兼容旧包。")]
         public string AppVersionMin = "1.0.0";
+
+        [Tooltip("本次热更资源允许覆盖的最高 App 版本。通常和 AppVersion 一致，跨小版本兼容时再放宽。")]
         public string AppVersionMax = "1.0.0";
+
+        [Tooltip("YooAsset PackageVersion。正式发布建议填写明确版本号；留空时构建流程会使用时间戳自动生成。")]
         public string ResourceVersion = string.Empty;
+
+        [Tooltip("热更 DLL 版本号。通常留空由 DLL hash 自动生成；只有接入外部版本协议时才手动固定。")]
         public string HotfixVersion = string.Empty;
 
-        [Header("Remote")]
+        [Header("远端资源")]
+        [Tooltip("发布使用的远端资源环境。正式发布应选择 Production。")]
         public HotfixRemoteEnvironment RemoteEnvironment = HotfixRemoteEnvironment.Development;
+
+        [Tooltip("渠道标识，会替换 CDN 模板中的 {Channel}。没有渠道差异时保持 default。")]
         public string Channel = "default";
+
+        [Tooltip("地区标识，会替换 CDN 模板中的 {Region}。没有地区差异时保持 global。")]
         public string Region = "global";
+
+        [Tooltip("是否允许 Development CDN。正式发布应关闭；Production 环境会始终视为正式发布。")]
         public bool AllowDevelopmentCdn = true;
+
+        [Tooltip("主 CDN 地址模板，支持 {Environment}/{Platform}/{Channel}/{Region}/{PackageName}。")]
         public string MainCdnUrlTemplate = string.Empty;
+
+        [Tooltip("备用 CDN 地址模板，主 CDN 失败时使用；不能和主 CDN 完全相同。")]
         public string FallbackCdnUrlTemplate = string.Empty;
+
+        [Tooltip("开启后，主/备 CDN 都必须使用 HTTPS。正式环境建议开启。")]
         public bool RequireHttps;
+
+        [Tooltip("允许访问的 CDN 域名白名单。留空表示不限制；正式环境建议填写。")]
         public string[] AllowedDomains = Array.Empty<string>();
+
+        [Tooltip("证书 pinning 预留开关，后续接入自定义下载器或证书校验时使用。")]
         public bool CertificatePinningEnabled;
+
+        [Tooltip("证书公钥 pin 预留字段，用于记录允许的证书公钥摘要。")]
         public string CertificatePublicKeyPin = string.Empty;
+
+        [Tooltip("是否启用灰度 CDN。开启后，命中灰度比例的设备会使用灰度 CDN 模板。")]
         public bool EnableGrayRelease;
+
         [Range(0, 100)]
+        [Tooltip("灰度 CDN 命中比例，0 表示关闭灰度，100 表示全部使用灰度 CDN。")]
         public int GrayReleasePercent;
+
+        [Tooltip("灰度主 CDN 地址模板。留空时继续使用普通主 CDN 模板。")]
         public string GrayMainCdnUrlTemplate = string.Empty;
+
+        [Tooltip("灰度备用 CDN 地址模板。留空时继续使用普通备用 CDN 模板。")]
         public string GrayFallbackCdnUrlTemplate = string.Empty;
+
+        [Tooltip("灰度分流盐值。调整该值会重新洗牌灰度命中用户。")]
         public string GrayReleaseSalt = "hotfix";
 
-        [Header("Startup")]
+        [Header("启动策略")]
+        [Tooltip("Player 下使用的 YooAsset 运行模式。FirstPackage/EmptyPackage 常用 HostPlayMode，WebGL 使用 WebPlayMode，OfflinePackage 使用 OfflinePlayMode。")]
         public EPlayMode PlayerPlayMode = EPlayMode.HostPlayMode;
+
+        [Tooltip("启动包策略：FirstPackage 内置启动资源，EmptyPackage 首次启动拉远端，OfflinePackage 完整离线。")]
         public StartupPackageMode StartupPackageMode = StartupPackageMode.FirstPackage;
+
+        [Tooltip("启动阶段下载模式：DownloadAll 下载全部差异资源，DownloadByTags 只下载指定 Tag，Skip 跳过启动下载。")]
         public StartupDownloadMode StartupDownloadMode = StartupDownloadMode.DownloadAll;
+
+        [Tooltip("启动阶段远端失败时的处理策略，例如必须更新、允许缓存、Wi-Fi 优先或后台下载。")]
         public StartupUpdatePolicy StartupUpdatePolicy = StartupUpdatePolicy.AllowCached;
+
+        [Tooltip("启动阶段按 Tag 下载时使用的 Tag 列表。StartupDownloadMode=DownloadByTags 时必须包含 startup。")]
         public string[] StartupDownloadTags = Array.Empty<string>();
 
-        [Header("Code Entry")]
+        [Header("热更入口")]
+        [Tooltip("热更入口类型完整名，例如 HotfixDemo.HotfixCodeEntry。构建会写入 HotfixAssemblyManifest。")]
         public string EntryTypeName = "HotfixDemo.HotfixCodeEntry";
+
+        [Tooltip("热更入口静态方法名，例如 Entrance。启动加载热更 DLL 后会反射调用。")]
         public string EntryMethodName = "Entrance";
 
         public string DisplayName => string.IsNullOrWhiteSpace(name) ? "未命名 ReleaseProfile" : name;
