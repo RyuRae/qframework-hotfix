@@ -62,7 +62,7 @@
    Assets/AssetsPackage/AssetsHotFix/Datas
    ```
 
-   如果使用 `StartupDownloadMode = DownloadByTags`，启动必需资源所在 Collector 必须配置 `AssetTags = startup`，至少包括 `AOTCodes`、`HotfixCodes`、`Configs`、`Datas`，以及显式启用的入口场景 / Prefab。
+   如果使用 `StartupDownloadMode = DownloadByTags`，启动必需资源所在 Collector 必须配置 `AssetTags = startup`，至少包括 `AOTCodes`、`HotfixCodes`、`Configs`、`Datas`，以及 CodeEntry 启动阶段会立即加载的场景 / Prefab / 配置等资源。
 
 6. 打开构建中心。
 
@@ -120,7 +120,7 @@ Assets/AssetsPackage
 │   ├── Configs           # AOTAssemblyManifest、HotfixAssemblyManifest、兼容旧清单
 │   ├── HotfixDemo        # 示例热更资源
 │   │   ├── Entities
-│   │   └── Scenes        # 示例入口场景，默认地址 main
+│   │   └── Scenes        # 示例场景，当前 HotfixDemo CodeEntry 会加载 main
 │   └── Datas             # 配表等热更数据
 └── Scripts
     ├── Main              # 首包主工程代码，负责启动、下载和加载热更
@@ -152,17 +152,18 @@ flowchart TD
     E --> F[编译 AOT + 热更 DLL]
     F --> G[复制 AOT DLL 到 AOTCodes/*.dll.bytes]
     G --> H[复制热更 DLL 到 HotfixCodes/*.dll.bytes]
-    H --> I[生成 AOTAssemblyManifest.asset]
-    I --> J[生成 HotfixAssemblyManifest.asset]
-    J --> K[同步旧 AssemblyManifest.asset 兼容]
-    K --> L[校验首包必需资源]
-    L --> M{StartupPackageMode?}
-    M -->|FirstPackage / OfflinePackage| N[构建 YooAsset 包 + 复制到 StreamingAssets]
-    M -->|EmptyPackage| O[构建 YooAsset 包 不复制到 StreamingAssets]
-    N --> P[构建 Player]
-    O --> Q[上传输出目录到 CDN]
-    Q --> P
-    P --> R[完成]
+    H --> I[分析 Hotfix DLL 依赖\n生成拓扑加载顺序]
+    I --> J[生成 AOTAssemblyManifest.asset\n写入 AOT size + sha256]
+    J --> K[生成 HotfixAssemblyManifest.asset\n写入 DLL 顺序/依赖/size + sha256]
+    K --> L[同步旧 AssemblyManifest.asset 兼容]
+    L --> M[校验首包必需资源]
+    M --> N{StartupPackageMode?}
+    N -->|FirstPackage / OfflinePackage| O[构建 YooAsset 包 + 复制到 StreamingAssets]
+    N -->|EmptyPackage| P[构建 YooAsset 包 不复制到 StreamingAssets]
+    O --> Q[构建 Player]
+    P --> R[上传输出目录到 CDN]
+    R --> Q
+    Q --> S[完成]
 ```
 
 ## 热更包构建流程
@@ -172,15 +173,16 @@ flowchart TD
     A[修改热更代码/资源/场景/配置] --> B[执行 一键构建/构建热更包]
     B --> C[编译热更 DLL]
     C --> D[复制热更 DLL 到 HotfixCodes/*.dll.bytes]
-    D --> E[复用现有 AOTAssemblyManifest.asset]
-    E --> F[生成新 HotfixAssemblyManifest.asset\nRequiredAotVersion 指向当前 AOT 版本]
-    F --> G[校验 AOT 与 Hotfix manifest 兼容性]
-    G --> H[构建远端 YooAsset 包\n不复制到 StreamingAssets]
-    H --> I[上传输出目录到 CDN]
-    I --> J[完成]
+    D --> E[分析 Hotfix DLL 依赖\n生成拓扑加载顺序]
+    E --> F[复用现有 AOTAssemblyManifest.asset]
+    F --> G[生成新 HotfixAssemblyManifest.asset\n写入 RequiredAotVersion/依赖/size + sha256]
+    G --> H[校验 AOT 与 Hotfix manifest 兼容性]
+    H --> I[构建远端 YooAsset 包\n不复制到 StreamingAssets]
+    I --> J[上传输出目录到 CDN]
+    J --> K[完成]
 
-    style E fill:#f9f,stroke:#333
-    style F fill:#bbf,stroke:#333
+    style F fill:#f9f,stroke:#333
+    style G fill:#bbf,stroke:#333
 ```
 
 ## 运行时启动流程
@@ -234,11 +236,11 @@ flowchart TD
     LOCAL4 --> AOT
     OVER --> AOT
 
-    AOT[ProcedureLoadAOTMetadata\n加载 HotfixAssemblyManifest\n加载匹配的 AOTAssemblyManifest\n加载 AOT 元数据 DLL] --> HOTFIX[ProcedureLoadAssembly\n加载热更 DLL\n调用入口方法]
+    AOT[ProcedureLoadAOTMetadata\n加载 HotfixAssemblyManifest\n加载匹配的 AOTAssemblyManifest\n校验并加载 AOT 元数据 DLL] --> HOTFIX[ProcedureLoadAssembly\n校验 Hotfix DLL size + sha256\n按 Manifest 顺序加载热更 DLL]
     HOTFIX --> CLEAR[ProcedureClearCacheBundle\n清理未使用缓存]
-    CLEAR --> GAME[ProcedureStartGame\n热更流程完成]
-    GAME --> SCENE[Boot 加载入口场景\n默认地址 main]
-    SCENE --> END([进入游戏])
+    CLEAR --> GAME[ProcedureStartGame\n设置默认资源包\n调用 CodeEntry]
+    GAME --> ENTRY[HotfixCodeEntry.Entrance\n热更业务初始化/加载入口资源]
+    ENTRY --> END([进入游戏])
 
     style AOT fill:#fbb,stroke:#333
     style HOTFIX fill:#bfb,stroke:#333
@@ -278,8 +280,8 @@ flowchart LR
         R4[创建下载器\nCreateDownloader]
         R5[下载资源\nDownloadPackageFiles]
         R6[加载 AOT 元数据\nLoadAOTMetadata]
-        R7[加载热更 DLL\nLoadAssemblies]
-        R8[进入游戏\nStartGame]
+        R7[校验并加载热更 DLL\nLoadAssemblies]
+        R8[调用 CodeEntry\nStartGame]
     end
 
     subgraph CDN 服务
@@ -340,8 +342,9 @@ sequenceDiagram
     Dev->>Unity: Build/热更新/一键构建/构建首包
     Unity->>Build: 编译 AOT + 热更 DLL
     Build->>Build: 复制 DLL.bytes 到 AssetsHotFix
-    Build->>Build: 生成 AOTAssemblyManifest
-    Build->>Build: 生成 HotfixAssemblyManifest
+    Build->>Build: 分析 Hotfix DLL 依赖并生成加载顺序
+    Build->>Build: 生成 AOTAssemblyManifest (size + sha256)
+    Build->>Build: 生成 HotfixAssemblyManifest (依赖 + size + sha256)
     Build->>Build: 校验首包资源完整性
     Build->>Build: 构建 YooAsset 包
     Build-->>CDN: 上传构建产物
@@ -357,9 +360,9 @@ sequenceDiagram
     CDN-->>Player: 返回清单
     Player->>CDN: 下载差异资源
     CDN-->>Player: 返回资源
-    Player->>Player: 加载 AOT 元数据
-    Player->>Player: 加载热更 DLL
-    Player->>Player: 进入游戏
+    Player->>Player: 校验并加载 AOT 元数据
+    Player->>Player: 按 Manifest 顺序校验并加载热更 DLL
+    Player->>Player: 调用 CodeEntry 进入游戏
 
     Note over Dev,CDN: === 热更发布阶段 ===
 
@@ -368,7 +371,7 @@ sequenceDiagram
     Unity->>Build: 编译热更 DLL
     Build->>Build: 复制热更 DLL.bytes
     Build->>Build: 复用 AOTAssemblyManifest
-    Build->>Build: 生成新 HotfixAssemblyManifest
+    Build->>Build: 分析依赖并生成新 HotfixAssemblyManifest
     Build->>Build: 构建远端 YooAsset 包
     Build-->>CDN: 上传新版本
 
@@ -381,9 +384,9 @@ sequenceDiagram
     Player->>Player: 对比本地 manifest
     Player->>CDN: 下载差异资源 (仅变化的 bundle)
     CDN-->>Player: 返回差异资源
-    Player->>Player: 加载 AOT 元数据
-    Player->>Player: 加载新热更 DLL
-    Player->>Player: 进入游戏
+    Player->>Player: 校验并加载 AOT 元数据
+    Player->>Player: 按 Manifest 顺序校验并加载新热更 DLL
+    Player->>Player: 调用 CodeEntry 进入游戏
 ```
 
 ## 运行时流程
@@ -405,9 +408,10 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
 7. `ProcedureCreateDownloader` 根据启动下载策略创建 downloader。
 8. `ProcedureDownloadPackageFiles` 下载缺失或 hash 变化的 bundle。
 9. `ProcedureLoadAOTMetadata` 先加载 `HotfixAssemblyManifest`，再加载匹配的 `AOTAssemblyManifest` 和 AOT metadata。
-10. `ProcedureLoadAssembly` 加载热更 DLL，并记录本次可用的 `HotfixVersion + AotVersion` 组合。
+10. `ProcedureLoadAssembly` 按 `HotfixAssemblyManifest.HotUpdateAssemblies` 顺序校验并加载热更 DLL，并记录本次可用的 `HotfixVersion + AotVersion` 组合。
 11. `ProcedureClearCacheBundle` 清理缓存。
-12. `Boot` 加载入口场景，默认地址是 `main`。
+12. `ProcedureStartGame` 设置默认 YooAsset 包并调用 `EntryTypeName.EntryMethodName` 指向的 CodeEntry。
+13. CodeEntry 负责业务初始化，并按热更业务需要加载入口场景、入口 Prefab 或其他启动资源。
 
 弱网或远端异常时，`StartupUpdatePolicy` 决定是否可以使用本地缓存或首包内置资源启动。
 
@@ -427,10 +431,10 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
 - `HotfixAssemblyManifest.asset`。
 - AOT metadata DLL.bytes。
 - 首版热更 DLL.bytes。
-- 入口场景或入口 prefab。
+- CodeEntry 启动阶段会立即加载的场景、Prefab 或其他入口资源。
 - 展示更新 UI、错误提示、本地缓存降级所需资源。
 
-通过 `Build/热更新/构建中心...` 或 `Build/热更新/一键构建/构建首包` 构建时会校验上述资源是否存在，并把 YooAsset 构建产物复制到 `StreamingAssets`。
+通过 `Build/热更新/构建中心...` 或 `Build/热更新/一键构建/构建首包` 构建时会校验框架可识别的启动资源是否存在，并把 YooAsset 构建产物复制到 `StreamingAssets`。CodeEntry 内部立即加载的业务资源需要放入启动 Collector；使用 `DownloadByTags` 时还需要带 `startup` Tag。
 
 ### EmptyPackage
 
@@ -453,7 +457,7 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
 
 - `StartupPackageMode = OfflinePackage`
 - `PlayerPlayMode = OfflinePlayMode`
-- 构建阶段会校验 AOT、Hotfix、manifest 和入口资源完整性。
+- 构建阶段会校验 AOT、Hotfix、manifest 和 CodeEntry 启动资源完整性。
 
 离线包适合 Demo、审核包、展会包、内网包或不需要远端热更的发行形态。
 
@@ -600,6 +604,7 @@ Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset
 - `HotfixAssemblyManifest.RequiredAotVersion == AOTAssemblyManifest.AotVersion`。
 - AOT DLL 和热更 DLL 列表不能为空。
 - `EntryTypeName` 和 `EntryMethodName` 必填。
+- AOT / Hotfix hash 记录不能缺失、重复或包含额外 DLL，sha256 必须是 64 位十六进制。
 - AOT Metadata bytes 加载前校验 size + sha256。
 - Hotfix DLL `Assembly.Load(bytes)` 前校验 size + sha256。
 
@@ -866,7 +871,7 @@ HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild
 
 - `HotfixRuntimeSettings.asset` 的 `StartupDownloadTags` 必须包含 `startup`。
 - YooAsset Collector 中启动必需资源必须配置 `AssetTags = startup`。
-- 构建前会校验 `Configs`、`AOTCodes`、`HotfixCodes`、`Datas`，以及显式启用的入口场景和入口 Prefab；缺少收集器或缺少 `startup` Tag 会直接失败，并输出资源路径和所在 Collector。
+- 构建前会校验 `Configs`、`AOTCodes`、`HotfixCodes`、`Datas`，以及 Hotfix manifest 兼容字段中仍显式配置的 `EntrySceneAddress` / `EntryPrefabAddress`；CodeEntry 启动阶段会立即加载的资源也应放入带 `startup` Tag 的 Collector。缺少收集器或缺少 `startup` Tag 会直接失败，并输出资源路径和所在 Collector。
 
 步骤：
 
@@ -1002,7 +1007,7 @@ Build/热更新/内部工具/旧命令/构建 Win64 Player
 - 目标平台已切换。
 - 构建中心的 `仅校验` 没有红色错误项。
 - 热更 asmdef 已加入 HybridCLR Settings。
-- YooAsset Collector 已收集 `AOTCodes`、`HotfixCodes`、`Configs` 和入口资源。
+- YooAsset Collector 已收集 `AOTCodes`、`HotfixCodes`、`Configs`，以及 CodeEntry 启动阶段会立即加载的入口资源。
 - 如果 `StartupDownloadMode = DownloadByTags`，`StartupDownloadTags` 和启动资源 Collector 都包含 `startup`。
 - `HotfixRuntimeSettings.asset` 的包名与 Collector 一致。
 - `HotfixRemoteSettings.asset` 的主/备 CDN 不相同。

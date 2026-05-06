@@ -36,10 +36,15 @@ namespace Framework
                 null,
                 Type.EmptyTypes,
                 null);
+            if (entryMethod == null)
+            {
+                error = $"Hotfix entry method not found: {EntryTypeName}.{EntryMethodName}()";
+                return false;
+            }
+
             if (entryMethod.ReturnType != typeof(void))
             {
-               
-                error = $"Hotfix entry method not found: {EntryTypeName}.{EntryMethodName}";
+                error = $"Hotfix entry method must return void: {EntryTypeName}.{EntryMethodName}()";
                 return false;
             }
 

@@ -568,10 +568,12 @@ namespace HybridCLR.Editor
             ValidateAssemblyFiles(HotfixCodesPath, hotfixManifest.HotUpdateAssemblies, "Hotfix DLL");
             ValidateAssemblyRecordsUnchanged(
                 aotManifest.AotMetadataFiles,
-                CreateAssemblyFileRecords(AOTCodesPath, aotManifest.AotMetadataAssemblies));
+                CreateAssemblyFileRecords(AOTCodesPath, aotManifest.AotMetadataAssemblies),
+                "AOT metadata");
             ValidateAssemblyRecordsUnchanged(
                 hotfixManifest.HotUpdateFiles,
-                CreateAssemblyFileRecords(HotfixCodesPath, hotfixManifest.HotUpdateAssemblies));
+                CreateAssemblyFileRecords(HotfixCodesPath, hotfixManifest.HotUpdateAssemblies),
+                "Hotfix DLL");
             var dependencySortResult = HotfixAssemblyDependencySorter.Sort(HotfixCodesPath, hotfixManifest.HotUpdateAssemblies);
             if (!AreSameOrderedList(hotfixManifest.HotUpdateAssemblies, dependencySortResult.SortedAssemblies) ||
                 !AreSameDependencyRecords(hotfixManifest.HotUpdateDependencies, dependencySortResult.Dependencies))
@@ -618,7 +620,7 @@ namespace HybridCLR.Editor
 
             ValidateAssemblyFiles(AOTCodesPath, manifestAssemblies, "AOT metadata");
             var currentRecords = CreateAssemblyFileRecords(AOTCodesPath, manifestAssemblies);
-            ValidateAssemblyRecordsUnchanged(manifest.AotMetadataFiles, currentRecords);
+            ValidateAssemblyRecordsUnchanged(manifest.AotMetadataFiles, currentRecords, "AOT metadata");
 
             string manifestFingerprint = string.IsNullOrWhiteSpace(manifest.BaselineFingerprint)
                 ? CreateAOTBaselineFingerprint(
@@ -845,15 +847,16 @@ namespace HybridCLR.Editor
 
         private static void ValidateAssemblyRecordsUnchanged(
             IEnumerable<AssemblyFileRecord> expectedRecords,
-            IEnumerable<AssemblyFileRecord> currentRecords)
+            IEnumerable<AssemblyFileRecord> currentRecords,
+            string label)
         {
-            var expected = ToRecordMap(expectedRecords);
-            var current = ToRecordMap(currentRecords);
+            var expected = ToRecordMap(expectedRecords, label);
+            var current = ToRecordMap(currentRecords, label);
             foreach (var expectedPair in expected)
             {
                 if (!current.TryGetValue(expectedPair.Key, out var currentRecord))
                 {
-                    throw new InvalidOperationException($"AOT metadata file missing from current scan: {expectedPair.Key}");
+                    throw new InvalidOperationException($"{label} file missing from current scan: {expectedPair.Key}");
                 }
 
                 var expectedRecord = expectedPair.Value;
@@ -861,7 +864,8 @@ namespace HybridCLR.Editor
                     !string.Equals(expectedRecord.Sha256, currentRecord.Sha256, StringComparison.OrdinalIgnoreCase))
                 {
                     throw new InvalidOperationException(
-                        $"AOT metadata file changed: {expectedPair.Key}. 普通热更包不能修改 AOT 基线。");
+                        $"{label} file changed: {expectedPair.Key}. Expected size={expectedRecord.Size}, sha256={expectedRecord.Sha256}; " +
+                        $"Current size={currentRecord.Size}, sha256={currentRecord.Sha256}.");
                 }
             }
 
@@ -869,12 +873,14 @@ namespace HybridCLR.Editor
             {
                 if (!expected.ContainsKey(currentPair.Key))
                 {
-                    throw new InvalidOperationException($"Unexpected AOT metadata file in current scan: {currentPair.Key}");
+                    throw new InvalidOperationException($"Unexpected {label} file in current scan: {currentPair.Key}");
                 }
             }
         }
 
-        private static Dictionary<string, AssemblyFileRecord> ToRecordMap(IEnumerable<AssemblyFileRecord> records)
+        private static Dictionary<string, AssemblyFileRecord> ToRecordMap(
+            IEnumerable<AssemblyFileRecord> records,
+            string label = "Assembly")
         {
             var map = new Dictionary<string, AssemblyFileRecord>(StringComparer.OrdinalIgnoreCase);
             if (records == null)
@@ -887,13 +893,48 @@ namespace HybridCLR.Editor
                 string recordName = GetAssemblyRecordFileName(record);
                 if (string.IsNullOrWhiteSpace(recordName))
                 {
-                    continue;
+                    throw new InvalidOperationException($"{label} hash records contain an empty entry.");
                 }
 
-                map[NormalizeDllName(recordName)] = record;
+                string normalizedName = NormalizeDllName(recordName);
+                if (record.Size <= 0 || !IsSha256Hex(record.Sha256))
+                {
+                    throw new InvalidOperationException(
+                        $"{label} hash record is invalid: {normalizedName}. Size={record.Size}, Sha256={record.Sha256}");
+                }
+
+                if (map.ContainsKey(normalizedName))
+                {
+                    throw new InvalidOperationException($"{label} hash records contain duplicate entry: {normalizedName}");
+                }
+
+                map.Add(normalizedName, record);
             }
 
             return map;
+        }
+
+        private static bool IsSha256Hex(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            string text = value.Trim();
+            if (text.Length != 64)
+            {
+                return false;
+            }
+
+            return text.All(IsHexChar);
+        }
+
+        private static bool IsHexChar(char character)
+        {
+            return character >= '0' && character <= '9' ||
+                   character >= 'a' && character <= 'f' ||
+                   character >= 'A' && character <= 'F';
         }
 
         private static string GetAssemblyRecordFileName(AssemblyFileRecord record)

@@ -481,6 +481,14 @@ namespace Framework.Assemblies
 
         private IEnumerator LoadHotUpdateAssembly(ResourcePackage package, string dllName)
         {
+            byte[] bytes = null;
+            var expectedRecord = FindAssemblyFileRecord(mContext.HotfixManifest.HotUpdateFiles, dllName);
+            yield return LoadDllBytes(package, dllName, expectedRecord, "Hotfix DLL", value => bytes = value);
+            if (!string.IsNullOrEmpty(Error))
+            {
+                yield break;
+            }
+
             if (mLoadedAssembliesCache.TryGetValue(dllName, out var cachedAssembly))
             {
                 CacheHotUpdateAssembly(dllName, cachedAssembly);
@@ -492,14 +500,6 @@ namespace Framework.Assemblies
             {
                 CacheHotUpdateAssembly(dllName, assembly);
                 Debug.Log($"Use loaded hotfix assembly: {assembly.GetName().Name}");
-                yield break;
-            }
-
-            byte[] bytes = null;
-            var expectedRecord = FindAssemblyFileRecord(mContext.HotfixManifest.HotUpdateFiles, dllName);
-            yield return LoadDllBytes(package, dllName, expectedRecord, "Hotfix DLL", value => bytes = value);
-            if (!string.IsNullOrEmpty(Error))
-            {
                 yield break;
             }
 
@@ -558,18 +558,52 @@ namespace Framework.Assemblies
             List<AssemblyFileRecord> records,
             string manifestLabel)
         {
-            var recordMap = ToAssemblyFileRecordMap(records);
-            foreach (var dllName in NormalizeAssemblyNamesForManifest(assemblyNames))
+            var expectedDllNames = NormalizeAssemblyNamesForManifest(assemblyNames);
+            var expectedSet = new HashSet<string>(expectedDllNames, StringComparer.OrdinalIgnoreCase);
+            var recordMap = new Dictionary<string, AssemblyFileRecord>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var record in records ?? Enumerable.Empty<AssemblyFileRecord>())
             {
-                if (!recordMap.TryGetValue(dllName, out var record))
+                string fileName = GetAssemblyRecordFileName(record);
+                if (string.IsNullOrWhiteSpace(fileName))
                 {
-                    Fail($"{manifestLabel} is missing file hash record for {dllName}.");
+                    Fail($"{manifestLabel} contains an empty file hash record.");
                     return false;
                 }
 
-                if (record.Size <= 0 || string.IsNullOrWhiteSpace(record.Sha256))
+                string normalizedFileName = NormalizeAssemblyNamesForManifest(new[] { fileName }).FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(normalizedFileName))
                 {
-                    Fail($"{manifestLabel} has invalid file hash record for {dllName}. Size={record.Size}, Sha256={record.Sha256}");
+                    Fail($"{manifestLabel} contains an invalid file hash record: {fileName}");
+                    return false;
+                }
+
+                if (!expectedSet.Contains(normalizedFileName))
+                {
+                    Fail($"{manifestLabel} contains an unexpected file hash record: {normalizedFileName}");
+                    return false;
+                }
+
+                if (recordMap.ContainsKey(normalizedFileName))
+                {
+                    Fail($"{manifestLabel} contains duplicate file hash record: {normalizedFileName}");
+                    return false;
+                }
+
+                if (record.Size <= 0 || !IsSha256Hex(record.Sha256))
+                {
+                    Fail($"{manifestLabel} has invalid file hash record for {normalizedFileName}. Size={record.Size}, Sha256={record.Sha256}");
+                    return false;
+                }
+
+                recordMap.Add(normalizedFileName, record);
+            }
+
+            foreach (var dllName in expectedDllNames)
+            {
+                if (!recordMap.ContainsKey(dllName))
+                {
+                    Fail($"{manifestLabel} is missing file hash record for {dllName}.");
                     return false;
                 }
             }
@@ -648,6 +682,29 @@ namespace Framework.Assemblies
                 byte[] hash = sha256.ComputeHash(bytes ?? Array.Empty<byte>());
                 return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
             }
+        }
+
+        private static bool IsSha256Hex(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            string text = value.Trim();
+            if (text.Length != 64)
+            {
+                return false;
+            }
+
+            return text.All(IsHexChar);
+        }
+
+        private static bool IsHexChar(char character)
+        {
+            return character >= '0' && character <= '9' ||
+                   character >= 'a' && character <= 'f' ||
+                   character >= 'A' && character <= 'F';
         }
 
         private void ApplyHotfixEntry(HotfixAssemblyManifestSnapshot manifest)
