@@ -222,7 +222,7 @@ namespace HybridCLR.Editor
                 BuildBundleType = YooAssetBuildBundleTypeAssetBundle,
                 BuildTarget = target,
                 PackageName = packageName,
-                PackageVersion = CreatePackageVersion(),
+                PackageVersion = CreatePackageVersion(target),
                 EnableSharePackRule = true,
                 VerifyBuildingResult = true,
                 FileNameStyle = EFileNameStyle.HashName,
@@ -366,16 +366,31 @@ namespace HybridCLR.Editor
 
             manifest.BuildTarget = GetRuntimePlatformName(target);
             manifest.RequiredAotVersion = requiredAotVersion ?? string.Empty;
+            var releaseProfile = HotfixReleaseProfile.LoadSelectedOrDefault();
+            if (releaseProfile != null)
+            {
+                if (!releaseProfile.IsCompatibleWith(target))
+                {
+                    throw new InvalidOperationException(
+                        $"ReleaseProfile BuildTarget mismatch. Profile={releaseProfile.BuildTarget}, Build={target}.");
+                }
+
+                releaseProfile.ApplyToHotfixManifest(manifest);
+            }
+
             var dependencySortResult = HotfixAssemblyDependencySorter.Sort(HotfixCodesPath, hotfixAssemblies);
             manifest.HotUpdateAssemblies = dependencySortResult.SortedAssemblies;
             manifest.HotUpdateFiles = CreateAssemblyFileRecords(HotfixCodesPath, manifest.HotUpdateAssemblies);
             manifest.HotUpdateDependencies = dependencySortResult.Dependencies;
-            manifest.HotfixVersion = CreateHotfixVersion(
+            string generatedHotfixVersion = CreateHotfixVersion(
                 manifest.AppVersionMin,
                 manifest.AppVersionMax,
                 manifest.BuildTarget,
                 manifest.RequiredAotVersion,
                 manifest.HotUpdateFiles);
+            manifest.HotfixVersion = releaseProfile == null || string.IsNullOrWhiteSpace(releaseProfile.HotfixVersion)
+                ? generatedHotfixVersion
+                : releaseProfile.HotfixVersion.Trim();
 
             if (string.IsNullOrWhiteSpace(manifest.EntryTypeName))
             {
@@ -495,7 +510,16 @@ namespace HybridCLR.Editor
                 return;
             }
 
-            var tags = settings.StartupDownloadTags;
+            ValidateStartupDownloadTags(settings.StartupDownloadMode, settings.StartupDownloadTags);
+        }
+
+        public static void ValidateStartupDownloadTags(StartupDownloadMode downloadMode, string[] tags)
+        {
+            if (downloadMode != StartupDownloadMode.DownloadByTags)
+            {
+                return;
+            }
+
             if (!ContainsTag(tags, RequiredStartupTag))
             {
                 throw new InvalidOperationException(
@@ -1255,8 +1279,20 @@ namespace HybridCLR.Editor
             return Path.Combine(folder, $"{NormalizeDllName(dllName)}.bytes");
         }
 
-        private static string CreatePackageVersion()
+        private static string CreatePackageVersion(BuildTarget target)
         {
+            var releaseProfile = HotfixReleaseProfile.LoadSelectedOrDefault();
+            if (releaseProfile != null && !string.IsNullOrWhiteSpace(releaseProfile.ResourceVersion))
+            {
+                if (!releaseProfile.IsCompatibleWith(target))
+                {
+                    throw new InvalidOperationException(
+                        $"ReleaseProfile BuildTarget mismatch. Profile={releaseProfile.BuildTarget}, Build={target}.");
+                }
+
+                return releaseProfile.ResourceVersion.Trim();
+            }
+
             return DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
         }
 

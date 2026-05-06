@@ -16,17 +16,26 @@ MonoBehaviour:
   AppVersionMax: 0.1
   BuildTarget: Android
   RequiredAotVersion: aot-8e4a27124f69d754
-  HotfixVersion: hotfix-9b6cc77b93e76b6c
+  HotfixVersion: hotfix-57a6f98849d9a2fb
   HotUpdateAssemblies:
   - HotfixCommon.dll
   - HotfixDemo.dll
   HotUpdateFiles:
-  - AssemblyName: HotfixCommon.dll
+  - FileName: HotfixCommon.dll
+    AssemblyName: HotfixCommon.dll
     Sha256: 89241e586cad75116b312dad0442ca872d1e62c8b71ad8b0d8133e9d9f69ed48
     Size: 10240
-  - AssemblyName: HotfixDemo.dll
-    Sha256: 429994675da094ebdce12b990d0f25e6489c71396287e24be0d92b6a86f20afa
+  - FileName: HotfixDemo.dll
+    AssemblyName: HotfixDemo.dll
+    Sha256: da05654da9657486b0d08b35ec2b0dd2ec217407252c0ee131bded0e0c39f926
     Size: 12800
+  HotUpdateDependencies:
+  - AssemblyName: HotfixCommon
+    DllName: HotfixCommon.dll
+    DependsOn: []
+  - AssemblyName: HotfixDemo
+    DllName: HotfixDemo.dll
+    DependsOn: []
   EntrySceneAddress: 
   EntryPrefabAddress: 
   EntryTypeName: HotfixDemo.HotfixCodeEntry

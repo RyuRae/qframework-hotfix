@@ -15,8 +15,8 @@ MonoBehaviour:
   AppVersion: 0.1
   BuildTarget: Android
   AotVersion: aot-8e4a27124f69d754
-  BaselineFingerprint: 888bc8cc107b050f
-  BaselineGeneratedAtUtc: 2026-05-06T01:49:09.4769640Z
+  BaselineFingerprint: 43b9541d65ab38ea
+  BaselineGeneratedAtUtc: 2026-05-06T08:43:00.1571890Z
   BaselineGitCommit: 
   AotMetadataAssemblies:
   - QFramework.CoreKit.dll
@@ -28,27 +28,35 @@ MonoBehaviour:
   - YooAssetKit.dll
   - mscorlib.dll
   AotMetadataFiles:
-  - AssemblyName: QFramework.CoreKit.dll
+  - FileName: QFramework.CoreKit.dll
+    AssemblyName: QFramework.CoreKit.dll
     Sha256: b39c0bee61b68e0686d6b0eb3ecee5e99c2be732633c42426718568676d26497
     Size: 777728
-  - AssemblyName: QFramework.dll
+  - FileName: QFramework.dll
+    AssemblyName: QFramework.dll
     Sha256: c196cc0b8c7bb27d64f4d28447afa2b1f6e1e534dbf610165f69373e1e031896
     Size: 28160
-  - AssemblyName: System.Core.dll
+  - FileName: System.Core.dll
+    AssemblyName: System.Core.dll
     Sha256: 387f5f15bab44b3d4b7434fd6ca04202cbde7cb8cc21dcf4d20e254a6dcae1b2
     Size: 392704
-  - AssemblyName: UniTask.dll
+  - FileName: UniTask.dll
+    AssemblyName: UniTask.dll
     Sha256: 3077e1ae32b41bda3d8d676a7c225545858b9bfaf09bceb6bd0e441297760ca5
     Size: 552448
-  - AssemblyName: UnityEngine.CoreModule.dll
+  - FileName: UnityEngine.CoreModule.dll
+    AssemblyName: UnityEngine.CoreModule.dll
     Sha256: 8476368fec0765fa62fa8c633d16ab328c6a5211095b3e8a0ae3e43f6e8107c9
     Size: 446464
-  - AssemblyName: YooAsset.dll
+  - FileName: YooAsset.dll
+    AssemblyName: YooAsset.dll
     Sha256: 038a0d5a7b590b6177827f1b00c0205f412743411c8b0dbc8b13a0bdeebf7080
     Size: 234496
-  - AssemblyName: YooAssetKit.dll
+  - FileName: YooAssetKit.dll
+    AssemblyName: YooAssetKit.dll
     Sha256: ad3e37aecef5eb55604f38297dbeb06d3d0d6042c8ef3cb481fea33ec5e1254e
     Size: 26112
-  - AssemblyName: mscorlib.dll
+  - FileName: mscorlib.dll
+    AssemblyName: mscorlib.dll
     Sha256: 8982d59dc99d2e9c88c40a63849d1f09fd27c767ff613d6e034987bed3a6def0
     Size: 2240512

@@ -918,7 +918,7 @@ Assets/AssetsPackage/AssetsHotFix/HotfixCodes
 
 # P1 商业化前建议完善
 
-## 16. ReleaseProfile 发布配置
+## 16. ReleaseProfile 发布配置（已完成）
 
 ### 背景
 
@@ -926,8 +926,8 @@ Assets/AssetsPackage/AssetsHotFix/HotfixCodes
 
 ### 任务
 
-- [ ] 新增 `HotfixReleaseProfile.asset`。
-- [ ] 管理：
+- [x] 新增 `HotfixReleaseProfile.asset`。
+- [x] 管理：
   - BuildTarget
   - AppVersion
   - AppVersionMin
@@ -943,14 +943,35 @@ Assets/AssetsPackage/AssetsHotFix/HotfixCodes
   - EntryTypeName
   - EntryMethodName
   - 是否允许 Development CDN
-- [ ] Build Center 绑定 ReleaseProfile。
-- [ ] 没有选择 ReleaseProfile 时禁止正式构建。
-- [ ] ReleaseProfile 支持保存、复制、导出。
+- [x] Build Center 绑定 ReleaseProfile。
+- [x] 没有选择 ReleaseProfile 时禁止正式构建。
+- [x] ReleaseProfile 支持保存、复制、导出。
+
+实现记录：
+
+- 新增 `HotfixReleaseProfile`，统一保存发布目标、App 兼容区间、资源版本、远端环境、启动策略和 CodeEntry。
+- 构建中心可绑定 ReleaseProfile，并提供创建 / 保存当前配置 / 复制 / 导出 JSON。
+- 一键构建会先应用 ReleaseProfile 到 `PlayerSettings.bundleVersion`、`HotfixRuntimeSettings`、`HotfixRemoteSettings` 和 `HotfixAssemblyManifest`。
+- `ResourceVersion` 非空时会作为 YooAsset `PackageVersion`，为空时继续使用时间戳自动版本。
+- Player Build 预处理器会读取选中的 ReleaseProfile；`Production` 或关闭 `AllowDevelopmentCdn` 的正式 Profile 会阻断 Development CDN。
+- Build Center 校验页显示 ReleaseProfile、正式发布保护和配置错误。
+
+相关位置：
+
+```text
+Assets/Editor/HybridCLR/HotfixReleaseProfile.asset
+Assets/Editor/HybridCLR/BuildPipeline/HotfixReleaseProfile.cs
+Assets/Editor/HybridCLR/BuildPipeline/HotfixBuildCenterWindow.cs
+Assets/Editor/HybridCLR/BuildPipeline/HotfixBuildValidator.cs
+Assets/Editor/HybridCLR/BuildPipeline/HotfixBuildRunner.cs
+Assets/Editor/HybridCLR/HotfixBuildProfile.cs
+```
 
 验收标准：
 
 - 不再依赖散落配置完成发布。
 - 开发、测试、预发、正式环境可以各自维护 Profile。
+- 资源包版本可由 ReleaseProfile 固定，方便发布记录和回滚。
 - Release 包不会误连 Development CDN。
 
 ---
@@ -1639,7 +1660,7 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 
 ## 第三阶段：商业化发布治理
 
-- [ ] ReleaseProfile 发布配置。
+- [x] ReleaseProfile 发布配置。
 - [ ] 完整版本协议与版本记录。
 - [ ] Manifest 签名校验。
 - [ ] 构建报告与发布产物管理。

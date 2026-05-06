@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 41303b0ccd634f61af4f5994af1f1d4c, type: 3}
+  m_Name: HotfixReleaseProfile
+  m_EditorClassIdentifier: 
+  BuildTarget: 13
+  AppVersion: 0.1
+  AppVersionMin: 0.1
+  AppVersionMax: 0.1
+  ResourceVersion: 
+  HotfixVersion: 
+  RemoteEnvironment: 1
+  Channel: default
+  Region: global
+  AllowDevelopmentCdn: 1
+  StartupPackageMode: 0
+  StartupDownloadMode: 0
+  StartupUpdatePolicy: 1
+  StartupDownloadTags: []
+  EntryTypeName: HotfixDemo.HotfixCodeEntry
+  EntryMethodName: Entrance

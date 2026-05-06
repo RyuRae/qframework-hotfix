@@ -11,11 +11,45 @@ namespace HybridCLR.Editor
         {
             var report = new HotfixBuildReport();
             AddBuildIdentity(context, report);
+            AddReleaseProfile(context, report);
             AddRuntimeSettings(context, report);
             AddRemoteSettings(context, report);
             AddEntryResource(context, report);
             AddManifestStatus(context, report);
             return report;
+        }
+
+        private static void AddReleaseProfile(HotfixBuildContext context, HotfixBuildReport report)
+        {
+            if (context.ReleaseProfile == null)
+            {
+                report.AddError(
+                    "ReleaseProfile",
+                    "缺失",
+                    $"缺少发布配置：{HotfixReleaseProfile.DefaultAssetPath}。请在构建中心执行“一键修复”创建。");
+                return;
+            }
+
+            var profile = context.ReleaseProfile;
+            report.AddInfo(
+                "ReleaseProfile",
+                profile.DisplayName,
+                $"Target={profile.BuildTarget}, App={profile.AppVersion}, Compat={profile.AppVersionMin}-{profile.AppVersionMax}, Resource={FormatOptional(profile.ResourceVersion)}, Hotfix={FormatOptional(profile.HotfixVersion)}, Env={profile.RemoteEnvironment}, Channel={profile.Channel}, Region={profile.Region}");
+
+            if (!profile.ValidateForBuild(context, out var error))
+            {
+                report.AddError("ReleaseProfile", profile.DisplayName, error);
+                return;
+            }
+
+            if (profile.IsFormalRelease)
+            {
+                report.AddInfo("正式发布保护", "开启", "Development CDN 将被阻断。");
+            }
+            else
+            {
+                report.AddWarning("正式发布保护", "未开启", "当前 ReleaseProfile 允许 Development CDN，仅建议开发或测试使用。");
+            }
         }
 
         private static void AddBuildIdentity(HotfixBuildContext context, HotfixBuildReport report)
@@ -56,7 +90,7 @@ namespace HybridCLR.Editor
             {
                 HotfixBuildProfileUtility.ValidatePlayerPlayMode(context.PlayerPlayMode, context.BuildTarget);
                 ValidateStartupPackageMode(context);
-                BuildAssetsCommand.ValidateStartupDownloadTags(context.RuntimeSettings);
+                BuildAssetsCommand.ValidateStartupDownloadTags(context.StartupDownloadMode, context.StartupDownloadTags);
                 report.AddInfo("Player 运行模式", context.PlayerPlayMode.ToString());
             }
             catch (Exception exception)
@@ -95,11 +129,29 @@ namespace HybridCLR.Editor
 
             report.AddInfo(
                 "远端环境",
-                $"{context.RemoteEnvironmentName} / {context.RemoteChannel} / {context.RemoteRegion}");
+                FormatRemoteSelector(context));
 
-            if (!context.RemoteSettings.TryValidateForPlayerBuild(true, context.BuildTargetName, out var error))
+            var releaseProfile = context.ReleaseProfile;
+            bool allowDevelopmentCdn = releaseProfile == null || releaseProfile.AllowsDevelopmentCdnForBuild;
+            var environment = releaseProfile == null
+                ? context.RemoteSettings.DefaultEnvironment
+                : releaseProfile.RemoteEnvironment;
+            string channel = releaseProfile == null
+                ? context.RemoteSettings.DefaultChannel
+                : NormalizeSelector(releaseProfile.Channel);
+            string region = releaseProfile == null
+                ? context.RemoteSettings.DefaultRegion
+                : NormalizeSelector(releaseProfile.Region);
+
+            if (!context.RemoteSettings.TryValidateForPlayerBuild(
+                    allowDevelopmentCdn,
+                    context.BuildTargetName,
+                    environment,
+                    channel,
+                    region,
+                    out var error))
             {
-                report.AddError("远端设置", context.RemoteEnvironmentName, error);
+                report.AddError("远端设置", environment.ToString(), error);
             }
             else
             {
@@ -254,6 +306,26 @@ namespace HybridCLR.Editor
             return tags == null || tags.Length == 0
                 ? "空"
                 : string.Join(", ", tags);
+        }
+
+        private static string FormatRemoteSelector(HotfixBuildContext context)
+        {
+            if (context.ReleaseProfile == null)
+            {
+                return $"{context.RemoteEnvironmentName} / {context.RemoteChannel} / {context.RemoteRegion}";
+            }
+
+            return $"{context.ReleaseProfile.RemoteEnvironment} / {NormalizeSelector(context.ReleaseProfile.Channel)} / {NormalizeSelector(context.ReleaseProfile.Region)}";
+        }
+
+        private static string FormatOptional(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "auto" : value.Trim();
+        }
+
+        private static string NormalizeSelector(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "default" : value.Trim();
         }
     }
 }

@@ -14,6 +14,7 @@ namespace HybridCLR.Editor
         public readonly string AppVersion;
         public readonly HotfixRuntimeSettings RuntimeSettings;
         public readonly HotfixRemoteSettings RemoteSettings;
+        public readonly HotfixReleaseProfile ReleaseProfile;
         public readonly AOTAssemblyManifest AOTManifest;
         public readonly HotfixAssemblyManifest HotfixManifest;
         public readonly EPlayMode PlayerPlayMode;
@@ -35,29 +36,37 @@ namespace HybridCLR.Editor
             BuildTarget buildTarget,
             HotfixRuntimeSettings runtimeSettings,
             HotfixRemoteSettings remoteSettings,
+            HotfixReleaseProfile releaseProfile,
             AOTAssemblyManifest aotManifest,
             HotfixAssemblyManifest hotfixManifest)
         {
             Mode = mode;
             BuildTarget = buildTarget;
             BuildTargetName = HotfixUtility.GetPlatformNameForBuildTarget(buildTarget);
-            AppVersion = string.IsNullOrWhiteSpace(PlayerSettings.bundleVersion)
-                ? string.Empty
-                : PlayerSettings.bundleVersion.Trim();
+            AppVersion = releaseProfile == null || string.IsNullOrWhiteSpace(releaseProfile.AppVersion)
+                ? NormalizeString(PlayerSettings.bundleVersion)
+                : releaseProfile.AppVersion.Trim();
 
             RuntimeSettings = runtimeSettings;
             RemoteSettings = remoteSettings;
+            ReleaseProfile = releaseProfile;
             AOTManifest = aotManifest;
             HotfixManifest = hotfixManifest;
 
             PlayerPlayMode = runtimeSettings == null ? EPlayMode.HostPlayMode : runtimeSettings.PlayerPlayMode;
-            StartupPackageMode = runtimeSettings == null
+            StartupPackageMode = releaseProfile != null
+                ? releaseProfile.StartupPackageMode
+                : runtimeSettings == null
                 ? StartupPackageMode.FirstPackage
                 : runtimeSettings.StartupPackageMode;
-            StartupDownloadMode = runtimeSettings == null
+            StartupDownloadMode = releaseProfile != null
+                ? releaseProfile.StartupDownloadMode
+                : runtimeSettings == null
                 ? StartupDownloadMode.DownloadAll
                 : runtimeSettings.StartupDownloadMode;
-            StartupDownloadTags = runtimeSettings == null
+            StartupDownloadTags = releaseProfile != null
+                ? releaseProfile.StartupDownloadTags ?? new string[0]
+                : runtimeSettings == null
                 ? new string[0]
                 : runtimeSettings.StartupDownloadTags;
 
@@ -69,19 +78,29 @@ namespace HybridCLR.Editor
                 ? HotfixRuntimeSettings.DefaultRawFilePackageName
                 : runtimeSettings.RawFilePackageName;
 
-            RemoteEnvironmentName = ReadSerializedEnum(remoteSettings, "defaultEnvironment", "缺失");
-            RemoteChannel = ReadSerializedString(remoteSettings, "defaultChannel", "default");
-            RemoteRegion = ReadSerializedString(remoteSettings, "defaultRegion", "global");
+            RemoteEnvironmentName = releaseProfile == null
+                ? ReadSerializedEnum(remoteSettings, "defaultEnvironment", "缺失")
+                : releaseProfile.RemoteEnvironment.ToString();
+            RemoteChannel = releaseProfile == null
+                ? ReadSerializedString(remoteSettings, "defaultChannel", "default")
+                : NormalizeSelector(releaseProfile.Channel);
+            RemoteRegion = releaseProfile == null
+                ? ReadSerializedString(remoteSettings, "defaultRegion", "global")
+                : NormalizeSelector(releaseProfile.Region);
 
             EntrySceneAddress = hotfixManifest == null || string.IsNullOrWhiteSpace(hotfixManifest.EntrySceneAddress)
                 ? BuildAssetsCommand.DefaultEntrySceneAddress
                 : hotfixManifest.EntrySceneAddress.Trim();
             EntryPrefabAddress = hotfixManifest == null ? string.Empty : hotfixManifest.EntryPrefabAddress ?? string.Empty;
-            EntryMethod = hotfixManifest == null ||
-                          string.IsNullOrWhiteSpace(hotfixManifest.EntryTypeName) ||
-                          string.IsNullOrWhiteSpace(hotfixManifest.EntryMethodName)
-                ? string.Empty
-                : $"{hotfixManifest.EntryTypeName}.{hotfixManifest.EntryMethodName}";
+            EntryMethod = releaseProfile != null &&
+                          !string.IsNullOrWhiteSpace(releaseProfile.EntryTypeName) &&
+                          !string.IsNullOrWhiteSpace(releaseProfile.EntryMethodName)
+                ? $"{releaseProfile.EntryTypeName.Trim()}.{releaseProfile.EntryMethodName.Trim()}"
+                : hotfixManifest == null ||
+                  string.IsNullOrWhiteSpace(hotfixManifest.EntryTypeName) ||
+                  string.IsNullOrWhiteSpace(hotfixManifest.EntryMethodName)
+                    ? string.Empty
+                    : $"{hotfixManifest.EntryTypeName}.{hotfixManifest.EntryMethodName}";
         }
 
         public bool ShouldCopyInitialPackageToStreamingAssets =>
@@ -94,6 +113,7 @@ namespace HybridCLR.Editor
                 EditorUserBuildSettings.activeBuildTarget,
                 AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(HotfixBuildProfileUtility.RuntimeSettingsAssetPath),
                 AssetDatabase.LoadAssetAtPath<HotfixRemoteSettings>(HotfixBuildProfileUtility.RemoteSettingsAssetPath),
+                HotfixReleaseProfile.LoadSelectedOrDefault(),
                 AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(BuildAssetsCommand.AOTAssemblyManifestAssetPath),
                 AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(BuildAssetsCommand.HotfixAssemblyManifestAssetPath));
         }
@@ -128,6 +148,16 @@ namespace HybridCLR.Editor
             }
 
             return property.enumNames[property.enumValueIndex];
+        }
+
+        private static string NormalizeString(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+        }
+
+        private static string NormalizeSelector(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "default" : value.Trim();
         }
     }
 }

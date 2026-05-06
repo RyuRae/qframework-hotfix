@@ -105,6 +105,24 @@ namespace HybridCLR.Editor
             BuildTarget target,
             bool allowDevelopmentEnvironment)
         {
+            var releaseProfile = HotfixReleaseProfile.LoadSelectedOrDefault();
+            if (releaseProfile != null)
+            {
+                if (!releaseProfile.IsCompatibleWith(target))
+                {
+                    throw new InvalidOperationException(
+                        $"ReleaseProfile BuildTarget mismatch. Profile={releaseProfile.BuildTarget}, Build={target}.");
+                }
+
+                releaseProfile.ApplyToEditorSettings();
+                allowDevelopmentEnvironment = allowDevelopmentEnvironment && releaseProfile.AllowsDevelopmentCdnForBuild;
+            }
+            else if (!allowDevelopmentEnvironment)
+            {
+                throw new InvalidOperationException(
+                    $"Release player build requires a ReleaseProfile. Missing: {HotfixReleaseProfile.DefaultAssetPath}");
+            }
+
             var profile = GetOrCreateProfile();
             var playMode = profile.GetPlayMode(target);
             ValidatePlayerPlayMode(playMode, target);

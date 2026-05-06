@@ -21,6 +21,9 @@ namespace HybridCLR.Editor
         public static HotfixBuildReport FixAll(HotfixBuildMode mode)
         {
             var context = HotfixBuildContext.Create(mode);
+            var releaseProfile = context.ReleaseProfile ?? HotfixReleaseProfile.GetOrCreateDefault();
+            HotfixReleaseProfile.SaveSelectedProfile(releaseProfile);
+            releaseProfile.ApplyToEditorSettings();
             HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettings(context.BuildTarget);
             HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
             AssetDatabase.SaveAssets();
@@ -31,6 +34,14 @@ namespace HybridCLR.Editor
         public static HotfixBuildReport Build(HotfixBuildMode mode)
         {
             var context = HotfixBuildContext.Create(mode);
+            if (context.ReleaseProfile == null)
+            {
+                throw new InvalidOperationException(
+                    $"缺少 ReleaseProfile：{HotfixReleaseProfile.DefaultAssetPath}。请在构建中心执行“一键修复”创建并绑定。");
+            }
+
+            context.ReleaseProfile.ApplyToEditorSettings();
+            context = HotfixBuildContext.Create(mode);
             var report = HotfixBuildValidator.Validate(context);
             if (report.HasErrors)
             {
@@ -239,6 +250,7 @@ namespace HybridCLR.Editor
             builder.AppendLine($"构建目标: {result.BuildTarget}");
             builder.AppendLine($"AppVersion: {result.AppVersion}");
             builder.AppendLine($"PackageName: {result.PackageName}");
+            builder.AppendLine($"ResourceVersion: {result.ResourceVersion}");
             builder.AppendLine($"PackageVersion: {result.PackageVersion}");
             builder.AppendLine($"AotVersion: {result.AotVersion}");
             builder.AppendLine($"HotfixVersion: {result.HotfixVersion}");
@@ -287,6 +299,7 @@ namespace HybridCLR.Editor
         public string BuildTarget;
         public string AppVersion;
         public string PackageName;
+        public string ResourceVersion;
         public string PackageVersion;
         public string OutputPackageDirectory;
         public string CdnUploadDirectory;
@@ -318,6 +331,7 @@ namespace HybridCLR.Editor
                 BuildTarget = context.BuildTargetName,
                 AppVersion = context.AppVersion,
                 PackageName = packageName,
+                ResourceVersion = context.ReleaseProfile == null ? string.Empty : context.ReleaseProfile.ResourceVersion,
                 PackageVersion = GetPackageVersion(outputDirectory),
                 OutputPackageDirectory = outputDirectory,
                 CdnUploadDirectory = outputDirectory,
@@ -335,6 +349,11 @@ namespace HybridCLR.Editor
         public void AppendTo(HotfixBuildReport report)
         {
             report.AddInfo("资源包名", PackageName);
+            if (!string.IsNullOrWhiteSpace(ResourceVersion))
+            {
+                report.AddInfo("ResourceVersion", ResourceVersion);
+            }
+
             report.AddInfo("资源包版本", PackageVersion);
             report.AddInfo("AotVersion", AotVersion);
             report.AddInfo("HotfixVersion", HotfixVersion);

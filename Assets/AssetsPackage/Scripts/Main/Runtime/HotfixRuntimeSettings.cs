@@ -150,6 +150,18 @@ namespace Framework
             this.includeRawFilePackage = includeRawFilePackage;
             this.rawfilePackageName = HotfixUtility.NormalizePackageName(rawfilePackageName, DefaultRawFilePackageName);
         }
+
+        public void SetStartupSettingsForEditor(
+            StartupPackageMode packageMode,
+            StartupDownloadMode downloadMode,
+            StartupUpdatePolicy updatePolicy,
+            string[] downloadTags)
+        {
+            startupPackageMode = packageMode;
+            startupDownloadMode = downloadMode;
+            startupUpdatePolicy = updatePolicy;
+            startupDownloadTags = HotfixUtility.NormalizeTags(downloadTags);
+        }
 #endif
     }
 }

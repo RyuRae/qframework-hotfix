@@ -31,6 +31,7 @@ namespace HybridCLR.Editor
         public const int OneClickInitialPackage = 120;
         public const int OneClickHotfixPackage = 121;
         public const int AdvancedAOTMetadataPatch = 140;
+        public const int ReleaseProfile = 160;
         public const int InternalGenerateAllSafe = 200;
         public const int InternalValidateRuntimeSettings = 201;
         public const int InternalSyncPackageNames = 202;

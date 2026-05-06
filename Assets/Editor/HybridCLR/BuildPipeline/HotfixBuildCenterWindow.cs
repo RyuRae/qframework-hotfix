@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using UnityEditor;
 using UnityEngine;
 
@@ -14,6 +15,7 @@ namespace HybridCLR.Editor
         };
 
         private HotfixBuildMode mMode = HotfixBuildMode.InitialPackage;
+        private HotfixReleaseProfile mReleaseProfile;
         private HotfixBuildReport mReport;
         private Vector2 mScrollPosition;
 
@@ -34,6 +36,7 @@ namespace HybridCLR.Editor
         private void OnGUI()
         {
             DrawHeader();
+            DrawReleaseProfile();
             DrawActions();
             DrawReport();
         }
@@ -56,6 +59,53 @@ namespace HybridCLR.Editor
             EditorGUILayout.HelpBox(
                 "推荐优先使用构建中心或一键构建入口。内部工具只用于框架维护、排障和分步验证。",
                 MessageType.Info);
+        }
+
+        private void DrawReleaseProfile()
+        {
+            EditorGUILayout.Space(6);
+            EditorGUI.BeginChangeCheck();
+            mReleaseProfile = (HotfixReleaseProfile)EditorGUILayout.ObjectField(
+                "ReleaseProfile",
+                mReleaseProfile,
+                typeof(HotfixReleaseProfile),
+                false);
+            if (EditorGUI.EndChangeCheck())
+            {
+                HotfixReleaseProfile.SaveSelectedProfile(mReleaseProfile);
+                RefreshReport();
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("创建/绑定默认 Profile"))
+            {
+                mReleaseProfile = HotfixReleaseProfile.GetOrCreateDefault();
+                HotfixReleaseProfile.SaveSelectedProfile(mReleaseProfile);
+                RefreshReport();
+            }
+
+            using (new EditorGUI.DisabledScope(mReleaseProfile == null))
+            {
+                if (GUILayout.Button("保存当前配置"))
+                {
+                    mReleaseProfile.CaptureCurrentEditorSettings();
+                    EditorUtility.SetDirty(mReleaseProfile);
+                    AssetDatabase.SaveAssetIfDirty(mReleaseProfile);
+                    RefreshReport();
+                }
+
+                if (GUILayout.Button("复制 Profile"))
+                {
+                    DuplicateReleaseProfile();
+                }
+
+                if (GUILayout.Button("导出 JSON"))
+                {
+                    ExportReleaseProfileJson();
+                }
+            }
+
+            EditorGUILayout.EndHorizontal();
         }
 
         private void DrawActions()
@@ -131,6 +181,7 @@ namespace HybridCLR.Editor
         {
             try
             {
+                LoadSelectedReleaseProfile();
                 mReport = HotfixBuildRunner.ValidateOnly(mMode);
             }
             catch (Exception exception)
@@ -139,6 +190,54 @@ namespace HybridCLR.Editor
                 mReport.AddError("构建中心", "刷新失败", exception.Message);
                 Debug.LogException(exception);
             }
+        }
+
+        private void LoadSelectedReleaseProfile()
+        {
+            if (mReleaseProfile != null)
+            {
+                return;
+            }
+
+            mReleaseProfile = HotfixReleaseProfile.LoadSelectedOrDefault();
+        }
+
+        private void DuplicateReleaseProfile()
+        {
+            string sourcePath = AssetDatabase.GetAssetPath(mReleaseProfile);
+            string targetPath = EditorUtility.SaveFilePanelInProject(
+                "复制 ReleaseProfile",
+                $"{mReleaseProfile.name}_Copy",
+                "asset",
+                "选择新的 ReleaseProfile 保存位置",
+                Path.GetDirectoryName(sourcePath));
+            if (string.IsNullOrWhiteSpace(targetPath))
+            {
+                return;
+            }
+
+            AssetDatabase.CopyAsset(sourcePath, targetPath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+            mReleaseProfile = AssetDatabase.LoadAssetAtPath<HotfixReleaseProfile>(targetPath);
+            HotfixReleaseProfile.SaveSelectedProfile(mReleaseProfile);
+            RefreshReport();
+        }
+
+        private void ExportReleaseProfileJson()
+        {
+            string path = EditorUtility.SaveFilePanel(
+                "导出 ReleaseProfile JSON",
+                Application.dataPath,
+                $"{mReleaseProfile.name}.json",
+                "json");
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            File.WriteAllText(path, mReleaseProfile.ToJson());
+            ShowNotification(new GUIContent("ReleaseProfile 已导出。"));
         }
 
         private void RunAction(Action action, string notification)

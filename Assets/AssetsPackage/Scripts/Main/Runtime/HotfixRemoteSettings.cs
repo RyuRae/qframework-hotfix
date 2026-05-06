@@ -196,6 +196,10 @@ namespace Framework
         [Tooltip("各环境的远端资源地址配置。运行时会按当前环境从这里选择一项。")]
         private HotfixRemoteEnvironmentConfig[] environments = Array.Empty<HotfixRemoteEnvironmentConfig>();
 
+        public HotfixRemoteEnvironment DefaultEnvironment => defaultEnvironment;
+        public string DefaultChannel => NormalizeSelector(defaultChannel);
+        public string DefaultRegion => NormalizeSelector(defaultRegion);
+
         public static HotfixRemoteSettings Load()
         {
             return Resources.Load<HotfixRemoteSettings>(ResourcesPath);
@@ -208,17 +212,34 @@ namespace Framework
 
         public bool TryValidateForPlayerBuild(bool allowDevelopmentEnvironment, string platform, out string error)
         {
+            return TryValidateForPlayerBuild(
+                allowDevelopmentEnvironment,
+                platform,
+                defaultEnvironment,
+                defaultChannel,
+                defaultRegion,
+                out error);
+        }
+
+        public bool TryValidateForPlayerBuild(
+            bool allowDevelopmentEnvironment,
+            string platform,
+            HotfixRemoteEnvironment environment,
+            string channel,
+            string region,
+            out string error)
+        {
             error = string.Empty;
             string normalizedPlatform = NormalizeSelector(platform);
 
-            var config = FindEnvironmentConfig(defaultEnvironment);
+            var config = FindEnvironmentConfig(environment);
             if (config == null)
             {
-                error = $"Hotfix remote environment config missing: {defaultEnvironment}";
+                error = $"Hotfix remote environment config missing: {environment}";
                 return false;
             }
 
-            if (!allowDevelopmentEnvironment && defaultEnvironment == HotfixRemoteEnvironment.Development)
+            if (!allowDevelopmentEnvironment && environment == HotfixRemoteEnvironment.Development)
             {
                 error = "Release player build can not use Development hotfix remote environment.";
                 return false;
@@ -226,17 +247,17 @@ namespace Framework
 
             string mainUrl = NormalizeBaseUrl(ReplaceTokens(
                 config.MainCdnUrlTemplate,
-                defaultEnvironment,
+                environment,
                 normalizedPlatform,
-                NormalizeSelector(defaultChannel),
-                NormalizeSelector(defaultRegion),
+                NormalizeSelector(channel),
+                NormalizeSelector(region),
                 "DefaultPackage"));
             string fallbackUrl = NormalizeBaseUrl(ReplaceTokens(
                 config.FallbackCdnUrlTemplate,
-                defaultEnvironment,
+                environment,
                 normalizedPlatform,
-                NormalizeSelector(defaultChannel),
-                NormalizeSelector(defaultRegion),
+                NormalizeSelector(channel),
+                NormalizeSelector(region),
                 "DefaultPackage"));
 
             if (!ValidateUrl(config, mainUrl, "main", false, out error) ||
@@ -535,6 +556,18 @@ namespace Framework
                 return hash;
             }
         }
+
+#if UNITY_EDITOR
+        public void SetDefaultSelectorForEditor(
+            HotfixRemoteEnvironment environment,
+            string channel,
+            string region)
+        {
+            defaultEnvironment = environment;
+            defaultChannel = NormalizeSelector(channel);
+            defaultRegion = NormalizeSelector(region);
+        }
+#endif
 
     }
 }
