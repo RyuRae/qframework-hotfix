@@ -690,7 +690,7 @@ YooAsset Collector 配置
 
 ---
 
-## 14. Hotfix DLL / AOT Metadata bytes 加载前校验
+## 14. Hotfix DLL / AOT Metadata bytes 加载前校验（已完成）
 
 ### 背景
 
@@ -698,20 +698,30 @@ YooAssets 可以校验 Bundle 层 Hash，但 Hotfix DLL 属于可执行代码，
 
 ### 任务
 
-- [ ] `AOTAssemblyManifest` 记录每个 AOT Metadata 文件的：
+- [x] `AOTAssemblyManifest` 记录每个 AOT Metadata 文件的：
   - fileName
   - size
   - sha256
-- [ ] `HotfixAssemblyManifest` 记录每个 Hotfix DLL 文件的：
+- [x] `HotfixAssemblyManifest` 记录每个 Hotfix DLL 文件的：
   - fileName
   - size
   - sha256
-- [ ] `LoadDllBytes` 后计算 bytes size。
-- [ ] `LoadDllBytes` 后计算 sha256。
-- [ ] AOT Metadata 加载前校验 size + sha256。
-- [ ] Hotfix DLL `Assembly.Load(bytes)` 前校验 size + sha256。
-- [ ] 校验失败时拒绝加载并输出明确错误。
-- [ ] 构建报告中写入 DLL hash 信息。
+- [x] `LoadDllBytes` 后计算 bytes size。
+- [x] `LoadDllBytes` 后计算 sha256。
+- [x] AOT Metadata 加载前校验 size + sha256。
+- [x] Hotfix DLL `Assembly.Load(bytes)` 前校验 size + sha256。
+- [x] 校验失败时拒绝加载并输出明确错误。
+- [x] 构建报告中写入 DLL hash 信息。
+
+实现记录：
+
+- `AssemblyFileRecord` 新增 `FileName`，并继续兼容旧 `AssemblyName` 字段。
+- 构建阶段生成 `AotMetadataFiles` / `HotUpdateFiles`，记录每个 DLL bytes 的 size 和 sha256。
+- 运行时 `HybridCLRAssemblyLoader.LoadDllBytes()` 读取 bytes 后会计算 size 和 sha256。
+- AOT Metadata 调用 `RuntimeApi.LoadMetadataForAOTAssembly()` 前会先校验 bytes。
+- Hotfix DLL 调用 `Assembly.Load(bytes)` 前会先校验 bytes。
+- 校验失败时会拒绝加载，并输出文件名、期望 size/hash 和实际 size/hash。
+- `BuildReports/Hotfix/*.txt` 会输出 AOT Metadata 和 Hotfix DLL hash 信息。
 
 相关位置：
 
@@ -724,14 +734,14 @@ Assets/Editor/HybridCLR/BuildAssetsCommand.cs
 
 验收标准：
 
-- DLL 正常时可以加载。
-- 手动篡改 DLL bytes 后，运行时拒绝加载。
-- 手动篡改 AOT Metadata bytes 后，运行时拒绝加载。
-- 错误信息能指出具体文件和期望 hash / 实际 hash。
+- [x] DLL 正常时可以加载。
+- [x] 手动篡改 DLL bytes 后，运行时拒绝加载。
+- [x] 手动篡改 AOT Metadata bytes 后，运行时拒绝加载。
+- [x] 错误信息能指出具体文件和期望 hash / 实际 hash。
 
 ---
 
-## 15. Hotfix DLL 依赖自动排序与依赖校验
+## 15. Hotfix DLL 依赖自动排序与依赖校验（已完成）
 
 ### 背景
 
@@ -783,25 +793,35 @@ foreach HotfixAssemblyManifest.HotUpdateAssemblies
 
 ### 任务
 
-- [ ] 新增 `HotfixAssemblyDependencySorter`。
-- [ ] 构建期读取每个 Hotfix DLL 的 `AssemblyName`。
-- [ ] 构建期读取每个 Hotfix DLL 的 `ReferencedAssemblies`。
-- [ ] 建立 `dllName -> assemblyName` 映射。
-- [ ] 建立 `assemblyName -> dllName` 映射。
-- [ ] 只保留 Hotfix DLL 内部依赖关系。
-- [ ] 对 Hotfix DLL 内部依赖执行拓扑排序。
-- [ ] 依赖 DLL 排在前面，被依赖 DLL 排在后面。
-- [ ] 检测循环依赖。
-- [ ] 检测缺失依赖。
-- [ ] 检测重复 `AssemblyName`。
-- [ ] 检测 Manifest 中记录但文件不存在的 DLL。
-- [ ] 检测文件存在但未写入 Manifest 的 DLL。
-- [ ] 将排序后的结果写入 `HotfixAssemblyManifest.HotUpdateAssemblies`。
-- [ ] Build Report 输出最终 DLL 加载顺序。
-- [ ] Build Report 输出 Hotfix DLL 依赖关系。
-- [ ] Build Center 中显示最终加载顺序和依赖检查结果。
-- [ ] 运行时不做复杂依赖排序，只按 Manifest 顺序加载。
-- [ ] README 中说明 Hotfix DLL 顺序由构建期自动生成，开发者不需要手动排序。
+- [x] 新增 `HotfixAssemblyDependencySorter`。
+- [x] 构建期读取每个 Hotfix DLL 的 `AssemblyName`。
+- [x] 构建期读取每个 Hotfix DLL 的 `ReferencedAssemblies`。
+- [x] 建立 `dllName -> assemblyName` 映射。
+- [x] 建立 `assemblyName -> dllName` 映射。
+- [x] 只保留 Hotfix DLL 内部依赖关系。
+- [x] 对 Hotfix DLL 内部依赖执行拓扑排序。
+- [x] 依赖 DLL 排在前面，被依赖 DLL 排在后面。
+- [x] 检测循环依赖。
+- [x] 检测缺失依赖。
+- [x] 检测重复 `AssemblyName`。
+- [x] 检测 Manifest 中记录但文件不存在的 DLL。
+- [x] 检测文件存在但未写入 Manifest 的 DLL。
+- [x] 将排序后的结果写入 `HotfixAssemblyManifest.HotUpdateAssemblies`。
+- [x] Build Report 输出最终 DLL 加载顺序。
+- [x] Build Report 输出 Hotfix DLL 依赖关系。
+- [x] Build Center 中显示最终加载顺序和依赖检查结果。
+- [x] 运行时不做复杂依赖排序，只按 Manifest 顺序加载。
+- [x] README 中说明 Hotfix DLL 顺序由构建期自动生成，开发者不需要手动排序。
+
+实现记录：
+
+- `HotfixAssemblyDependencySorter.Sort()` 会读取 Hotfix DLL metadata，生成稳定拓扑顺序和依赖记录。
+- `HotfixAssemblyManifest.HotUpdateAssemblies` 写入构建期排序后的最终加载顺序。
+- `HotfixAssemblyManifest.HotUpdateDependencies` 记录每个 Hotfix DLL 的内部依赖。
+- 构建校验会检测重复 `AssemblyName`、循环依赖、Manifest 记录但文件缺失、文件存在但未记录、依赖记录过期。
+- 构建报告输出 Hotfix DLL 最终加载顺序、依赖关系、AOT / Hotfix hash。
+- Build Center 显示 Hotfix DLL 加载顺序和依赖关系。
+- 运行时删除启发式排序，只按 Manifest 顺序加载。
 
 ### 建议新增字段
 
@@ -881,20 +901,20 @@ Assets/AssetsPackage/AssetsHotFix/HotfixCodes
 
 ### 验收标准
 
-- [ ] 单 DLL 热更构建成功。
-- [ ] 多 DLL 无依赖时构建成功，并且输出顺序稳定。
-- [ ] `A.dll` 依赖 `B.dll` 时，Manifest 中 `B.dll` 排在 `A.dll` 前面。
-- [ ] 多层依赖时顺序正确，例如 `Core -> UI -> Game -> Entry`。
-- [ ] 存在循环依赖时构建失败。
-- [ ] 存在缺失依赖时构建失败。
-- [ ] 存在重复 `AssemblyName` 时构建失败。
-- [ ] Manifest 中记录但文件不存在时构建失败。
-- [ ] 文件存在但未记录到 Manifest 时构建失败或给出明确警告。
-- [ ] 构建报告能查看最终 DLL 加载顺序。
-- [ ] 构建报告能查看 DLL 依赖关系。
-- [ ] Build Center 能显示依赖排序结果。
-- [ ] 运行时不再依赖人工维护 DLL 顺序。
-- [ ] 运行时按 Manifest 顺序加载所有 Hotfix DLL 成功。
+- [x] 单 DLL 热更构建成功。
+- [x] 多 DLL 无依赖时构建成功，并且输出顺序稳定。
+- [x] `A.dll` 依赖 `B.dll` 时，Manifest 中 `B.dll` 排在 `A.dll` 前面。
+- [x] 多层依赖时顺序正确，例如 `Core -> UI -> Game -> Entry`。
+- [x] 存在循环依赖时构建失败。
+- [x] 存在缺失依赖时构建失败。
+- [x] 存在重复 `AssemblyName` 时构建失败。
+- [x] Manifest 中记录但文件不存在时构建失败。
+- [x] 文件存在但未记录到 Manifest 时构建失败或给出明确警告。
+- [x] 构建报告能查看最终 DLL 加载顺序。
+- [x] 构建报告能查看 DLL 依赖关系。
+- [x] Build Center 能显示依赖排序结果。
+- [x] 运行时不再依赖人工维护 DLL 顺序。
+- [x] 运行时按 Manifest 顺序加载所有 Hotfix DLL 成功。
 
 # P1 商业化前建议完善
 
@@ -1602,8 +1622,8 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 - [ ] AOT Metadata Patch 高级模式。
 - [x] AOTManifest 过期校验。
 - [x] DownloadByTags 启动资源强校验。
-- [ ] Hotfix DLL / AOT Metadata bytes 加载前校验。
-- [ ] Hotfix DLL 依赖自动排序与依赖校验。
+- [x] Hotfix DLL / AOT Metadata bytes 加载前校验。
+- [x] Hotfix DLL 依赖自动排序与依赖校验。
 
 目标：
 
@@ -1683,8 +1703,6 @@ Internal 底层工具菜单
 
 ```text
 Generate All Safe
-DLL / AOT bytes 加载前 hash 校验
-Hotfix DLL 依赖自动排序与依赖校验
 ```
 
 这些完成后，框架才更接近“团队可用、可交付、可商业化”的状态。

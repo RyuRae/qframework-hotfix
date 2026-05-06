@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Framework.Assemblies;
 using HybridCLR.Editor.Commands;
@@ -76,7 +78,7 @@ namespace HybridCLR.Editor
                 hotfixAssemblies,
                 aotManifest.AotVersion);
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
-            BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
+            BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
             BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget);
 
@@ -118,7 +120,7 @@ namespace HybridCLR.Editor
                 hotfixAssemblies,
                 aotManifest.AotVersion);
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
-            BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixAssemblies);
+            BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixManifest.HotUpdateAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
             BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget);
 
@@ -180,7 +182,7 @@ namespace HybridCLR.Editor
                 hotfixAssemblies,
                 aotManifest.AotVersion);
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
-            BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
+            BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
             BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget);
 
@@ -267,6 +269,10 @@ namespace HybridCLR.Editor
                 builder.AppendLine();
             }
 
+            HotfixBuildExecutionResult.AppendAssemblyFileRecords(builder, "AOT Metadata Hashes", result.AotMetadataFiles);
+            HotfixBuildExecutionResult.AppendDependencyRecords(builder, "Hotfix DLL Dependencies", result.HotUpdateDependencies);
+            HotfixBuildExecutionResult.AppendAssemblyFileRecords(builder, "Hotfix DLL Hashes", result.HotUpdateFiles);
+
             File.WriteAllText(reportPath, builder.ToString(), Encoding.UTF8);
             result.ReportPath = reportPath;
             report.AddInfo("构建报告", reportPath);
@@ -287,6 +293,9 @@ namespace HybridCLR.Editor
         public string AotVersion;
         public string HotfixVersion;
         public string RequiredAotVersion;
+        public List<AssemblyFileRecord> AotMetadataFiles = new List<AssemblyFileRecord>();
+        public List<AssemblyFileRecord> HotUpdateFiles = new List<AssemblyFileRecord>();
+        public List<AssemblyDependencyRecord> HotUpdateDependencies = new List<AssemblyDependencyRecord>();
         public bool CopyToStreamingAssets;
         public bool IsAOTMetadataPatch;
         public string ReportPath;
@@ -315,6 +324,9 @@ namespace HybridCLR.Editor
                 AotVersion = aotManifest == null ? string.Empty : aotManifest.AotVersion,
                 HotfixVersion = hotfixManifest == null ? string.Empty : hotfixManifest.HotfixVersion,
                 RequiredAotVersion = hotfixManifest == null ? string.Empty : hotfixManifest.RequiredAotVersion,
+                AotMetadataFiles = CloneFileRecords(aotManifest == null ? null : aotManifest.AotMetadataFiles),
+                HotUpdateFiles = CloneFileRecords(hotfixManifest == null ? null : hotfixManifest.HotUpdateFiles),
+                HotUpdateDependencies = CloneDependencyRecords(hotfixManifest == null ? null : hotfixManifest.HotUpdateDependencies),
                 CopyToStreamingAssets = copyToStreamingAssets,
                 IsAOTMetadataPatch = isAOTMetadataPatch
             };
@@ -330,10 +342,97 @@ namespace HybridCLR.Editor
             report.AddInfo("YooAsset 输出目录", OutputPackageDirectory);
             report.AddInfo("CDN 上传目录", CdnUploadDirectory);
             report.AddInfo("StreamingAssets", CopyToStreamingAssets ? "已复制" : "不复制");
+            report.AddInfo("Hotfix DLL 加载顺序", HotfixAssemblyDependencySorter.FormatLoadingOrder(HotUpdateFiles.Select(GetRecordFileName)));
+            report.AddInfo("Hotfix DLL 依赖关系", HotfixAssemblyDependencySorter.FormatDependencies(HotUpdateDependencies));
+            report.AddInfo("AOT Metadata Hash", FormatHashSummary(AotMetadataFiles));
+            report.AddInfo("Hotfix DLL Hash", FormatHashSummary(HotUpdateFiles));
             if (IsAOTMetadataPatch)
             {
                 report.AddWarning("高级构建模式", "AOT 元数据补丁", "该产物只能用于同一 App 基线下的元数据补充。");
             }
+        }
+
+        public static void AppendAssemblyFileRecords(
+            StringBuilder builder,
+            string title,
+            IEnumerable<AssemblyFileRecord> records)
+        {
+            builder.AppendLine();
+            builder.AppendLine(title + ":");
+            foreach (var record in records ?? Enumerable.Empty<AssemblyFileRecord>())
+            {
+                builder.Append("- ");
+                builder.Append(GetRecordFileName(record));
+                builder.Append(" | size=");
+                builder.Append(record.Size);
+                builder.Append(" | sha256=");
+                builder.AppendLine(record.Sha256 ?? string.Empty);
+            }
+        }
+
+        public static void AppendDependencyRecords(
+            StringBuilder builder,
+            string title,
+            IEnumerable<AssemblyDependencyRecord> records)
+        {
+            builder.AppendLine();
+            builder.AppendLine(title + ":");
+            foreach (var record in records ?? Enumerable.Empty<AssemblyDependencyRecord>())
+            {
+                builder.Append("- ");
+                builder.Append(record.DllName);
+                builder.Append(" (");
+                builder.Append(record.AssemblyName);
+                builder.Append(") depends on ");
+                builder.AppendLine(record.DependsOn == null || record.DependsOn.Count == 0
+                    ? "none"
+                    : string.Join(", ", record.DependsOn));
+            }
+        }
+
+        private static string FormatHashSummary(IEnumerable<AssemblyFileRecord> records)
+        {
+            var lines = (records ?? Enumerable.Empty<AssemblyFileRecord>())
+                .Select(record => $"{GetRecordFileName(record)}:{record.Size}:{record.Sha256}")
+                .ToList();
+            return lines.Count == 0 ? "empty" : string.Join("; ", lines);
+        }
+
+        private static List<AssemblyFileRecord> CloneFileRecords(IEnumerable<AssemblyFileRecord> records)
+        {
+            return (records ?? Enumerable.Empty<AssemblyFileRecord>())
+                .Where(record => record != null)
+                .Select(record => new AssemblyFileRecord
+                {
+                    FileName = record.FileName ?? string.Empty,
+                    AssemblyName = record.AssemblyName ?? string.Empty,
+                    Size = record.Size,
+                    Sha256 = record.Sha256 ?? string.Empty
+                })
+                .ToList();
+        }
+
+        private static List<AssemblyDependencyRecord> CloneDependencyRecords(IEnumerable<AssemblyDependencyRecord> records)
+        {
+            return (records ?? Enumerable.Empty<AssemblyDependencyRecord>())
+                .Where(record => record != null)
+                .Select(record => new AssemblyDependencyRecord
+                {
+                    AssemblyName = record.AssemblyName ?? string.Empty,
+                    DllName = record.DllName ?? string.Empty,
+                    DependsOn = record.DependsOn == null ? new List<string>() : new List<string>(record.DependsOn)
+                })
+                .ToList();
+        }
+
+        private static string GetRecordFileName(AssemblyFileRecord record)
+        {
+            if (record == null)
+            {
+                return string.Empty;
+            }
+
+            return string.IsNullOrWhiteSpace(record.FileName) ? record.AssemblyName : record.FileName;
         }
 
         private static string GetPackageVersion(string outputDirectory)

@@ -137,8 +137,8 @@ Assets/AssetsPackage
 | `Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset` | 启动包策略、下载策略、更新策略、包名 |
 | `Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset` | 环境、渠道、地区、主/备 CDN 地址 |
 | `Assets/AssetsPackage/Resources/HotfixLocalizationSettings.asset` | 启动阶段中文和英文提示 |
-| `Assets/AssetsPackage/AssetsHotFix/Configs/AOTAssemblyManifest.asset` | AOT 版本、平台、App 版本、AOT DLL 列表和 hash |
-| `Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset` | Hotfix 版本、兼容 App 版本、RequiredAotVersion、热更 DLL、入口资源 |
+| `Assets/AssetsPackage/AssetsHotFix/Configs/AOTAssemblyManifest.asset` | AOT 版本、平台、App 版本、AOT DLL 列表、size 和 sha256 |
+| `Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset` | Hotfix 版本、兼容 App 版本、RequiredAotVersion、热更 DLL、size / sha256、依赖顺序、CodeEntry |
 | `Assets/AssetsPackage/AssetsHotFix/Configs/AssemblyManifest.asset` | 旧清单，保留用于兼容和迁移 |
 
 ## 首包构建流程
@@ -568,7 +568,7 @@ Assets/AssetsPackage/AssetsHotFix/Configs/AOTAssemblyManifest.asset
 - `BuildTarget`：平台，例如 `Windows`、`Android`、`iOS`、`macOS`。
 - `AotVersion`：由 AppVersion、BuildTarget、AOT DLL 文件名、SHA256、大小生成。
 - `AotMetadataAssemblies`：需要加载 metadata 的 AOT DLL 列表。
-- `AotMetadataFiles`：AOT DLL 的 hash 和 size 记录。
+- `AotMetadataFiles`：AOT DLL 的 fileName、size 和 sha256 记录。
 
 ### HotfixAssemblyManifest
 
@@ -585,11 +585,12 @@ Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset
 - `BuildTarget`：平台。
 - `RequiredAotVersion`：本次热更需要的 AOT 版本。
 - `HotfixVersion`：由兼容版本、平台、RequiredAotVersion、热更 DLL 文件名、SHA256、大小生成。
-- `HotUpdateAssemblies`：热更 DLL 列表。
-- `HotUpdateFiles`：热更 DLL 的 hash 和 size 记录。
-- `EntrySceneAddress`：热更完成后加载的场景地址，默认 `main`。
-- `EntryPrefabAddress`：预留的入口 prefab 地址。
-- `EntryTypeName` 和 `EntryMethodName`：可选静态入口方法。
+- `HotUpdateAssemblies`：构建期按 DLL 内部依赖拓扑排序后的热更 DLL 加载顺序。
+- `HotUpdateFiles`：热更 DLL 的 fileName、size 和 sha256 记录。
+- `HotUpdateDependencies`：每个热更 DLL 的内部依赖关系，用于构建中心和构建报告展示。
+- `EntrySceneAddress`：已废弃，场景加载交给 CodeEntry 管理。
+- `EntryPrefabAddress`：已废弃，Prefab 加载交给 CodeEntry 管理。
+- `EntryTypeName` 和 `EntryMethodName`：必填静态 CodeEntry 入口方法。
 
 运行时会校验：
 
@@ -598,9 +599,32 @@ Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset
 - `BuildTarget` 是否匹配当前运行平台。
 - `HotfixAssemblyManifest.RequiredAotVersion == AOTAssemblyManifest.AotVersion`。
 - AOT DLL 和热更 DLL 列表不能为空。
-- 入口场景或入口 prefab 至少配置一个。
+- `EntryTypeName` 和 `EntryMethodName` 必填。
+- AOT Metadata bytes 加载前校验 size + sha256。
+- Hotfix DLL `Assembly.Load(bytes)` 前校验 size + sha256。
 
 校验失败会终止热更流程并显示明确错误。
+
+### Hotfix DLL 依赖顺序
+
+热更 DLL 的加载顺序由构建期自动生成，开发者不需要手动调整 `HotUpdateAssemblies`。
+
+构建流程会读取每个 Hotfix DLL 的 `AssemblyName` 和 `ReferencedAssemblies`，只保留 Hotfix DLL 之间的内部依赖，然后执行拓扑排序：
+
+```text
+如果 A.dll 依赖 B.dll：
+    B.dll 会写在 A.dll 前面
+```
+
+构建期会阻断以下情况：
+
+- 循环依赖。
+- 重复 `AssemblyName`。
+- Manifest 记录了 DLL 但文件不存在。
+- HotfixCodes 目录中存在未记录到 Manifest 的 DLL。
+- 依赖记录过期，和当前 DLL metadata 不一致。
+
+构建中心会显示最终 DLL 加载顺序和依赖关系；`BuildReports/Hotfix/*.txt` 会输出 DLL 加载顺序、依赖关系，以及 AOT / Hotfix DLL 的 size 和 sha256。
 
 ## 构建首包
 
@@ -718,11 +742,14 @@ Build/热更新/一键构建/构建热更包
 - 更新 `HotfixCodes/*.dll.bytes`。
 - 复用当前 `AOTAssemblyManifest.asset`。
 - 构建前校验 AOT 基线指纹、AppVersion、BuildTarget 和 AOTCodes 文件 hash。
+- 自动分析 Hotfix DLL 内部依赖，生成稳定的 `HotUpdateAssemblies` 加载顺序和 `HotUpdateDependencies`。
+- 写入 AOT Metadata / Hotfix DLL 的 fileName、size 和 sha256。
 - 生成新的 `HotfixAssemblyManifest.asset`，其中 `RequiredAotVersion` 指向当前 AOT 版本。
 - 校验 AOT 和 Hotfix manifest 兼容关系。
 - 构建远端 YooAsset 包。
 - 不复制到 `StreamingAssets`。
 - 生成 `BuildReports/Hotfix/*.txt` 构建报告，并在报告中提示 CDN 上传目录。
+- 构建报告会列出 Hotfix DLL 加载顺序、依赖关系，以及 AOT / Hotfix DLL hash。
 
 热更构建不会移除 AOT 收集器。输出目录是一个完整资源版本目录，客户端会通过 YooAsset manifest 对比本地缓存，只下载缺失或 hash 变化的 bundle。AOT metadata 没变化时不会重复下载。
 
@@ -987,6 +1014,8 @@ Build/热更新/内部工具/旧命令/构建 Win64 Player
 - `AOTAssemblyManifest.asset` 的 `BuildTarget` 和目标平台一致。
 - `HotfixAssemblyManifest.asset` 的 `RequiredAotVersion` 等于 `AOTAssemblyManifest.asset` 的 `AotVersion`。
 - `HotfixAssemblyManifest.asset` 的 App 兼容版本覆盖当前 `Application.version`。
+- `HotfixAssemblyManifest.asset` 的 `HotUpdateAssemblies` 已按依赖排序。
+- `AOTAssemblyManifest.asset` / `HotfixAssemblyManifest.asset` 已记录 DLL fileName、size 和 sha256。
 - 输出目录存在版本文件、manifest 文件和 bundle 文件。
 - 上传到 CDN 后，用浏览器或 curl 能访问版本文件和 manifest 文件。
 
@@ -1021,6 +1050,7 @@ Build/热更新/内部工具/旧命令/构建 Win64 Player
 2. 是否通过构建中心或 `Build/热更新/内部工具/安全生成 HybridCLR 数据` 生成过 HybridCLR 数据，或至少重新编译热更 DLL。
 3. 是否执行 `Build/热更新/一键构建/构建热更包`。
 4. `HotfixAssemblyManifest.asset` 的 `HotUpdateAssemblies` 是否包含新增 DLL。
+5. `BuildReports/Hotfix/*.txt` 中的 Hotfix DLL 加载顺序是否符合依赖关系。
 
 ### 修改资源后客户端下载不到？
 

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
 using UnityEngine;
 using YooAsset;
 #if UNITY_EDITOR
@@ -21,6 +22,7 @@ namespace Framework.Assemblies
         public string BuildTarget = string.Empty;
         public string AotVersion = string.Empty;
         public List<string> AotMetadataAssemblies = new List<string>();
+        public List<AssemblyFileRecord> AotMetadataFiles = new List<AssemblyFileRecord>();
 
         public static AOTAssemblyManifestSnapshot From(AOTAssemblyManifest manifest)
         {
@@ -29,7 +31,8 @@ namespace Framework.Assemblies
                 AppVersion = manifest == null ? string.Empty : manifest.AppVersion ?? string.Empty,
                 BuildTarget = manifest == null ? string.Empty : manifest.BuildTarget ?? string.Empty,
                 AotVersion = manifest == null ? string.Empty : manifest.AotVersion ?? string.Empty,
-                AotMetadataAssemblies = NormalizeNames(manifest == null ? null : manifest.AotMetadataAssemblies)
+                AotMetadataAssemblies = NormalizeNames(manifest == null ? null : manifest.AotMetadataAssemblies),
+                AotMetadataFiles = AssemblyManifestSnapshotUtility.CloneFileRecords(manifest == null ? null : manifest.AotMetadataFiles)
             };
         }
 
@@ -47,6 +50,8 @@ namespace Framework.Assemblies
         public string RequiredAotVersion = string.Empty;
         public string HotfixVersion = string.Empty;
         public List<string> HotUpdateAssemblies = new List<string>();
+        public List<AssemblyFileRecord> HotUpdateFiles = new List<AssemblyFileRecord>();
+        public List<AssemblyDependencyRecord> HotUpdateDependencies = new List<AssemblyDependencyRecord>();
         public string EntrySceneAddress = string.Empty;
         public string EntryPrefabAddress = string.Empty;
         public string EntryTypeName = string.Empty;
@@ -62,6 +67,8 @@ namespace Framework.Assemblies
                 RequiredAotVersion = manifest == null ? string.Empty : manifest.RequiredAotVersion ?? string.Empty,
                 HotfixVersion = manifest == null ? string.Empty : manifest.HotfixVersion ?? string.Empty,
                 HotUpdateAssemblies = NormalizeNames(manifest == null ? null : manifest.HotUpdateAssemblies),
+                HotUpdateFiles = AssemblyManifestSnapshotUtility.CloneFileRecords(manifest == null ? null : manifest.HotUpdateFiles),
+                HotUpdateDependencies = AssemblyManifestSnapshotUtility.CloneDependencyRecords(manifest == null ? null : manifest.HotUpdateDependencies),
                 EntrySceneAddress = manifest == null ? string.Empty : manifest.EntrySceneAddress ?? string.Empty,
                 EntryPrefabAddress = manifest == null ? string.Empty : manifest.EntryPrefabAddress ?? string.Empty,
                 EntryTypeName = manifest == null ? string.Empty : manifest.EntryTypeName ?? string.Empty,
@@ -72,6 +79,36 @@ namespace Framework.Assemblies
         private static List<string> NormalizeNames(IEnumerable<string> assemblyNames)
         {
             return HybridCLRAssemblyLoader.NormalizeAssemblyNamesForManifest(assemblyNames);
+        }
+    }
+
+    internal static class AssemblyManifestSnapshotUtility
+    {
+        public static List<AssemblyFileRecord> CloneFileRecords(IEnumerable<AssemblyFileRecord> records)
+        {
+            return (records ?? Enumerable.Empty<AssemblyFileRecord>())
+                .Where(record => record != null)
+                .Select(record => new AssemblyFileRecord
+                {
+                    FileName = record.FileName ?? string.Empty,
+                    AssemblyName = record.AssemblyName ?? string.Empty,
+                    Sha256 = record.Sha256 ?? string.Empty,
+                    Size = record.Size
+                })
+                .ToList();
+        }
+
+        public static List<AssemblyDependencyRecord> CloneDependencyRecords(IEnumerable<AssemblyDependencyRecord> records)
+        {
+            return (records ?? Enumerable.Empty<AssemblyDependencyRecord>())
+                .Where(record => record != null)
+                .Select(record => new AssemblyDependencyRecord
+                {
+                    AssemblyName = record.AssemblyName ?? string.Empty,
+                    DllName = record.DllName ?? string.Empty,
+                    DependsOn = record.DependsOn == null ? new List<string>() : new List<string>(record.DependsOn)
+                })
+                .ToList();
         }
     }
 
@@ -295,6 +332,11 @@ namespace Framework.Assemblies
                 return false;
             }
 
+            if (!ValidateAssemblyFileRecords(manifest.HotUpdateAssemblies, manifest.HotUpdateFiles, "Hotfix manifest"))
+            {
+                return false;
+            }
+
             if (string.IsNullOrWhiteSpace(manifest.EntryTypeName))
             {
                 Fail("Hotfix manifest EntryTypeName is empty. CodeEntry is required.");
@@ -343,6 +385,11 @@ namespace Framework.Assemblies
                 return false;
             }
 
+            if (!ValidateAssemblyFileRecords(aotManifest.AotMetadataAssemblies, aotManifest.AotMetadataFiles, "AOT manifest"))
+            {
+                return false;
+            }
+
             if (hotfixManifest != null &&
                 !string.Equals(aotManifest.AotVersion, hotfixManifest.RequiredAotVersion, StringComparison.OrdinalIgnoreCase))
             {
@@ -384,7 +431,7 @@ namespace Framework.Assemblies
 
         private IEnumerator LoadHotUpdateAssembliesFromManifest(ResourcePackage package, Action<float> onProgress)
         {
-            var hotUpdateAssemblies = SortAssembliesByDependency(mContext.HotfixManifest.HotUpdateAssemblies);
+            var hotUpdateAssemblies = mContext.HotfixManifest.HotUpdateAssemblies;
             int totalCount = hotUpdateAssemblies.Count;
             int loadedCount = 0;
             onProgress?.Invoke(0f);
@@ -414,7 +461,8 @@ namespace Framework.Assemblies
         private IEnumerator LoadAotMetadataAssembly(ResourcePackage package, string dllName)
         {
             byte[] bytes = null;
-            yield return LoadDllBytes(package, dllName, value => bytes = value);
+            var expectedRecord = FindAssemblyFileRecord(mContext.AotManifest.AotMetadataFiles, dllName);
+            yield return LoadDllBytes(package, dllName, expectedRecord, "AOT metadata", value => bytes = value);
             if (!string.IsNullOrEmpty(Error))
             {
                 yield break;
@@ -448,7 +496,8 @@ namespace Framework.Assemblies
             }
 
             byte[] bytes = null;
-            yield return LoadDllBytes(package, dllName, value => bytes = value);
+            var expectedRecord = FindAssemblyFileRecord(mContext.HotfixManifest.HotUpdateFiles, dllName);
+            yield return LoadDllBytes(package, dllName, expectedRecord, "Hotfix DLL", value => bytes = value);
             if (!string.IsNullOrEmpty(Error))
             {
                 yield break;
@@ -468,7 +517,12 @@ namespace Framework.Assemblies
             Debug.Log($"Load hotfix assembly: {assembly.GetName().Name}");
         }
 
-        private IEnumerator LoadDllBytes(ResourcePackage package, string dllName, Action<byte[]> onLoaded)
+        private IEnumerator LoadDllBytes(
+            ResourcePackage package,
+            string dllName,
+            AssemblyFileRecord expectedRecord,
+            string label,
+            Action<byte[]> onLoaded)
         {
             var handle = package.LoadAssetAsync<TextAsset>(dllName);
             yield return handle;
@@ -488,8 +542,112 @@ namespace Framework.Assemblies
                 yield break;
             }
 
-            onLoaded?.Invoke(textAsset.bytes);
+            var bytes = textAsset.bytes;
+            if (!ValidateAssemblyBytes(dllName, bytes, expectedRecord, label))
+            {
+                handle.Release();
+                yield break;
+            }
+
+            onLoaded?.Invoke(bytes);
             handle.Release();
+        }
+
+        private bool ValidateAssemblyFileRecords(
+            List<string> assemblyNames,
+            List<AssemblyFileRecord> records,
+            string manifestLabel)
+        {
+            var recordMap = ToAssemblyFileRecordMap(records);
+            foreach (var dllName in NormalizeAssemblyNamesForManifest(assemblyNames))
+            {
+                if (!recordMap.TryGetValue(dllName, out var record))
+                {
+                    Fail($"{manifestLabel} is missing file hash record for {dllName}.");
+                    return false;
+                }
+
+                if (record.Size <= 0 || string.IsNullOrWhiteSpace(record.Sha256))
+                {
+                    Fail($"{manifestLabel} has invalid file hash record for {dllName}. Size={record.Size}, Sha256={record.Sha256}");
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool ValidateAssemblyBytes(
+            string dllName,
+            byte[] bytes,
+            AssemblyFileRecord expectedRecord,
+            string label)
+        {
+            if (expectedRecord == null)
+            {
+                Fail($"{label} hash record missing before loading bytes: {dllName}");
+                return false;
+            }
+
+            long actualSize = bytes == null ? 0 : bytes.LongLength;
+            string actualSha256 = ComputeSha256(bytes);
+            if (expectedRecord.Size != actualSize ||
+                !string.Equals(expectedRecord.Sha256, actualSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                Fail($"{label} bytes validation failed: {dllName}. " +
+                     $"Expected size={expectedRecord.Size}, sha256={expectedRecord.Sha256}; " +
+                     $"Actual size={actualSize}, sha256={actualSha256}");
+                return false;
+            }
+
+            return true;
+        }
+
+        private static AssemblyFileRecord FindAssemblyFileRecord(IEnumerable<AssemblyFileRecord> records, string dllName)
+        {
+            string normalizedDllName = NormalizeAssemblyNamesForManifest(new[] { dllName }).FirstOrDefault() ?? string.Empty;
+            var map = ToAssemblyFileRecordMap(records);
+            return map.TryGetValue(normalizedDllName, out var record) ? record : null;
+        }
+
+        private static Dictionary<string, AssemblyFileRecord> ToAssemblyFileRecordMap(IEnumerable<AssemblyFileRecord> records)
+        {
+            var map = new Dictionary<string, AssemblyFileRecord>(StringComparer.OrdinalIgnoreCase);
+            foreach (var record in records ?? Enumerable.Empty<AssemblyFileRecord>())
+            {
+                string fileName = GetAssemblyRecordFileName(record);
+                if (string.IsNullOrWhiteSpace(fileName))
+                {
+                    continue;
+                }
+
+                string normalizedFileName = NormalizeAssemblyNamesForManifest(new[] { fileName }).FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(normalizedFileName))
+                {
+                    map[normalizedFileName] = record;
+                }
+            }
+
+            return map;
+        }
+
+        private static string GetAssemblyRecordFileName(AssemblyFileRecord record)
+        {
+            if (record == null)
+            {
+                return string.Empty;
+            }
+
+            return string.IsNullOrWhiteSpace(record.FileName) ? record.AssemblyName : record.FileName;
+        }
+
+        private static string ComputeSha256(byte[] bytes)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                byte[] hash = sha256.ComputeHash(bytes ?? Array.Empty<byte>());
+                return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+            }
         }
 
         private void ApplyHotfixEntry(HotfixAssemblyManifestSnapshot manifest)
@@ -584,59 +742,6 @@ namespace Framework.Assemblies
         private static float GetProgress(int loadedCount, int totalCount)
         {
             return totalCount <= 0 ? 1f : loadedCount / (float)totalCount;
-        }
-
-        /// <summary>
-        /// 按依赖关系排序热更程序集，确保被依赖的程序集先加载。
-        /// 使用简单的拓扑排序：已加载的程序集依赖项优先，未知的排后面。
-        /// </summary>
-        private static List<string> SortAssembliesByDependency(List<string> assemblyNames)
-        {
-            if (assemblyNames == null || assemblyNames.Count <= 1)
-            {
-                return assemblyNames;
-            }
-
-            // 构建程序集名（不含.dll）到完整名的映射
-            var nameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var name in assemblyNames)
-            {
-                string key = System.IO.Path.GetFileNameWithoutExtension(name);
-                nameMap[key] = name;
-            }
-
-            // 检查已加载的程序集，确定哪些依赖已经在 AppDomain 中
-            var loadedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-            {
-                loadedNames.Add(asm.GetName().Name);
-            }
-
-            // 简单排序：依赖已加载程序集的排在前面，其他保持原顺序
-            var sorted = new List<string>(assemblyNames.Count);
-            var remaining = new List<string>();
-
-            foreach (var name in assemblyNames)
-            {
-                string asmName = System.IO.Path.GetFileNameWithoutExtension(name);
-                // 如果程序集名不在未加载的热更列表中，说明它的依赖已满足
-                bool depsSatisfied = true;
-                // 粗粒度判断：所有非热更程序集都已加载
-                // 更精确的依赖排序需要在 Assembly.Load 后检查 Assembly.GetReferencedAssemblies()
-                // 但那需要先加载才能检查，所以这里用简单的启发式
-
-                if (depsSatisfied)
-                {
-                    sorted.Add(name);
-                }
-                else
-                {
-                    remaining.Add(name);
-                }
-            }
-
-            sorted.AddRange(remaining);
-            return sorted;
         }
 
         private void Fail(string error)

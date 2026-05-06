@@ -54,8 +54,8 @@ namespace HybridCLR.Editor
             var aotAssemblies = CopyAOTAssembliesToTargetPath(target);
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
             var aotManifest = CreateOrUpdateAOTAssemblyManifest(target, aotAssemblies);
-            CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
-            CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
+            var hotfixManifest = CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
+            CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
             ValidateStartupPackageForBuild(target);
 
             BuildYooAssetPackage(packageConfig.MainPackageName, target, ShouldCopyPackageToStreamingAssets());
@@ -71,8 +71,8 @@ namespace HybridCLR.Editor
             CompileDllCommand.CompileDll(target);
 
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
-            CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
-            CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixAssemblies);
+            var hotfixManifest = CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
+            CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixManifest.HotUpdateAssemblies);
             ValidateSplitAssemblyManifestsForBuild(target);
             ValidateStartupPackageForBuild(target);
             BuildYooAssetPackage(packageConfig.MainPackageName, target, false);
@@ -88,8 +88,8 @@ namespace HybridCLR.Editor
             var aotAssemblies = CopyAOTAssembliesToTargetPath(target);
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
             var aotManifest = CreateOrUpdateAOTAssemblyManifest(target, aotAssemblies);
-            CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
-            CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
+            var hotfixManifest = CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
+            CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
             ValidateStartupPackageForBuild(target);
             AssetDatabase.Refresh();
         }
@@ -130,8 +130,8 @@ namespace HybridCLR.Editor
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
-            CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
-            CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixAssemblies);
+            var hotfixManifest = CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
+            CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixManifest.HotUpdateAssemblies);
         }
 
         public static void CopyAotMetaDataDlls(BuildTarget target)
@@ -139,8 +139,8 @@ namespace HybridCLR.Editor
             var aotAssemblies = CopyAOTAssembliesToTargetPath(target);
             var aotManifest = CreateOrUpdateAOTAssemblyManifest(target, aotAssemblies);
             var hotfixAssemblies = GetManifestOrConfiguredHotfixAssemblies();
-            CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
-            CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
+            var hotfixManifest = CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
+            CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
         }
 
         public static List<string> CopyAOTAssembliesToTargetPath()
@@ -207,8 +207,8 @@ namespace HybridCLR.Editor
             var aotAssemblies = FindAllAOTMetaAssemblies(target);
             var hotfixAssemblies = GetAllHotfixAssemblies();
             var aotManifest = CreateOrUpdateAOTAssemblyManifest(target, aotAssemblies);
-            CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
-            CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
+            var hotfixManifest = CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
+            CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
         }
 
         public static BuildResult BuildYooAssetPackage(string packageName, BuildTarget target, bool copyToStreamingAssets)
@@ -366,8 +366,10 @@ namespace HybridCLR.Editor
 
             manifest.BuildTarget = GetRuntimePlatformName(target);
             manifest.RequiredAotVersion = requiredAotVersion ?? string.Empty;
-            manifest.HotUpdateAssemblies = NormalizeDllNames(hotfixAssemblies);
+            var dependencySortResult = HotfixAssemblyDependencySorter.Sort(HotfixCodesPath, hotfixAssemblies);
+            manifest.HotUpdateAssemblies = dependencySortResult.SortedAssemblies;
             manifest.HotUpdateFiles = CreateAssemblyFileRecords(HotfixCodesPath, manifest.HotUpdateAssemblies);
+            manifest.HotUpdateDependencies = dependencySortResult.Dependencies;
             manifest.HotfixVersion = CreateHotfixVersion(
                 manifest.AppVersionMin,
                 manifest.AppVersionMax,
@@ -564,6 +566,19 @@ namespace HybridCLR.Editor
 
             ValidateAssemblyFiles(AOTCodesPath, aotManifest.AotMetadataAssemblies, "AOT metadata");
             ValidateAssemblyFiles(HotfixCodesPath, hotfixManifest.HotUpdateAssemblies, "Hotfix DLL");
+            ValidateAssemblyRecordsUnchanged(
+                aotManifest.AotMetadataFiles,
+                CreateAssemblyFileRecords(AOTCodesPath, aotManifest.AotMetadataAssemblies));
+            ValidateAssemblyRecordsUnchanged(
+                hotfixManifest.HotUpdateFiles,
+                CreateAssemblyFileRecords(HotfixCodesPath, hotfixManifest.HotUpdateAssemblies));
+            var dependencySortResult = HotfixAssemblyDependencySorter.Sort(HotfixCodesPath, hotfixManifest.HotUpdateAssemblies);
+            if (!AreSameOrderedList(hotfixManifest.HotUpdateAssemblies, dependencySortResult.SortedAssemblies) ||
+                !AreSameDependencyRecords(hotfixManifest.HotUpdateDependencies, dependencySortResult.Dependencies))
+            {
+                throw new InvalidOperationException(
+                    "Hotfix DLL dependency records are out of date. Please rebuild the Hotfix manifest so HotUpdateAssemblies is generated by dependency sorting.");
+            }
         }
 
         public static void ValidateAOTManifestNotExpired(BuildTarget target, AOTAssemblyManifest manifest)
@@ -704,9 +719,11 @@ namespace HybridCLR.Editor
                 }
 
                 var fileInfo = new FileInfo(filePath);
+                string normalizedDllName = NormalizeDllName(dllName);
                 records.Add(new AssemblyFileRecord
                 {
-                    AssemblyName = dllName,
+                    FileName = normalizedDllName,
+                    AssemblyName = normalizedDllName,
                     Sha256 = ComputeFileSha256(filePath),
                     Size = fileInfo.Length
                 });
@@ -867,15 +884,26 @@ namespace HybridCLR.Editor
 
             foreach (var record in records)
             {
-                if (record == null || string.IsNullOrWhiteSpace(record.AssemblyName))
+                string recordName = GetAssemblyRecordFileName(record);
+                if (string.IsNullOrWhiteSpace(recordName))
                 {
                     continue;
                 }
 
-                map[NormalizeDllName(record.AssemblyName)] = record;
+                map[NormalizeDllName(recordName)] = record;
             }
 
             return map;
+        }
+
+        private static string GetAssemblyRecordFileName(AssemblyFileRecord record)
+        {
+            if (record == null)
+            {
+                return string.Empty;
+            }
+
+            return string.IsNullOrWhiteSpace(record.FileName) ? record.AssemblyName : record.FileName;
         }
 
 
@@ -1113,6 +1141,67 @@ namespace HybridCLR.Editor
             }
 
             return true;
+        }
+
+        private static bool AreSameOrderedList(List<string> left, List<string> right)
+        {
+            left = NormalizeDllNames(left);
+            right = NormalizeDllNames(right);
+            if (left.Count != right.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < left.Count; i++)
+            {
+                if (!string.Equals(left[i], right[i], StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool AreSameDependencyRecords(
+            List<AssemblyDependencyRecord> left,
+            List<AssemblyDependencyRecord> right)
+        {
+            left = NormalizeDependencyRecords(left);
+            right = NormalizeDependencyRecords(right);
+            if (left.Count != right.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < left.Count; i++)
+            {
+                if (!string.Equals(left[i].DllName, right[i].DllName, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(left[i].AssemblyName, right[i].AssemblyName, StringComparison.OrdinalIgnoreCase) ||
+                    !AreSameOrderedList(left[i].DependsOn, right[i].DependsOn))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static List<AssemblyDependencyRecord> NormalizeDependencyRecords(
+            IEnumerable<AssemblyDependencyRecord> records)
+        {
+            return (records ?? Enumerable.Empty<AssemblyDependencyRecord>())
+                .Where(record => record != null && !string.IsNullOrWhiteSpace(record.DllName))
+                .Select(record => new AssemblyDependencyRecord
+                {
+                    AssemblyName = record.AssemblyName ?? string.Empty,
+                    DllName = NormalizeDllName(record.DllName),
+                    DependsOn = NormalizeDllNames(record.DependsOn)
+                        .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                        .ToList()
+                })
+                .OrderBy(record => record.DllName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private static string NormalizeDllName(string dllName)

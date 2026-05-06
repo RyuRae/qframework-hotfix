@@ -223,6 +223,12 @@ namespace HybridCLR.Editor
             else
             {
                 report.AddInfo("Hotfix 清单", status);
+                report.AddInfo(
+                    "Hotfix DLL 加载顺序",
+                    HotfixAssemblyDependencySorter.FormatLoadingOrder(context.HotfixManifest.HotUpdateAssemblies));
+                report.AddInfo(
+                    "Hotfix DLL 依赖关系",
+                    HotfixAssemblyDependencySorter.FormatDependencies(context.HotfixManifest.HotUpdateDependencies));
             }
         }
 

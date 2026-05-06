@@ -7,6 +7,7 @@ namespace Framework.Assemblies
     [Serializable]
     public sealed class AssemblyFileRecord
     {
+        public string FileName = string.Empty;
         public string AssemblyName = string.Empty;
         public string Sha256 = string.Empty;
         public long Size;
