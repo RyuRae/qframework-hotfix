@@ -22,9 +22,11 @@ namespace HybridCLR.Editor
         public const string AOTCodesPath = "Assets/AssetsPackage/AssetsHotFix/AOTCodes";
         public const string HotfixCodesPath = "Assets/AssetsPackage/AssetsHotFix/HotfixCodes";
         public const string ConfigsPath = "Assets/AssetsPackage/AssetsHotFix/Configs";
+        public const string DatasPath = "Assets/AssetsPackage/AssetsHotFix/Datas";
         public const string AssemblyManifestAssetPath = ConfigsPath + "/AssemblyManifest.asset";
         public const string AOTAssemblyManifestAssetPath = ConfigsPath + "/AOTAssemblyManifest.asset";
         public const string HotfixAssemblyManifestAssetPath = ConfigsPath + "/HotfixAssemblyManifest.asset";
+        public const string RequiredStartupTag = HotfixRuntimeSettings.DefaultStartupTag;
         // Mirrors YooAsset's internal EBuildBundleType.AssetBundle without referencing an internal enum.
         private const int YooAssetBuildBundleTypeAssetBundle = 2;
 
@@ -65,13 +67,14 @@ namespace HybridCLR.Editor
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
             var packageConfig = HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
+            var aotManifest = LoadValidatedAOTManifestForHotfixBuild(target);
             CompileDllCommand.CompileDll(target);
 
-            var aotManifest = EnsureAOTAssemblyManifest(target);
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
             CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
             CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixAssemblies);
             ValidateSplitAssemblyManifestsForBuild(target);
+            ValidateStartupPackageForBuild(target);
             BuildYooAssetPackage(packageConfig.MainPackageName, target, false);
             AssetDatabase.Refresh();
         }
@@ -110,16 +113,23 @@ namespace HybridCLR.Editor
         public static void BuildAndCopyHotUpdateDlls()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+            var aotManifest = LoadValidatedAOTManifestForHotfixBuild(target);
             CompileDllCommand.CompileDll(target);
-            CopyHotUpdateDlls();
+            CopyHotUpdateDlls(aotManifest);
             AssetDatabase.Refresh();
         }
 
         public static void CopyHotUpdateDlls()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
+            var aotManifest = LoadValidatedAOTManifestForHotfixBuild(target);
+            CopyHotUpdateDlls(aotManifest);
+        }
+
+        private static void CopyHotUpdateDlls(AOTAssemblyManifest aotManifest)
+        {
+            BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
-            var aotManifest = EnsureAOTAssemblyManifest(target);
             CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
             CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixAssemblies);
         }
@@ -443,6 +453,7 @@ namespace HybridCLR.Editor
             bool validatePackageAssets)
         {
             var packageMode = settings == null ? StartupPackageMode.FirstPackage : settings.StartupPackageMode;
+            ValidateStartupDownloadTags(settings);
             if (packageMode == StartupPackageMode.EmptyPackage &&
                 playerPlayMode == EPlayMode.OfflinePlayMode)
             {
@@ -471,9 +482,22 @@ namespace HybridCLR.Editor
 
             if (validatePackageAssets)
             {
-                ValidateCollectorContainsRequiredPath(ConfigsPath);
-                ValidateCollectorContainsRequiredPath(AOTCodesPath);
-                ValidateCollectorContainsRequiredPath(HotfixCodesPath);
+                ValidateStartupResourceCollection(settings);
+            }
+        }
+
+        public static void ValidateStartupDownloadTags(HotfixRuntimeSettings settings)
+        {
+            if (settings == null || settings.StartupDownloadMode != StartupDownloadMode.DownloadByTags)
+            {
+                return;
+            }
+
+            var tags = settings.StartupDownloadTags;
+            if (!ContainsTag(tags, RequiredStartupTag))
+            {
+                throw new InvalidOperationException(
+                    $"StartupDownloadMode.DownloadByTags requires StartupDownloadTags to include '{RequiredStartupTag}'. Current tags: {FormatTags(tags)}");
             }
         }
 
@@ -602,6 +626,13 @@ namespace HybridCLR.Editor
             }
         }
 
+        private static AOTAssemblyManifest LoadValidatedAOTManifestForHotfixBuild(BuildTarget target)
+        {
+            var aotManifest = AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(AOTAssemblyManifestAssetPath);
+            ValidateAOTManifestNotExpired(target, aotManifest);
+            return aotManifest;
+        }
+
         public static void ValidateHotfixAppVersionRange(HotfixAssemblyManifest manifest)
         {
             if (manifest == null)
@@ -633,21 +664,6 @@ namespace HybridCLR.Editor
             }
         }
 
-        private static AOTAssemblyManifest EnsureAOTAssemblyManifest(BuildTarget target)
-        {
-            var manifest = AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(AOTAssemblyManifestAssetPath);
-            if (manifest != null &&
-                manifest.AotMetadataAssemblies != null &&
-                manifest.AotMetadataAssemblies.Count > 0 &&
-                string.Equals(manifest.BuildTarget, GetRuntimePlatformName(target), StringComparison.OrdinalIgnoreCase))
-            {
-                return manifest;
-            }
-
-            var aotAssemblies = GetManifestOrConfiguredAOTAssemblies();
-            return CreateOrUpdateAOTAssemblyManifest(target, aotAssemblies);
-        }
-
         private static List<string> GetConfiguredAOTMetaAssemblies()
         {
             return AOTGenericReferences.PatchedAOTAssemblyList
@@ -655,23 +671,6 @@ namespace HybridCLR.Editor
                 .Select(NormalizeDllName)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-        }
-
-        private static List<string> GetManifestOrConfiguredAOTAssemblies()
-        {
-            var aotManifest = AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(AOTAssemblyManifestAssetPath);
-            if (aotManifest != null && aotManifest.AotMetadataAssemblies != null && aotManifest.AotMetadataAssemblies.Count > 0)
-            {
-                return NormalizeDllNames(aotManifest.AotMetadataAssemblies);
-            }
-
-            var manifest = AssetDatabase.LoadAssetAtPath<AssemblyManifest>(AssemblyManifestAssetPath);
-            if (manifest != null && manifest.AotMetadataAssemblies != null && manifest.AotMetadataAssemblies.Count > 0)
-            {
-                return NormalizeDllNames(manifest.AotMetadataAssemblies);
-            }
-
-            return GetConfiguredAOTMetaAssemblies();
         }
 
         private static List<string> GetManifestOrConfiguredHotfixAssemblies()
@@ -896,24 +895,97 @@ namespace HybridCLR.Editor
             return string.Empty;
         }
 
-        private static void ValidateCollectorContainsRequiredAsset(string assetPath)
+        private static void ValidateStartupResourceCollection(HotfixRuntimeSettings settings)
         {
-            if (!IsAssetPathCollected(assetPath))
+            string packageName = settings == null ? GetConfiguredMainPackageName() : settings.MainPackageName;
+            bool requireStartupTag = settings != null && settings.StartupDownloadMode == StartupDownloadMode.DownloadByTags;
+
+            ValidateRequiredCollectorPath(ConfigsPath, "Configs", packageName, requireStartupTag);
+            ValidateRequiredCollectorPath(AOTCodesPath, "AOTCodes", packageName, requireStartupTag);
+            ValidateRequiredCollectorPath(HotfixCodesPath, "HotfixCodes", packageName, requireStartupTag);
+            if (Directory.Exists(DatasPath))
             {
-                throw new InvalidOperationException($"Required startup asset is not collected by YooAsset collector: {assetPath}");
+                ValidateRequiredCollectorPath(DatasPath, "Datas", packageName, requireStartupTag);
+            }
+
+            var hotfixManifest = AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(HotfixAssemblyManifestAssetPath);
+            if (hotfixManifest == null)
+            {
+                return;
+            }
+
+            ValidateEntryAssetIfConfigured(hotfixManifest.EntrySceneAddress, ".unity", "EntryScene", packageName, requireStartupTag);
+            ValidateEntryAssetIfConfigured(hotfixManifest.EntryPrefabAddress, ".prefab", "EntryPrefab", packageName, requireStartupTag);
+        }
+
+        private static void ValidateEntryAssetIfConfigured(
+            string address,
+            string extension,
+            string label,
+            string packageName,
+            bool requireStartupTag)
+        {
+            if (string.IsNullOrWhiteSpace(address))
+            {
+                return;
+            }
+
+            string assetPath = FindAssetPathByAddress(address, extension);
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                throw new InvalidOperationException(
+                    $"Required startup {label} asset not found. Address: {address}, Extension: {extension}");
+            }
+
+            ValidateRequiredCollectorAsset(assetPath, label, packageName, requireStartupTag);
+        }
+
+        private static void ValidateRequiredCollectorAsset(
+            string assetPath,
+            string label,
+            string packageName,
+            bool requireStartupTag)
+        {
+            ValidateRequiredCollectorItem(assetPath, label, packageName, requireStartupTag, false);
+        }
+
+        private static void ValidateRequiredCollectorPath(
+            string requiredPath,
+            string label,
+            string packageName,
+            bool requireStartupTag)
+        {
+            ValidateRequiredCollectorItem(requiredPath, label, packageName, requireStartupTag, true);
+        }
+
+        private static void ValidateRequiredCollectorItem(
+            string assetPath,
+            string label,
+            string packageName,
+            bool requireStartupTag,
+            bool isFolder)
+        {
+            string normalizedPath = NormalizeAssetPath(assetPath);
+            if (!TryFindCollectorForAssetPath(normalizedPath, packageName, out var collector))
+            {
+                string itemType = isFolder ? "path" : "asset";
+                throw new InvalidOperationException(
+                    $"Required startup {itemType} is not collected by YooAsset collector. Label: {label}, Path: {normalizedPath}, Package: {packageName}");
+            }
+
+            if (requireStartupTag && !collector.HasTag(RequiredStartupTag))
+            {
+                throw new InvalidOperationException(
+                    $"Required startup resource is missing YooAsset tag '{RequiredStartupTag}'. Label: {label}, Path: {normalizedPath}, Collector: {collector.Describe()}, CurrentTags: {FormatTags(collector.Tags)}");
             }
         }
 
-        private static void ValidateCollectorContainsRequiredPath(string requiredPath)
+        private static bool TryFindCollectorForAssetPath(
+            string assetPath,
+            string packageName,
+            out CollectorMatch match)
         {
-            if (!IsAssetPathCollected(requiredPath))
-            {
-                throw new InvalidOperationException($"Required startup path is not collected by YooAsset collector: {requiredPath}");
-            }
-        }
-
-        private static bool IsAssetPathCollected(string assetPath)
-        {
+            match = default(CollectorMatch);
             string normalizedAssetPath = NormalizeAssetPath(assetPath);
             var setting = AssetBundleCollectorSettingData.Setting;
             if (setting == null || setting.Packages == null)
@@ -921,9 +993,12 @@ namespace HybridCLR.Editor
                 return false;
             }
 
+            string normalizedPackageName = NormalizePackageName(packageName, GetConfiguredMainPackageName());
             foreach (var package in setting.Packages)
             {
-                if (package == null || package.Groups == null)
+                if (package == null ||
+                    package.Groups == null ||
+                    !string.Equals(package.PackageName, normalizedPackageName, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -946,6 +1021,11 @@ namespace HybridCLR.Editor
                         if (string.Equals(normalizedAssetPath, collectPath, StringComparison.OrdinalIgnoreCase) ||
                             normalizedAssetPath.StartsWith(collectPath + "/", StringComparison.OrdinalIgnoreCase))
                         {
+                            match = new CollectorMatch(
+                                package.PackageName,
+                                group.GroupName,
+                                collector.CollectPath,
+                                NormalizeTagText(group.AssetTags, collector.AssetTags));
                             return true;
                         }
                     }
@@ -953,6 +1033,45 @@ namespace HybridCLR.Editor
             }
 
             return false;
+        }
+
+        private static bool ContainsTag(IEnumerable<string> tags, string requiredTag)
+        {
+            return tags != null &&
+                   tags.Any(tag => string.Equals(tag, requiredTag, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static List<string> NormalizeTagText(params string[] tagTexts)
+        {
+            var tags = new List<string>();
+            var exists = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var tagText in tagTexts ?? Array.Empty<string>())
+            {
+                if (string.IsNullOrWhiteSpace(tagText))
+                {
+                    continue;
+                }
+
+                var splitTags = tagText.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var tag in splitTags)
+                {
+                    var normalizedTag = tag.Trim();
+                    if (!string.IsNullOrWhiteSpace(normalizedTag) && exists.Add(normalizedTag))
+                    {
+                        tags.Add(normalizedTag);
+                    }
+                }
+            }
+
+            return tags;
+        }
+
+        private static string FormatTags(IEnumerable<string> tags)
+        {
+            var normalizedTags = tags == null
+                ? new List<string>()
+                : tags.Where(tag => !string.IsNullOrWhiteSpace(tag)).Select(tag => tag.Trim()).ToList();
+            return normalizedTags.Count == 0 ? "空" : string.Join(", ", normalizedTags);
         }
 
         private static string NormalizeAssetPath(string assetPath)
@@ -1115,6 +1234,33 @@ namespace HybridCLR.Editor
         private static string NormalizePackageName(string packageName, string fallback)
         {
             return HotfixUtility.NormalizePackageName(packageName, fallback);
+        }
+
+        private struct CollectorMatch
+        {
+            public readonly string PackageName;
+            public readonly string GroupName;
+            public readonly string CollectPath;
+            public readonly List<string> Tags;
+
+            public CollectorMatch(string packageName, string groupName, string collectPath, List<string> tags)
+            {
+                PackageName = packageName ?? string.Empty;
+                GroupName = groupName ?? string.Empty;
+                CollectPath = collectPath ?? string.Empty;
+                Tags = tags ?? new List<string>();
+            }
+
+            public bool HasTag(string tag)
+            {
+                return Tags != null &&
+                       Tags.Any(value => string.Equals(value, tag, StringComparison.OrdinalIgnoreCase));
+            }
+
+            public string Describe()
+            {
+                return $"Package={PackageName}, Group={GroupName}, Collector={CollectPath}";
+            }
         }
 
         private struct CollectorSnapshot

@@ -14,7 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   AppVersion: 0.1
   BuildTarget: Android
-  AotVersion: aot-a8e46b0639e6e257
+  AotVersion: aot-8e4a27124f69d754
+  BaselineFingerprint: 888bc8cc107b050f
+  BaselineGeneratedAtUtc: 2026-05-06T01:49:09.4769640Z
+  BaselineGitCommit: 
   AotMetadataAssemblies:
   - QFramework.CoreKit.dll
   - QFramework.dll
@@ -47,5 +50,5 @@ MonoBehaviour:
     Sha256: ad3e37aecef5eb55604f38297dbeb06d3d0d6042c8ef3cb481fea33ec5e1254e
     Size: 26112
   - AssemblyName: mscorlib.dll
-    Sha256: 3d4e28a203a1f1846ac35237263b1037cf3cf8e1ba6b58fbef052de72b3968be
-    Size: 2236928
+    Sha256: 8982d59dc99d2e9c88c40a63849d1f09fd27c767ff613d6e034987bed3a6def0
+    Size: 2240512

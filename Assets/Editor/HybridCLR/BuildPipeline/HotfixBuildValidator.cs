@@ -56,15 +56,21 @@ namespace HybridCLR.Editor
             {
                 HotfixBuildProfileUtility.ValidatePlayerPlayMode(context.PlayerPlayMode, context.BuildTarget);
                 ValidateStartupPackageMode(context);
+                BuildAssetsCommand.ValidateStartupDownloadTags(context.RuntimeSettings);
                 report.AddInfo("Player 运行模式", context.PlayerPlayMode.ToString());
             }
             catch (Exception exception)
             {
-                report.AddError("Player 运行模式", context.PlayerPlayMode.ToString(), exception.Message);
+                report.AddError("启动设置", context.PlayerPlayMode.ToString(), exception.Message);
             }
 
             report.AddInfo("启动包策略", context.StartupPackageMode.ToString());
             report.AddInfo("启动下载模式", context.StartupDownloadMode.ToString());
+            if (context.StartupDownloadMode == StartupDownloadMode.DownloadByTags)
+            {
+                report.AddInfo("启动下载 Tags", FormatTags(context.StartupDownloadTags));
+            }
+
             report.AddInfo("主包", context.MainPackageName);
             if (context.IncludeRawFilePackage)
             {
@@ -144,6 +150,17 @@ namespace HybridCLR.Editor
                     "清单兼容性",
                     "构建时将重新生成",
                     exception.Message);
+                return;
+            }
+
+            try
+            {
+                BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget);
+                report.AddInfo("启动资源校验", "有效");
+            }
+            catch (Exception exception)
+            {
+                report.AddError("启动资源校验", "失败", exception.Message);
             }
         }
 
@@ -224,6 +241,13 @@ namespace HybridCLR.Editor
                 throw new InvalidOperationException(
                     $"StartupPackageMode.OfflinePackage 需要搭配 OfflinePlayMode，当前模式为 {context.PlayerPlayMode}。");
             }
+        }
+
+        private static string FormatTags(string[] tags)
+        {
+            return tags == null || tags.Length == 0
+                ? "空"
+                : string.Join(", ", tags);
         }
     }
 }

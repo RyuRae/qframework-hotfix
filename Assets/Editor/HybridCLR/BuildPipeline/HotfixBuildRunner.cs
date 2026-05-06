@@ -120,6 +120,7 @@ namespace HybridCLR.Editor
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
             BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
+            BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget);
 
             var buildResult = BuildAssetsCommand.BuildYooAssetPackage(
                 packageConfig.MainPackageName,
@@ -181,6 +182,7 @@ namespace HybridCLR.Editor
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
             BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
+            BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget);
 
             var buildResult = BuildAssetsCommand.BuildYooAssetPackage(
                 packageConfig.MainPackageName,

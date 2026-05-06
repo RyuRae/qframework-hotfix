@@ -66,6 +66,7 @@ namespace Framework
         public const string ResourcesPath = AssetName;
         public const string DefaultMainPackageName = "DefaultPackage";
         public const string DefaultRawFilePackageName = "RawFilePackage";
+        public const string DefaultStartupTag = "startup";
 
         [Header("编辑器默认运行模式")]
         [SerializeField]

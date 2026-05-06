@@ -62,6 +62,8 @@
    Assets/AssetsPackage/AssetsHotFix/Datas
    ```
 
+   如果使用 `StartupDownloadMode = DownloadByTags`，启动必需资源所在 Collector 必须配置 `AssetTags = startup`，至少包括 `AOTCodes`、`HotfixCodes`、`Configs`、`Datas`，以及显式启用的入口场景 / Prefab。
+
 6. 打开构建中心。
 
    ```text
@@ -438,7 +440,7 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
 
 - `PlayerPlayMode` 必须是 `HostPlayMode` 或 `WebPlayMode`。
 - 首次启动时远端必须可访问。
-- 启动下载策略建议使用 `DownloadAll`，或用 `DownloadByTags` 覆盖所有启动必需资源。
+- 启动下载策略建议使用 `DownloadAll`；如果使用 `DownloadByTags`，`StartupDownloadTags` 必须包含 `startup`，且启动资源 Collector 必须带 `startup` Tag。
 - 构建 `Build/热更新/一键构建/构建首包` 会生成远端资源包，但不会复制到 `StreamingAssets`。
 
 空包不能搭配 `OfflinePlayMode`。如果远端不可用且本地从未成功缓存过资源，首次启动会失败并给出明确错误。
@@ -475,7 +477,7 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
 `StartupDownloadMode`：
 
 - `DownloadAll`：下载全部差异资源。
-- `DownloadByTags`：只下载指定 Tag。Tag 为空时不会创建 downloader。
+- `DownloadByTags`：只下载指定 Tag。启动阶段必须包含 `startup`，否则构建会失败。
 - `Skip`：跳过启动下载，直接尝试加载当前本地可用资源。
 
 `StartupUpdatePolicy`：
@@ -833,11 +835,18 @@ HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild
 
 ## 按 Tag 下载
 
+启动阶段统一保留 `startup` Tag。使用 `StartupDownloadMode = DownloadByTags` 时：
+
+- `HotfixRuntimeSettings.asset` 的 `StartupDownloadTags` 必须包含 `startup`。
+- YooAsset Collector 中启动必需资源必须配置 `AssetTags = startup`。
+- 构建前会校验 `Configs`、`AOTCodes`、`HotfixCodes`、`Datas`，以及显式启用的入口场景和入口 Prefab；缺少收集器或缺少 `startup` Tag 会直接失败，并输出资源路径和所在 Collector。
+
 步骤：
 
 1. 在 YooAsset Collector 中给资源收集器配置 `AssetTags`，例如：
 
    ```text
+   startup
    ui
    battle
    chapter_1
@@ -847,7 +856,10 @@ HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild
 
    ```text
    StartupDownloadMode = DownloadByTags
-   StartupDownloadTags = ui,battle
+   StartupDownloadTags =
+     startup
+     ui
+     battle
    ```
 
 3. 重新构建 YooAsset 包。
@@ -964,6 +976,7 @@ Build/热更新/内部工具/旧命令/构建 Win64 Player
 - 构建中心的 `仅校验` 没有红色错误项。
 - 热更 asmdef 已加入 HybridCLR Settings。
 - YooAsset Collector 已收集 `AOTCodes`、`HotfixCodes`、`Configs` 和入口资源。
+- 如果 `StartupDownloadMode = DownloadByTags`，`StartupDownloadTags` 和启动资源 Collector 都包含 `startup`。
 - `HotfixRuntimeSettings.asset` 的包名与 Collector 一致。
 - `HotfixRemoteSettings.asset` 的主/备 CDN 不相同。
 - `FirstPackage` / `OfflinePackage` 的启动资源完整。

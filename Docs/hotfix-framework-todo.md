@@ -572,7 +572,7 @@ AOT Metadata Patch 只能补充同一 App 基线下的元数据。
 
 ---
 
-## 12. AOTManifest 过期校验
+## 12. AOTManifest 过期校验 （已完成）
 
 ### 背景
 
@@ -604,6 +604,7 @@ AOT Metadata Patch 只能补充同一 App 基线下的元数据。
 
 - `AOTAssemblyManifest` 新增 `BaselineFingerprint`、`BaselineGeneratedAtUtc`、`BaselineGitCommit`。
 - `BuildAssetsCommand.ValidateAOTManifestNotExpired()` 会在热更包构建前检查 AppVersion、BuildTarget、HybridCLR AOT metadata 列表、AOTCodes 文件 size/sha256 和基线指纹。
+- 一键热更包、内部“仅构建热更 YooAsset”和“复制热更 DLL”入口都会先校验现有 AOT 基线，不再通过热更-only 路径隐式创建或绕过 AOTManifest。
 - 普通热更构建检测到 AOT 基线变化时会弹窗引导选择构建首包、构建 AOT 元数据补丁或取消。
 
 建议方法：
@@ -628,7 +629,7 @@ Assets/Editor/HybridCLR/BuildPipeline/HotfixBuildRunner.cs
 
 ---
 
-## 13. DownloadByTags 启动资源强校验
+## 13. DownloadByTags 启动资源强校验（已完成）
 
 ### 背景
 
@@ -656,77 +657,40 @@ HotfixCodes/*.dll.bytes
 
 ### 任务
 
-- [ ] `StartupDownloadMode = DownloadByTags` 时，`StartupDownloadTags` 必须包含 `startup`。
-- [ ] 构建前扫描 YooAsset Collector，确认启动资源具备 `startup` Tag。
-- [ ] FirstPackage / EmptyPackage / HotfixPackage 都执行启动资源校验。
-- [ ] EntryScene 或 EntryPrefab 没有被 YooAsset 收集时构建失败。
-- [ ] AOTCodes / HotfixCodes / Configs 没有被收集时构建失败。
-- [ ] 错误信息中明确指出缺失资源、缺失 Tag、所在 Collector。
+- [x] `StartupDownloadMode = DownloadByTags` 时，`StartupDownloadTags` 必须包含 `startup`。
+- [x] 构建前扫描 YooAsset Collector，确认启动资源具备 `startup` Tag。
+- [x] FirstPackage / EmptyPackage / HotfixPackage 都执行启动资源校验。
+- [x] EntryScene 或 EntryPrefab 没有被 YooAsset 收集时构建失败。
+- [x] AOTCodes / HotfixCodes / Configs 没有被收集时构建失败。
+- [x] 错误信息中明确指出缺失资源、缺失 Tag、所在 Collector。
+
+实现记录：
+
+- `HotfixRuntimeSettings.DefaultStartupTag` 统一定义默认启动标签 `startup`。
+- `BuildAssetsCommand.ValidateStartupDownloadTags()` 会阻止 `DownloadByTags` 漏配 `startup`。
+- `BuildAssetsCommand.ValidateStartupResourceCollection()` 会检查 `Configs`、`AOTCodes`、`HotfixCodes`、`Datas`，并在 Manifest 显式配置入口场景 / Prefab 时检查对应 Collector 收集状态。
+- `DownloadByTags` 模式下，启动资源缺少 `startup` Tag 会在构建前失败，并输出资源路径、包名、分组、Collector 和当前 Tags。
+- 一键首包、空包首包、普通热更包、AOT Metadata Patch 和内部“仅构建热更 YooAsset”都会执行启动资源校验。
 
 相关位置：
 
 ```text
 Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset
 Assets/Editor/HybridCLR/BuildAssetsCommand.cs
-Assets/Editor/HybridCLR/BuildPipeline/Steps/ValidateStartupTagsStep.cs
+Assets/Editor/HybridCLR/BuildPipeline/HotfixBuildRunner.cs
+Assets/Editor/HybridCLR/BuildPipeline/HotfixBuildValidator.cs
 YooAsset Collector 配置
 ```
 
 验收标准：
 
-- `DownloadByTags` 漏配 startup 时构建失败。
-- 缺少 AOT / Hotfix / Config / Entry 资源时构建失败。
-- 正确配置 startup 后，首包和空包都能完成启动链路。
+- [x] `DownloadByTags` 漏配 startup 时构建失败。
+- [x] 缺少 AOT / Hotfix / Config / Entry 资源时构建失败。
+- [x] 正确配置 startup 后，首包和空包都能完成启动链路。
 
 ---
 
-## 14. EntryPrefabAddress 入口闭环或禁用
-
-### 背景
-
-`HotfixAssemblyManifest` 中包含：
-
-```text
-EntrySceneAddress
-EntryPrefabAddress
-EntryTypeName
-EntryMethodName
-```
-
-当前协议允许 `EntrySceneAddress` 或 `EntryPrefabAddress` 二选一。若运行时没有真正消费 `EntryPrefabAddress`，则只填 Prefab 的配置会出现“校验通过但运行不生效”。
-
-### 方案 A：短期禁用 EntryPrefabAddress
-
-- [ ] Manifest 校验阶段要求 `EntrySceneAddress` 必填。
-- [ ] `EntryPrefabAddress` 标记为 reserved。
-- [ ] README 中说明当前版本只支持场景入口。
-- [ ] Build Center 中如果只配置 Prefab，直接报错。
-
-### 方案 B：完整支持 EntryPrefabAddress
-
-- [ ] `HybridCLRAssemblyLoader` 暴露 `EntryPrefabAddress`。
-- [ ] `ProcedureManager.SetHotfixEntry` 增加 Prefab 参数。
-- [ ] Boot 阶段支持：
-  - 优先加载 `EntrySceneAddress`
-  - 如果无 EntryScene，则加载并实例化 `EntryPrefabAddress`
-- [ ] Prefab 加载失败时进入错误页。
-- [ ] Prefab 生命周期由热更入口管理，支持退出和清理。
-- [ ] 示例工程补一个 Prefab 入口示例。
-
-建议：
-
-短期建议先做方案 A，降低不确定性。  
-如果游戏盒子后续希望多个子游戏以 Prefab 形式挂载，再做方案 B。
-
-验收标准：
-
-- 文档说支持的入口形式，运行时必须真的支持。
-- 文档暂不支持的入口形式，构建期必须阻止配置。
-- 不允许出现“Manifest 校验通过但启动后没有任何入口被加载”的情况。
-
----
-
-## 15. Hotfix DLL / AOT Metadata bytes 加载前校验
+## 14. Hotfix DLL / AOT Metadata bytes 加载前校验
 
 ### 背景
 
@@ -767,7 +731,7 @@ Assets/Editor/HybridCLR/BuildAssetsCommand.cs
 
 ---
 
-## 16. Hotfix DLL 依赖自动排序与依赖校验
+## 15. Hotfix DLL 依赖自动排序与依赖校验
 
 ### 背景
 
@@ -934,7 +898,7 @@ Assets/AssetsPackage/AssetsHotFix/HotfixCodes
 
 # P1 商业化前建议完善
 
-## 17. ReleaseProfile 发布配置
+## 16. ReleaseProfile 发布配置
 
 ### 背景
 
@@ -956,8 +920,8 @@ Assets/AssetsPackage/AssetsHotFix/HotfixCodes
   - StartupPackageMode
   - StartupDownloadMode
   - StartupDownloadTags
-  - EntrySceneAddress
-  - EntryPrefabAddress
+  - EntryTypeName
+  - EntryMethodName
   - 是否允许 Development CDN
 - [ ] Build Center 绑定 ReleaseProfile。
 - [ ] 没有选择 ReleaseProfile 时禁止正式构建。
@@ -971,7 +935,7 @@ Assets/AssetsPackage/AssetsHotFix/HotfixCodes
 
 ---
 
-## 18. 建立完整版本协议
+## 17. 建立完整版本协议
 
 - [ ] 设计 `AppVersion`、`ResourceVersion`、`CompatibleAppVersion`、`MinAppVersion`。
 - [ ] 明确并记录：
@@ -1004,11 +968,11 @@ YooAsset build output
 
 ---
 
-## 19. 增加 manifest / DLL 安全校验
+## 18. 增加 manifest / DLL 安全校验
 
 ### 说明
 
-P0 第 15 项先做 bytes size + sha256。  
+P0 第 14 项先做 bytes size + sha256。
 本项继续完善 Manifest 签名、公钥验签、密钥隔离等生产级安全能力。
 
 ### 任务
@@ -1039,7 +1003,7 @@ YooAsset manifest 下载和校验流程
 
 ---
 
-## 20. 优化热更程序集加载顺序和依赖校验
+## 19. 优化热更程序集加载顺序和依赖校验
 
 - [ ] 不仅依赖 `HotfixAssemblyManifest.HotUpdateAssemblies` 的手工顺序。
 - [ ] 构建阶段分析程序集依赖，生成稳定加载顺序。
@@ -1064,7 +1028,7 @@ Assets/AssetsPackage/Scripts/Hotfix/*/*.asmdef
 
 ---
 
-## 21. 完善热更入口生命周期
+## 20. 完善热更入口生命周期
 
 - [ ] 明确热更入口是场景、Prefab、静态方法还是统一 Bootstrap 类。
 - [ ] 定义统一热更入口接口，例如 `IHotfixEntry`。
@@ -1077,7 +1041,7 @@ Assets/AssetsPackage/Scripts/Hotfix/*/*.asmdef
 
 说明：
 
-- `EntryPrefabAddress` 的“支持或禁用”在 P0 第 14 项先解决。
+- `CodeEntry` 已作为当前统一入口。
 - 本项更关注热更业务入口的生命周期、上下文和异常治理。
 
 相关位置：
@@ -1095,7 +1059,7 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/GameMainApp.cs
 
 ---
 
-## 22. 改善 YooAssetKit 资源句柄生命周期
+## 21. 改善 YooAssetKit 资源句柄生命周期
 
 - [ ] `LoadAssetAsync` 不应回调后立即无条件 `Release` 长生命周期资源。
 - [ ] 为资源加载返回可释放 handle，或提供统一引用计数封装。
@@ -1120,7 +1084,7 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 
 ---
 
-## 23. 完善缓存管理策略和 LastGood 回滚
+## 22. 完善缓存管理策略和 LastGood 回滚
 
 - [ ] 不要在每次启动后无条件清理未使用 bundle，需评估启动耗时和复用收益。
 - [ ] 支持按 package、版本、标签、空间阈值清理缓存。
@@ -1147,7 +1111,7 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureManager.cs
 
 ---
 
-## 24. 规范多 package 使用策略
+## 23. 规范多 package 使用策略
 
 - [ ] 当前阶段默认保持单 package：`DefaultPackage`。
 - [ ] 仅当生命周期明显不同才拆 package，例如 DLC、语音包、多语言包、RawFile、大型地图包、活动资源。
@@ -1170,7 +1134,7 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureCreateDownloader.cs
 
 ---
 
-## 25. 构建报告与发布产物管理
+## 24. 构建报告与发布产物管理
 
 ### 背景
 
@@ -1218,7 +1182,7 @@ Releases/{Platform}/{Environment}/{PackageVersion}/publish_manifest.json
 
 ---
 
-## 26. 修正构建管线和文档不一致
+## 25. 修正构建管线和文档不一致
 
 ### 任务
 
@@ -1255,7 +1219,7 @@ Docs
 
 ---
 
-## 27. BackgroundDownload 生效规则
+## 26. BackgroundDownload 生效规则
 
 ### 背景
 
@@ -1280,7 +1244,7 @@ Hotfix DLL 已加载后，一般不能在当前进程卸载并替换。后台下
 
 ---
 
-## 28. 日志、错误码和线上诊断
+## 27. 日志、错误码和线上诊断
 
 - [ ] 为核心流程定义日志分类：
   - Startup
@@ -1323,7 +1287,7 @@ Assets/AssetsPackage/Scripts/Main/Runtime/UI
 
 ---
 
-## 29. CI / 命令行构建入口
+## 28. CI / 命令行构建入口
 
 ### 任务
 
@@ -1354,7 +1318,7 @@ Assets/AssetsPackage/Scripts/Main/Runtime/UI
 
 # P2 长期优化
 
-## 30. 增加自动化测试和 smoke test
+## 29. 增加自动化测试和 smoke test
 
 - [ ] 增加 Editor 测试：构建配置合法性、manifest 生成、AOT 列表生成。
 - [ ] 增加 PlayMode 测试：离线启动、模拟下载、下载失败、取消下载。
@@ -1370,7 +1334,7 @@ Assets/AssetsPackage/Scripts/Main/Runtime/UI
 
 ---
 
-## 31. 改善用户更新体验
+## 30. 改善用户更新体验
 
 - [ ] 下载确认界面展示格式化后的文件数量和大小，例如“需要更新 15 个文件，共 23.5 MB”。
 - [ ] 下载确认界面展示网络状态、是否建议 Wi-Fi。
@@ -1394,7 +1358,7 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Events/DownloadEvents.cs
 
 ---
 
-## 32. 清理工程生成物和大文件入库规则
+## 31. 清理工程生成物和大文件入库规则
 
 - [ ] 评估是否需要将 `HybridCLRData` 生成目录入库。
 - [ ] 评估是否需要将 `Assets/StreamingAssets/yoo` 的构建产物入库。
@@ -1419,7 +1383,7 @@ Assets/AssetsPackage/AssetsHotFix/HotfixCodes
 
 ---
 
-## 33. 统一编码和注释质量
+## 32. 统一编码和注释质量
 
 - [ ] 修复乱码注释。
 - [ ] 将核心流程日志统一中英文风格。
@@ -1445,7 +1409,7 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/GameMainApp.cs
 
 ---
 
-## 34. 完善文档
+## 33. 完善文档
 
 - [ ] 新增“首包构建流程”。
 - [ ] 新增“热更包发布流程”。
@@ -1471,7 +1435,7 @@ Docs
 
 ---
 
-## 35. 下载能力扩展：差分、后台、带宽和并发
+## 34. 下载能力扩展：差分、后台、带宽和并发
 
 - [ ] 评估是否需要差分更新能力，例如 Delta Patch、二进制补丁或按 bundle 粒度进一步拆分。
 - [ ] 大版本更新时统计全量下载量，决定是否引入差分方案。
@@ -1495,7 +1459,7 @@ YooAsset downloader 创建和调度策略
 
 ---
 
-## 36. 灰度发布
+## 35. 灰度发布
 
 - [ ] 根据 userId / deviceId 做稳定 hash。
 - [ ] 灰度命中用户使用 Gray CDN 或 Gray Version。
@@ -1512,7 +1476,7 @@ YooAsset downloader 创建和调度策略
 
 ---
 
-## 37. Luban 配置热更集成
+## 36. Luban 配置热更集成
 
 - [ ] 明确 Luban 配置表属于 Hotfix manifest 管理范围，还是独立 Config manifest 管理。
 - [ ] 热更流程中增加配置表版本、hash、兼容性校验。
@@ -1599,16 +1563,16 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 - 保留“文档与实际构建管线一致”的任务。
 - 只有当项目明确需要 SBP 特性时，再单独立项。
 
-## F. 上移：EntryPrefabAddress
+## F. 删除：EntryPrefabAddress 独立入口闭环任务
 
 原因：
 
-当前 Manifest 协议允许 `EntrySceneAddress` 或 `EntryPrefabAddress` 二选一，但如果运行时没有真正消费 `EntryPrefabAddress`，就会出现“配置合法但运行不生效”。
+当前入口已经由 `CodeEntry` 收口，`EntrySceneAddress` / `EntryPrefabAddress` 不再作为主工程启动入口决策项。
 
 处理方式：
 
-- 从 P1 上移到 P0。
-- 要么完整支持 Prefab 入口，要么构建期禁用只填 Prefab 的配置。
+- 删除 P0 中旧的 Prefab 独立入口闭环 TODO。
+- 热更入口的生命周期、上下文、异常治理继续归入 `CodeEntry` 入口生命周期任务。
 
 ---
 
@@ -1636,16 +1600,15 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 ## 第二阶段：防止热更事故
 
 - [ ] AOT Metadata Patch 高级模式。
-- [ ] AOTManifest 过期校验。
-- [ ] DownloadByTags 启动资源强校验。
-- [ ] EntryPrefabAddress 闭环或禁用。
+- [x] AOTManifest 过期校验。
+- [x] DownloadByTags 启动资源强校验。
 - [ ] Hotfix DLL / AOT Metadata bytes 加载前校验。
 - [ ] Hotfix DLL 依赖自动排序与依赖校验。
 
 目标：
 
 ```text
-防止 AOT 基线误复用、启动资源漏配、入口配置合法但不生效、DLL 被篡改。
+防止 AOT 基线误复用、启动资源漏配、DLL 被篡改。
 ```
 
 ## 第三阶段：商业化发布治理
@@ -1702,7 +1665,7 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 
 原因：
 
-- Hotfix DLL、AOT metadata、配置和入口场景现在强依赖同一个启动链路。
+- Hotfix DLL、AOT metadata、配置和 CodeEntry 入口现在强依赖同一个启动链路。
 - 单 package 更容易保证版本一致性。
 - 当前多 package 相关代码还不完整，尤其是 raw file package 的失败兜底、版本和缓存策略。
 
@@ -1720,9 +1683,6 @@ Internal 底层工具菜单
 
 ```text
 Generate All Safe
-AOTManifest 过期校验
-DownloadByTags startup 校验
-EntryPrefabAddress 入口闭环或禁用
 DLL / AOT bytes 加载前 hash 校验
 Hotfix DLL 依赖自动排序与依赖校验
 ```
