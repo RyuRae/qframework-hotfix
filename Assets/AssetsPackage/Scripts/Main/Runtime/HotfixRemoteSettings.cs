@@ -124,6 +124,36 @@ namespace Framework
         public string GrayMainCdnUrlTemplate => grayMainCdnUrlTemplate;
         public string GrayFallbackCdnUrlTemplate => grayFallbackCdnUrlTemplate;
         public string GrayReleaseSalt => grayReleaseSalt;
+
+#if UNITY_EDITOR
+        public void SetForEditor(
+            HotfixRemoteEnvironment environment,
+            string mainCdnUrlTemplate,
+            string fallbackCdnUrlTemplate,
+            bool requireHttps,
+            string[] allowedDomains,
+            bool certificatePinningEnabled,
+            string certificatePublicKeyPin,
+            bool enableGrayRelease,
+            int grayReleasePercent,
+            string grayMainCdnUrlTemplate,
+            string grayFallbackCdnUrlTemplate,
+            string grayReleaseSalt)
+        {
+            this.environment = environment;
+            this.mainCdnUrlTemplate = mainCdnUrlTemplate ?? string.Empty;
+            this.fallbackCdnUrlTemplate = fallbackCdnUrlTemplate ?? string.Empty;
+            this.requireHttps = requireHttps;
+            this.allowedDomains = allowedDomains ?? Array.Empty<string>();
+            this.certificatePinningEnabled = certificatePinningEnabled;
+            this.certificatePublicKeyPin = certificatePublicKeyPin ?? string.Empty;
+            this.enableGrayRelease = enableGrayRelease;
+            this.grayReleasePercent = Mathf.Clamp(grayReleasePercent, 0, 100);
+            this.grayMainCdnUrlTemplate = grayMainCdnUrlTemplate ?? string.Empty;
+            this.grayFallbackCdnUrlTemplate = grayFallbackCdnUrlTemplate ?? string.Empty;
+            this.grayReleaseSalt = string.IsNullOrWhiteSpace(grayReleaseSalt) ? "hotfix" : grayReleaseSalt.Trim();
+        }
+#endif
     }
 
     [CreateAssetMenu(fileName = AssetName, menuName = "Hotfix/Remote Settings", order = 1)]
@@ -566,6 +596,122 @@ namespace Framework
             defaultEnvironment = environment;
             defaultChannel = NormalizeSelector(channel);
             defaultRegion = NormalizeSelector(region);
+        }
+
+        public bool TryGetEnvironmentConfigForEditor(
+            HotfixRemoteEnvironment environment,
+            out string mainCdnUrlTemplate,
+            out string fallbackCdnUrlTemplate,
+            out bool requireHttps,
+            out string[] allowedDomains,
+            out bool certificatePinningEnabled,
+            out string certificatePublicKeyPin,
+            out bool enableGrayRelease,
+            out int grayReleasePercent,
+            out string grayMainCdnUrlTemplate,
+            out string grayFallbackCdnUrlTemplate,
+            out string grayReleaseSalt)
+        {
+            mainCdnUrlTemplate = string.Empty;
+            fallbackCdnUrlTemplate = string.Empty;
+            requireHttps = false;
+            allowedDomains = Array.Empty<string>();
+            certificatePinningEnabled = false;
+            certificatePublicKeyPin = string.Empty;
+            enableGrayRelease = false;
+            grayReleasePercent = 0;
+            grayMainCdnUrlTemplate = string.Empty;
+            grayFallbackCdnUrlTemplate = string.Empty;
+            grayReleaseSalt = "hotfix";
+
+            var config = FindEnvironmentConfig(environment);
+            if (config == null)
+            {
+                return false;
+            }
+
+            mainCdnUrlTemplate = config.MainCdnUrlTemplate;
+            fallbackCdnUrlTemplate = config.FallbackCdnUrlTemplate;
+            requireHttps = config.RequireHttps;
+            allowedDomains = CloneArray(config.AllowedDomains);
+            certificatePinningEnabled = config.CertificatePinningEnabled;
+            certificatePublicKeyPin = config.CertificatePublicKeyPin;
+            enableGrayRelease = config.EnableGrayRelease;
+            grayReleasePercent = config.GrayReleasePercent;
+            grayMainCdnUrlTemplate = config.GrayMainCdnUrlTemplate;
+            grayFallbackCdnUrlTemplate = config.GrayFallbackCdnUrlTemplate;
+            grayReleaseSalt = config.GrayReleaseSalt;
+            return true;
+        }
+
+        public void SetEnvironmentConfigForEditor(
+            HotfixRemoteEnvironment environment,
+            string mainCdnUrlTemplate,
+            string fallbackCdnUrlTemplate,
+            bool requireHttps,
+            string[] allowedDomains,
+            bool certificatePinningEnabled,
+            string certificatePublicKeyPin,
+            bool enableGrayRelease,
+            int grayReleasePercent,
+            string grayMainCdnUrlTemplate,
+            string grayFallbackCdnUrlTemplate,
+            string grayReleaseSalt)
+        {
+            int index = FindEnvironmentConfigIndex(environment);
+            if (index < 0)
+            {
+                index = environments == null ? 0 : environments.Length;
+                Array.Resize(ref environments, index + 1);
+                environments[index] = new HotfixRemoteEnvironmentConfig();
+            }
+
+            var config = environments[index] ?? new HotfixRemoteEnvironmentConfig();
+            config.SetForEditor(
+                environment,
+                mainCdnUrlTemplate,
+                fallbackCdnUrlTemplate,
+                requireHttps,
+                CloneArray(allowedDomains),
+                certificatePinningEnabled,
+                certificatePublicKeyPin,
+                enableGrayRelease,
+                grayReleasePercent,
+                grayMainCdnUrlTemplate,
+                grayFallbackCdnUrlTemplate,
+                grayReleaseSalt);
+            environments[index] = config;
+        }
+
+        private int FindEnvironmentConfigIndex(HotfixRemoteEnvironment environment)
+        {
+            if (environments == null)
+            {
+                return -1;
+            }
+
+            for (int i = 0; i < environments.Length; i++)
+            {
+                var config = environments[i];
+                if (config != null && config.Environment == environment)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static string[] CloneArray(string[] values)
+        {
+            if (values == null || values.Length == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var result = new string[values.Length];
+            Array.Copy(values, result, values.Length);
+            return result;
         }
 #endif
 

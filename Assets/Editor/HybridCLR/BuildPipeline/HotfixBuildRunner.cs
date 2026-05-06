@@ -15,7 +15,14 @@ namespace HybridCLR.Editor
     {
         public static HotfixBuildReport ValidateOnly(HotfixBuildMode mode)
         {
-            return HotfixBuildValidator.Validate(HotfixBuildContext.Create(mode));
+            var context = HotfixBuildContext.Create(mode);
+            if (context.ReleaseProfile != null)
+            {
+                context.ReleaseProfile.ApplyToEditorSettings();
+                context = HotfixBuildContext.Create(mode);
+            }
+
+            return HotfixBuildValidator.Validate(context);
         }
 
         public static HotfixBuildReport FixAll(HotfixBuildMode mode)

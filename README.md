@@ -90,7 +90,8 @@
    Assets/Editor/HybridCLR/HotfixReleaseProfile.asset
    ```
 
-   ReleaseProfile 统一管理 BuildTarget、AppVersion、兼容版本区间、ResourceVersion、HotfixVersion、远端环境、渠道、地区、启动策略、启动下载 Tag 和 CodeEntry。构建会先应用 ReleaseProfile，再生成 manifest 和资源包。
+   ReleaseProfile 统一管理 BuildTarget、AppVersion、兼容版本区间、ResourceVersion、HotfixVersion、远端环境、渠道、地区、CDN、PlayerPlayMode、启动策略、启动下载 Tag 和 CodeEntry。构建会先应用 ReleaseProfile，再生成 manifest 和资源包。
+   选中 `HotfixReleaseProfile.asset` 后，Inspector 中带 `*` 的字段是发布前需要确认的配置；灰色字段是自动生成或由底层 asset 派生的只读状态。
 
 8. 在 ReleaseProfile 中选择启动包策略。
 
@@ -98,9 +99,9 @@
 
    - `StartupPackageMode = FirstPackage`：首包内置启动资源，最常用。
    - `StartupPackageMode = EmptyPackage`：空包不内置资源，首次启动必须能访问远端。
-   - `StartupPackageMode = OfflinePackage`：离线包完整内置资源，必须搭配 `HotfixBuildProfile.asset` 中的 `OfflinePlayMode`。
+   - `StartupPackageMode = OfflinePackage`：离线包完整内置资源，`PlayerPlayMode` 必须设置为 `OfflinePlayMode`。
 
-   构建会把 ReleaseProfile 的启动策略写入 `HotfixRuntimeSettings.asset`。`HotfixRuntimeSettings.asset` 仍保留包名、RawFile 包和运行时读取所需字段，不再作为发布策略的首选编辑入口。
+   构建会把 ReleaseProfile 的启动策略、PlayerPlayMode 和 CDN 选择同步到底层 asset。`HotfixRuntimeSettings.asset`、`HotfixRemoteSettings.asset`、`HotfixBuildProfile.asset` 仍保留给运行时和构建预处理器读取，不再作为发布策略的首选编辑入口。
 
 9. 构建热更资源包。
 
@@ -149,11 +150,11 @@ Assets/AssetsPackage
 | --- | --- |
 | `ProjectSettings/HybridCLRSettings.asset` | HybridCLR 热更程序集和 AOT metadata 配置 |
 | `Assets/Resources/AssetBundleCollectorSetting.asset` | YooAsset 包和资源收集器配置 |
-| `Assets/Editor/HybridCLR/HotfixBuildProfile.asset` | 构建时按平台自动设置 Player PlayMode |
-| `Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset` | 启动包策略、下载策略、更新策略、包名 |
-| `Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset` | 环境、渠道、地区、主/备 CDN 地址 |
+| `Assets/Editor/HybridCLR/HotfixBuildProfile.asset` | ReleaseProfile 同步出的平台 PlayerPlayMode，运行时构建预处理器读取 |
+| `Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset` | ReleaseProfile 同步出的启动策略、下载策略、更新策略；包名仍从 YooAsset Collector 同步 |
+| `Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset` | ReleaseProfile 同步出的环境、渠道、地区、主/备 CDN 地址 |
 | `Assets/AssetsPackage/Resources/HotfixLocalizationSettings.asset` | 启动阶段中文和英文提示 |
-| `Assets/Editor/HybridCLR/HotfixReleaseProfile.asset` | 发布配置，绑定 BuildTarget、AppVersion、ResourceVersion、HotfixVersion、远端环境、启动策略和 CodeEntry |
+| `Assets/Editor/HybridCLR/HotfixReleaseProfile.asset` | 发布配置主入口，绑定 BuildTarget、AppVersion、ResourceVersion、HotfixVersion、远端环境、CDN、启动策略、PlayerPlayMode 和 CodeEntry |
 | `Assets/AssetsPackage/AssetsHotFix/Configs/AOTAssemblyManifest.asset` | AOT 版本、平台、App 版本、AOT DLL 列表、size 和 sha256 |
 | `Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset` | Hotfix 版本、兼容 App 版本、RequiredAotVersion、热更 DLL、size / sha256、依赖顺序、CodeEntry |
 | `Assets/AssetsPackage/AssetsHotFix/Configs/AssemblyManifest.asset` | 旧清单，保留用于兼容和迁移 |
@@ -165,7 +166,7 @@ flowchart TD
     A[切换 Unity 目标平台] --> B[打开 Build/热更新/构建中心...]
     B --> C[选择/保存 HotfixReleaseProfile.asset]
     C --> D[仅校验 / 一键修复]
-    D --> E[Profile 应用到 RuntimeSettings/RemoteSettings/HotfixManifest/PackageVersion]
+    D --> E[Profile 应用到 RuntimeSettings/RemoteSettings/BuildProfile/HotfixManifest/PackageVersion]
     E --> F0[执行 一键构建/构建首包]
     F0 --> F[编译 AOT + 热更 DLL]
     F --> G[复制 AOT DLL 到 AOTCodes/*.dll.bytes]
@@ -190,7 +191,7 @@ flowchart TD
 flowchart TD
     A[修改热更代码/资源/场景/配置] --> B[选择/保存 HotfixReleaseProfile.asset]
     B --> C[执行 一键构建/构建热更包]
-    C --> D0[Profile 应用到 RuntimeSettings/RemoteSettings/HotfixManifest/PackageVersion]
+    C --> D0[Profile 应用到 RuntimeSettings/RemoteSettings/BuildProfile/HotfixManifest/PackageVersion]
     D0 --> D1[编译热更 DLL]
     D1 --> D[复制热更 DLL 到 HotfixCodes/*.dll.bytes]
     D --> E[分析 Hotfix DLL 依赖\n生成拓扑加载顺序]
@@ -287,8 +288,8 @@ flowchart LR
         B1[构建首包\n一键构建/构建首包]
         B2[构建热更包\n一键构建/构建热更包]
         B3[构建 Player\nUnity Build Settings / 内部工具 Win64]
-        B4[配置运行时参数\nHotfixRuntimeSettings]
-        B5[配置 CDN 地址\nHotfixRemoteSettings]
+        B4[配置发布 Profile\nHotfixReleaseProfile]
+        B5[同步运行时/远端设置\nRuntimeSettings/RemoteSettings]
         B6[配置多语言\nHotfixLocalizationSettings]
         B7[同步包名\nSync Package Names]
     end
@@ -310,7 +311,7 @@ flowchart LR
     end
 
     DEV --> B4
-    DEV --> B5
+    B4 --> B5
     DEV --> B6
     DEV --> B7
     DEV --> B1
@@ -340,7 +341,7 @@ flowchart LR
 
 | 角色 | 职责 | 关键操作 |
 | --- | --- | --- |
-| 游戏开发者 | 开发热更代码和资源，配置构建参数 | 编写热更代码、配置 Settings、构建首包/热更包、构建 Player |
+| 游戏开发者 | 开发热更代码和资源，配置发布 Profile | 编写热更代码、配置 ReleaseProfile、构建首包/热更包、构建 Player |
 | 运维人员 | 管理 CDN 和版本发布 | 上传构建产物到 CDN、监控版本分发、回滚版本 |
 | 终端玩家 | 运行游戏客户端 | 启动 App、确认下载、等待热更完成、进入游戏 |
 
@@ -358,7 +359,8 @@ sequenceDiagram
 
     Dev->>Unity: 切换目标平台
     Dev->>Unity: Build/热更新/构建中心...
-    Dev->>Unity: 配置 HotfixRuntimeSettings
+    Dev->>Unity: 配置 HotfixReleaseProfile
+    Unity->>Build: 同步 RuntimeSettings / RemoteSettings / BuildProfile
     Dev->>Unity: Build/热更新/一键构建/构建首包
     Unity->>Build: 编译 AOT + 热更 DLL
     Build->>Build: 复制 DLL.bytes 到 AssetsHotFix
@@ -483,6 +485,8 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
 
 ## Runtime Settings
 
+日常发布不要直接改这个 asset。它是运行时 `Resources.Load` 读取的同步产物，发布字段由 ReleaseProfile 写入；只有包名、RawFile 包这类 YooAsset Collector 派生信息需要通过 `一键修复` 同步确认。
+
 `Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset` 核心字段：
 
 | 字段 | 说明 |
@@ -512,6 +516,8 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
 - `BackgroundDownload`：已有可用缓存时优先本地启动，后台下载入口由业务层继续接入。
 
 ## Remote Settings
+
+日常发布不要直接改这个 asset。环境选择和目标环境的 CDN 模板由 ReleaseProfile 写入；这个 asset 保留给运行时解析远端地址和应急覆盖。
 
 Host/Web 模式远端地址由：
 
@@ -666,17 +672,27 @@ Assets/Editor/HybridCLR/HotfixReleaseProfile.asset
 - `AppVersionMin` / `AppVersionMax`
 - `ResourceVersion` / `HotfixVersion`
 - `RemoteEnvironment` / `Channel` / `Region`
+- `MainCdnUrlTemplate` / `FallbackCdnUrlTemplate`
+- `RequireHttps` / `AllowedDomains` / 灰度 CDN 配置
+- `PlayerPlayMode`
 - `StartupPackageMode` / `StartupDownloadMode` / `StartupDownloadTags`
 - `EntryTypeName` / `EntryMethodName`
 - `AllowDevelopmentCdn`
+
+选中 `HotfixReleaseProfile.asset` 后会看到定制 Inspector：
+
+- 带 `*` 的字段是发布前需要确认的配置。
+- `ResourceVersion` / `HotfixVersion`、域名白名单、证书 pinning 和灰度 CDN 是可选覆盖 / 高级配置。
+- 灰色区域是自动生成或同步状态，例如底层 `HotfixRuntimeSettings.asset`、`HotfixRemoteSettings.asset`、`HotfixBuildProfile.asset` 的当前值、AOT / Hotfix manifest 版本、CDN 解析结果和最新构建报告。
 
 构建中心会绑定当前 ReleaseProfile。点击 `保存当前配置` 可以把当前 PlayerSettings、RuntimeSettings、RemoteSettings 和 HotfixManifest 入口信息写回 Profile；点击 `复制 Profile` 可以为开发、测试、预发、正式分别保存配置；点击 `导出 JSON` 可以把 Profile 导出给 CI 或发布记录。
 
 一键构建会先应用 ReleaseProfile：
 
 - 写入 `PlayerSettings.bundleVersion`。
-- 写入 `HotfixRuntimeSettings.asset` 的启动包策略、下载策略和启动 Tag。
-- 写入 `HotfixRemoteSettings.asset` 的默认环境、渠道和地区。
+- 写入 `HotfixRuntimeSettings.asset` 的 PlayerPlayMode、启动包策略、下载策略和启动 Tag。
+- 写入 `HotfixBuildProfile.asset` 的当前平台 PlayerPlayMode。
+- 写入 `HotfixRemoteSettings.asset` 的默认环境、渠道、地区和目标环境 CDN 模板。
 - 写入 `HotfixAssemblyManifest.asset` 的兼容 App 版本、HotfixVersion 和 CodeEntry。
 - `ResourceVersion` 非空时作为 YooAsset `PackageVersion`；为空时继续使用时间戳自动版本。
 
@@ -697,21 +713,20 @@ AllowDevelopmentCdn = false
 
 1. 切换 Unity 目标平台。
 2. 检查 `ProjectSettings/HybridCLRSettings.asset`，确认所有热更 asmdef 已加入 `Hot Update Assembly Definitions`。
-3. 检查 `Assets/Editor/HybridCLR/HotfixBuildProfile.asset`，确认当前平台的 `PlayerPlayMode`：
-   - `FirstPackage` / `EmptyPackage` 常用 `HostPlayMode` 或 WebGL 的 `WebPlayMode`。
-   - `OfflinePackage` 必须使用 `OfflinePlayMode`。
-4. 检查 `Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset`，确认目标环境的主/备 CDN 模板、HTTPS、域名白名单和灰度 CDN 配置有效。
-5. 打开 `Build/热更新/构建中心...`，选择或创建 `HotfixReleaseProfile.asset`。
-6. 在 ReleaseProfile 中配置本次发布：
+3. 打开 `Build/热更新/构建中心...`，选择或创建 `HotfixReleaseProfile.asset`。
+4. 在 ReleaseProfile Inspector 中配置本次发布。带 `*` 的字段需要发布前确认，灰色字段只读：
    - `BuildTarget`、`AppVersion`。
    - `AppVersionMin` / `AppVersionMax`。
    - `ResourceVersion`，建议正式发布填写明确版本；为空则使用时间戳。
    - `HotfixVersion`，通常留空自动生成；需要外部版本协议时再固定。
    - `RemoteEnvironment` / `Channel` / `Region`。
+   - `MainCdnUrlTemplate` / `FallbackCdnUrlTemplate` / `RequireHttps` / `AllowedDomains` / 灰度 CDN 配置。
+   - `PlayerPlayMode`：`FirstPackage` / `EmptyPackage` 常用 `HostPlayMode`，WebGL 使用 `WebPlayMode`；`OfflinePackage` 使用 `OfflinePlayMode`。
    - `StartupPackageMode` / `StartupDownloadMode` / `StartupUpdatePolicy` / `StartupDownloadTags`。
    - `EntryTypeName` / `EntryMethodName`。
    - 正式发布设置 `RemoteEnvironment = Production` 且 `AllowDevelopmentCdn = false`。
-7. 如当前配置来自旧 asset，点击构建中心的 `保存当前配置` 写回 Profile；如 Profile 已手动编辑，可直接执行 `仅校验`。
+5. 点击 `仅校验` 或 `一键修复`。流程会把 ReleaseProfile 同步到 `HotfixRuntimeSettings.asset`、`HotfixRemoteSettings.asset`、`HotfixBuildProfile.asset` 和 `HotfixAssemblyManifest.asset`。
+6. 如当前配置来自旧 asset，点击构建中心的 `保存当前配置` 写回 Profile；如 Profile 已手动编辑，可直接执行 `仅校验`。
 
 ### 资源收集
 
@@ -736,7 +751,7 @@ AllowDevelopmentCdn = false
 ### 首包发布
 
 1. 在构建中心执行 `仅校验`，没有红色错误后继续。
-2. 必要时执行 `一键修复`，同步包名、平台 PlayMode，并把 ReleaseProfile 应用到底层 settings。
+2. 必要时执行 `一键修复`，同步包名，并把 ReleaseProfile 应用到底层 settings。
 3. 执行：
 
    ```text
@@ -786,7 +801,7 @@ AllowDevelopmentCdn = false
 2. 打开 `Build/热更新/构建中心...`，选择或创建 ReleaseProfile。
 3. 必要时点击 `保存当前配置`，或直接编辑 `HotfixReleaseProfile.asset`。
 4. 执行 `仅校验`，必要时执行 `一键修复`，同步运行时包名和平台 PlayMode。
-5. 检查 ReleaseProfile 或 `HotfixRuntimeSettings.asset`：
+5. 检查 ReleaseProfile：
 
    ```text
    StartupPackageMode = FirstPackage
@@ -795,7 +810,7 @@ AllowDevelopmentCdn = false
    StartupUpdatePolicy = AllowCached
    ```
 
-6. 检查 ReleaseProfile 或 `HotfixRemoteSettings.asset`，确保目标平台对应环境的主/备 CDN 合法。
+6. 检查 ReleaseProfile 的主/备 CDN 模板，确保目标平台、环境、渠道和地区解析出的地址合法。
 7. 执行：
 
    ```text
@@ -839,7 +854,7 @@ Bundles/StandaloneWindows64/DefaultPackage/2026-04-30-153012
 
 步骤：
 
-1. 设置：
+1. 在 ReleaseProfile 中设置：
 
    ```text
    StartupPackageMode = EmptyPackage
@@ -853,7 +868,7 @@ Bundles/StandaloneWindows64/DefaultPackage/2026-04-30-153012
    Build/热更新/一键构建/构建首包
    ```
 
-3. 将输出目录内容上传到 `HotfixRemoteSettings.asset` 解析出的 CDN 根目录。
+3. 将输出目录内容上传到 ReleaseProfile 解析出的 CDN 根目录。
 4. 构建 Player。
 
 空包构建会生成完整 YooAsset 远端资源，但不会复制到 `StreamingAssets`。首次启动必须能请求远端 package version 和 package manifest。
@@ -862,7 +877,7 @@ Bundles/StandaloneWindows64/DefaultPackage/2026-04-30-153012
 
 步骤：
 
-1. 设置：
+1. 在 ReleaseProfile 中设置：
 
    ```text
    StartupPackageMode = OfflinePackage
@@ -946,7 +961,7 @@ Build/热更新/高级/构建 AOT 元数据补丁
 Bundles/{UnityBuildTarget}/{PackageName}/{PackageVersion}
 ```
 
-将该目录下的文件上传到 `HotfixRemoteSettings.asset` 最终解析出的 URL 根目录。YooAsset 请求文件时会把文件名拼到根目录后面。
+将该目录下的文件上传到 ReleaseProfile 最终解析出的 URL 根目录。YooAsset 请求文件时会把文件名拼到根目录后面。
 
 本地测试可以使用简单 HTTP 服务。示例：
 
@@ -955,7 +970,7 @@ cd Bundles/StandaloneOSX/DefaultPackage/2026-04-30-153012
 python3 -m http.server 8080
 ```
 
-然后把开发环境 CDN 模板临时设置为：
+然后把 ReleaseProfile 的开发环境 CDN 模板临时设置为：
 
 ```text
 http://127.0.0.1:8080
@@ -990,7 +1005,7 @@ Build/热更新/内部工具/旧命令/构建 Win64 Player
 该菜单会：
 
 - 校验目标平台是否为 Windows。
-- 应用 `HotfixBuildProfile.asset` 中的平台 PlayMode。
+- 应用 ReleaseProfile 中的 PlayerPlayMode，并同步到底层 settings。
 - 执行 `PrebuildCommand.GenerateAll()`。
 - 构建 `Assets/Scenes/Boot.unity`。
 - 构建首包 YooAsset 资源。
@@ -1015,7 +1030,7 @@ HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild
 
 启动阶段统一保留 `startup` Tag。使用 `StartupDownloadMode = DownloadByTags` 时：
 
-- `HotfixRuntimeSettings.asset` 的 `StartupDownloadTags` 必须包含 `startup`。
+- ReleaseProfile 的 `StartupDownloadTags` 必须包含 `startup`。
 - YooAsset Collector 中启动必需资源必须配置 `AssetTags = startup`。
 - 构建前会校验 `Configs`、`AOTCodes`、`HotfixCodes`、`Datas`，以及 Hotfix manifest 兼容字段中仍显式配置的 `EntrySceneAddress` / `EntryPrefabAddress`；CodeEntry 启动阶段会立即加载的资源也应放入带 `startup` Tag 的 Collector。缺少收集器或缺少 `startup` Tag 会直接失败，并输出资源路径和所在 Collector。
 
@@ -1030,7 +1045,7 @@ HotfixBuildProfileUtility.ApplyPlayModeToRuntimeSettingsForBuild
    chapter_1
    ```
 
-2. 设置 `HotfixRuntimeSettings.asset`：
+2. 设置 ReleaseProfile：
 
    ```text
    StartupDownloadMode = DownloadByTags
@@ -1156,14 +1171,14 @@ Build/热更新/内部工具/旧命令/构建 Win64 Player
 
 - 目标平台已切换。
 - 已选择或创建 `HotfixReleaseProfile.asset`。
-- ReleaseProfile 的 `BuildTarget`、`AppVersion`、`ResourceVersion`、远端环境、渠道、地区和启动策略符合本次发布。
+- ReleaseProfile 的 `BuildTarget`、`AppVersion`、`ResourceVersion`、远端环境、渠道、地区、主/备 CDN、PlayerPlayMode 和启动策略符合本次发布。
 - 正式发布时 `RemoteEnvironment = Production` 且 `AllowDevelopmentCdn = false`。
 - 构建中心的 `仅校验` 没有红色错误项。
 - 热更 asmdef 已加入 HybridCLR Settings。
 - YooAsset Collector 已收集 `AOTCodes`、`HotfixCodes`、`Configs`，以及 CodeEntry 启动阶段会立即加载的入口资源。
 - 如果 `StartupDownloadMode = DownloadByTags`，`StartupDownloadTags` 和启动资源 Collector 都包含 `startup`。
-- `HotfixRuntimeSettings.asset` 的包名与 Collector 一致。
-- `HotfixRemoteSettings.asset` 的主/备 CDN 不相同。
+- 灰色同步状态中 `HotfixRuntimeSettings.asset` 的包名与 Collector 一致。
+- ReleaseProfile 的主/备 CDN 不相同，且灰色解析结果符合本次发布目录。
 - `FirstPackage` / `OfflinePackage` 的启动资源完整。
 - `EmptyPackage` 没有搭配 `OfflinePlayMode`。
 
@@ -1217,7 +1232,7 @@ Build/热更新/内部工具/旧命令/构建 Win64 Player
 1. 资源是否被 YooAsset Collector 收集。
 2. 资源所在收集器是否有正确 Tag。
 3. 是否上传了最新 YooAsset 输出目录。
-4. `HotfixRemoteSettings.asset` 解析出的环境、平台、渠道、地区、包名目录是否正确。
+4. ReleaseProfile 解析出的环境、平台、渠道、地区、包名目录是否正确。
 5. CDN 是否缓存了旧版本文件。
 
 ### 何时必须重新发 App 包？

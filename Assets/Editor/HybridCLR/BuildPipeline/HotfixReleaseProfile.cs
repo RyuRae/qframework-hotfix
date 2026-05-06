@@ -4,6 +4,7 @@ using Framework;
 using Framework.Assemblies;
 using UnityEditor;
 using UnityEngine;
+using YooAsset;
 
 namespace HybridCLR.Editor
 {
@@ -26,8 +27,21 @@ namespace HybridCLR.Editor
         public string Channel = "default";
         public string Region = "global";
         public bool AllowDevelopmentCdn = true;
+        public string MainCdnUrlTemplate = string.Empty;
+        public string FallbackCdnUrlTemplate = string.Empty;
+        public bool RequireHttps;
+        public string[] AllowedDomains = Array.Empty<string>();
+        public bool CertificatePinningEnabled;
+        public string CertificatePublicKeyPin = string.Empty;
+        public bool EnableGrayRelease;
+        [Range(0, 100)]
+        public int GrayReleasePercent;
+        public string GrayMainCdnUrlTemplate = string.Empty;
+        public string GrayFallbackCdnUrlTemplate = string.Empty;
+        public string GrayReleaseSalt = "hotfix";
 
         [Header("Startup")]
+        public EPlayMode PlayerPlayMode = EPlayMode.HostPlayMode;
         public StartupPackageMode StartupPackageMode = StartupPackageMode.FirstPackage;
         public StartupDownloadMode StartupDownloadMode = StartupDownloadMode.DownloadAll;
         public StartupUpdatePolicy StartupUpdatePolicy = StartupUpdatePolicy.AllowCached;
@@ -51,6 +65,8 @@ namespace HybridCLR.Editor
 
         public void ApplyToEditorSettings()
         {
+            EnsureEditorDefaults();
+
             if (!string.IsNullOrWhiteSpace(AppVersion))
             {
                 PlayerSettings.bundleVersion = AppVersion.Trim();
@@ -59,6 +75,7 @@ namespace HybridCLR.Editor
             var runtimeSettings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(HotfixBuildProfileUtility.RuntimeSettingsAssetPath);
             if (runtimeSettings != null)
             {
+                runtimeSettings.SetPlayerPlayModeForEditor(PlayerPlayMode);
                 runtimeSettings.SetStartupSettingsForEditor(
                     StartupPackageMode,
                     StartupDownloadMode,
@@ -71,10 +88,26 @@ namespace HybridCLR.Editor
             var remoteSettings = AssetDatabase.LoadAssetAtPath<HotfixRemoteSettings>(HotfixBuildProfileUtility.RemoteSettingsAssetPath);
             if (remoteSettings != null)
             {
+                FillMissingRemoteEnvironmentConfig(remoteSettings);
                 remoteSettings.SetDefaultSelectorForEditor(RemoteEnvironment, Channel, Region);
+                remoteSettings.SetEnvironmentConfigForEditor(
+                    RemoteEnvironment,
+                    MainCdnUrlTemplate,
+                    FallbackCdnUrlTemplate,
+                    RequireHttps,
+                    AllowedDomains,
+                    CertificatePinningEnabled,
+                    CertificatePublicKeyPin,
+                    EnableGrayRelease,
+                    GrayReleasePercent,
+                    GrayMainCdnUrlTemplate,
+                    GrayFallbackCdnUrlTemplate,
+                    GrayReleaseSalt);
                 EditorUtility.SetDirty(remoteSettings);
                 AssetDatabase.SaveAssetIfDirty(remoteSettings);
             }
+
+            ApplyPlayerPlayModeToBuildProfile();
 
             var hotfixManifest = AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(BuildAssetsCommand.HotfixAssemblyManifestAssetPath);
             if (hotfixManifest != null)
@@ -101,12 +134,19 @@ namespace HybridCLR.Editor
                 StartupDownloadTags = runtimeSettings.StartupDownloadTags;
             }
 
+            var buildProfile = AssetDatabase.LoadAssetAtPath<HotfixBuildProfile>(HotfixBuildProfile.AssetPath);
+            if (buildProfile != null)
+            {
+                PlayerPlayMode = buildProfile.GetPlayMode(BuildTarget);
+            }
+
             var remoteSettings = AssetDatabase.LoadAssetAtPath<HotfixRemoteSettings>(HotfixBuildProfileUtility.RemoteSettingsAssetPath);
             if (remoteSettings != null)
             {
                 RemoteEnvironment = remoteSettings.DefaultEnvironment;
                 Channel = remoteSettings.DefaultChannel;
                 Region = remoteSettings.DefaultRegion;
+                CaptureRemoteEnvironmentConfig(remoteSettings);
             }
 
             var hotfixManifest = AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(BuildAssetsCommand.HotfixAssemblyManifestAssetPath);
@@ -211,6 +251,27 @@ namespace HybridCLR.Editor
                 return false;
             }
 
+            if (string.IsNullOrWhiteSpace(MainCdnUrlTemplate) ||
+                string.IsNullOrWhiteSpace(FallbackCdnUrlTemplate))
+            {
+                error = "ReleaseProfile CDN templates can not be empty.";
+                return false;
+            }
+
+            if (string.Equals(
+                    NormalizeBaseUrl(MainCdnUrlTemplate),
+                    NormalizeBaseUrl(FallbackCdnUrlTemplate),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                error = "ReleaseProfile main CDN template and fallback CDN template must not be identical.";
+                return false;
+            }
+
+            if (!ValidatePlayerPlayMode(PlayerPlayMode, context.BuildTarget, out error))
+            {
+                return false;
+            }
+
             if (StartupDownloadMode == StartupDownloadMode.DownloadByTags &&
                 !ContainsTag(StartupDownloadTags, HotfixRuntimeSettings.DefaultStartupTag))
             {
@@ -249,6 +310,7 @@ namespace HybridCLR.Editor
             var profile = AssetDatabase.LoadAssetAtPath<HotfixReleaseProfile>(DefaultAssetPath);
             if (profile != null)
             {
+                profile.EnsureEditorDefaults();
                 return profile;
             }
 
@@ -299,6 +361,161 @@ namespace HybridCLR.Editor
         private static string GetSelectedProfilePrefsKey()
         {
             return Application.dataPath + SelectedProfileKeySuffix;
+        }
+
+        private void OnValidate()
+        {
+            EnsureEditorDefaults();
+        }
+
+        private void EnsureEditorDefaults()
+        {
+            if (string.IsNullOrWhiteSpace(Channel))
+            {
+                Channel = "default";
+            }
+
+            if (string.IsNullOrWhiteSpace(Region))
+            {
+                Region = "global";
+            }
+
+            if (AllowedDomains == null)
+            {
+                AllowedDomains = Array.Empty<string>();
+            }
+
+            if (StartupDownloadTags == null)
+            {
+                StartupDownloadTags = Array.Empty<string>();
+            }
+
+            GrayReleasePercent = Mathf.Clamp(GrayReleasePercent, 0, 100);
+            if (string.IsNullOrWhiteSpace(GrayReleaseSalt))
+            {
+                GrayReleaseSalt = "hotfix";
+            }
+        }
+
+        private void ApplyPlayerPlayModeToBuildProfile()
+        {
+            var buildProfile = AssetDatabase.LoadAssetAtPath<HotfixBuildProfile>(HotfixBuildProfile.AssetPath);
+            if (buildProfile == null)
+            {
+                string directory = Path.GetDirectoryName(HotfixBuildProfile.AssetPath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                buildProfile = CreateInstance<HotfixBuildProfile>();
+                AssetDatabase.CreateAsset(buildProfile, HotfixBuildProfile.AssetPath);
+            }
+
+            buildProfile.SetPlayModeForEditor(BuildTarget, PlayerPlayMode);
+            EditorUtility.SetDirty(buildProfile);
+            AssetDatabase.SaveAssetIfDirty(buildProfile);
+        }
+
+        private void CaptureRemoteEnvironmentConfig(HotfixRemoteSettings remoteSettings)
+        {
+            if (remoteSettings == null ||
+                !remoteSettings.TryGetEnvironmentConfigForEditor(
+                    RemoteEnvironment,
+                    out var mainCdnUrlTemplate,
+                    out var fallbackCdnUrlTemplate,
+                    out var requireHttps,
+                    out var allowedDomains,
+                    out var certificatePinningEnabled,
+                    out var certificatePublicKeyPin,
+                    out var enableGrayRelease,
+                    out var grayReleasePercent,
+                    out var grayMainCdnUrlTemplate,
+                    out var grayFallbackCdnUrlTemplate,
+                    out var grayReleaseSalt))
+            {
+                return;
+            }
+
+            MainCdnUrlTemplate = mainCdnUrlTemplate;
+            FallbackCdnUrlTemplate = fallbackCdnUrlTemplate;
+            RequireHttps = requireHttps;
+            AllowedDomains = CloneArray(allowedDomains);
+            CertificatePinningEnabled = certificatePinningEnabled;
+            CertificatePublicKeyPin = certificatePublicKeyPin;
+            EnableGrayRelease = enableGrayRelease;
+            GrayReleasePercent = grayReleasePercent;
+            GrayMainCdnUrlTemplate = grayMainCdnUrlTemplate;
+            GrayFallbackCdnUrlTemplate = grayFallbackCdnUrlTemplate;
+            GrayReleaseSalt = grayReleaseSalt;
+        }
+
+        private void FillMissingRemoteEnvironmentConfig(HotfixRemoteSettings remoteSettings)
+        {
+            if (remoteSettings == null ||
+                !remoteSettings.TryGetEnvironmentConfigForEditor(
+                    RemoteEnvironment,
+                    out var mainCdnUrlTemplate,
+                    out var fallbackCdnUrlTemplate,
+                    out var requireHttps,
+                    out var allowedDomains,
+                    out var certificatePinningEnabled,
+                    out var certificatePublicKeyPin,
+                    out var enableGrayRelease,
+                    out var grayReleasePercent,
+                    out var grayMainCdnUrlTemplate,
+                    out var grayFallbackCdnUrlTemplate,
+                    out var grayReleaseSalt))
+            {
+                return;
+            }
+
+            bool missingMain = string.IsNullOrWhiteSpace(MainCdnUrlTemplate);
+            bool missingFallback = string.IsNullOrWhiteSpace(FallbackCdnUrlTemplate);
+            if (missingMain)
+            {
+                MainCdnUrlTemplate = mainCdnUrlTemplate;
+            }
+
+            if (missingFallback)
+            {
+                FallbackCdnUrlTemplate = fallbackCdnUrlTemplate;
+            }
+
+            if (AllowedDomains == null || AllowedDomains.Length == 0)
+            {
+                AllowedDomains = CloneArray(allowedDomains);
+            }
+
+            if (string.IsNullOrWhiteSpace(CertificatePublicKeyPin))
+            {
+                CertificatePublicKeyPin = certificatePublicKeyPin;
+            }
+
+            if (string.IsNullOrWhiteSpace(GrayMainCdnUrlTemplate))
+            {
+                GrayMainCdnUrlTemplate = grayMainCdnUrlTemplate;
+            }
+
+            if (string.IsNullOrWhiteSpace(GrayFallbackCdnUrlTemplate))
+            {
+                GrayFallbackCdnUrlTemplate = grayFallbackCdnUrlTemplate;
+            }
+
+            if (string.IsNullOrWhiteSpace(GrayReleaseSalt))
+            {
+                GrayReleaseSalt = grayReleaseSalt;
+            }
+
+            if (!missingMain || !missingFallback)
+            {
+                return;
+            }
+
+            RequireHttps = requireHttps;
+            CertificatePinningEnabled = certificatePinningEnabled;
+            EnableGrayRelease = enableGrayRelease;
+            GrayReleasePercent = grayReleasePercent;
         }
 
         private static bool ContainsTag(string[] tags, string requiredTag)
@@ -353,6 +570,47 @@ namespace HybridCLR.Editor
             }
 
             return true;
+        }
+
+        private static string[] CloneArray(string[] values)
+        {
+            if (values == null || values.Length == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var result = new string[values.Length];
+            Array.Copy(values, result, values.Length);
+            return result;
+        }
+
+        private static bool ValidatePlayerPlayMode(EPlayMode playMode, BuildTarget target, out string error)
+        {
+            error = string.Empty;
+            if (playMode == EPlayMode.EditorSimulateMode)
+            {
+                error = $"ReleaseProfile PlayerPlayMode can not be {playMode} for player build.";
+                return false;
+            }
+
+            if (target == BuildTarget.WebGL && playMode != EPlayMode.WebPlayMode)
+            {
+                error = $"ReleaseProfile PlayerPlayMode for WebGL must be {EPlayMode.WebPlayMode}. Current={playMode}.";
+                return false;
+            }
+
+            if (target != BuildTarget.WebGL && playMode == EPlayMode.WebPlayMode)
+            {
+                error = $"ReleaseProfile PlayerPlayMode {EPlayMode.WebPlayMode} only supports WebGL. Current target={target}.";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static string NormalizeBaseUrl(string url)
+        {
+            return string.IsNullOrWhiteSpace(url) ? string.Empty : url.Trim().TrimEnd('/');
         }
     }
 }

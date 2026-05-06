@@ -17,11 +17,25 @@ MonoBehaviour:
   AppVersionMin: 0.1
   AppVersionMax: 0.1
   ResourceVersion: 
-  HotfixVersion: 
+  HotfixVersion: hotfix-57a6f98849d9a2fb
   RemoteEnvironment: 1
   Channel: default
   Region: global
   AllowDevelopmentCdn: 1
+  MainCdnUrlTemplate: https://test-cdn.example.com/TestProject/{Platform}/{Channel}/{Region}
+  FallbackCdnUrlTemplate: https://test-cdn-backup.example.com/TestProject/{Platform}/{Channel}/{Region}
+  RequireHttps: 1
+  AllowedDomains:
+  - test-cdn.example.com
+  - test-cdn-backup.example.com
+  CertificatePinningEnabled: 0
+  CertificatePublicKeyPin: 
+  EnableGrayRelease: 0
+  GrayReleasePercent: 0
+  GrayMainCdnUrlTemplate: 
+  GrayFallbackCdnUrlTemplate: 
+  GrayReleaseSalt: hotfix-test
+  PlayerPlayMode: 2
   StartupPackageMode: 0
   StartupDownloadMode: 0
   StartupUpdatePolicy: 1

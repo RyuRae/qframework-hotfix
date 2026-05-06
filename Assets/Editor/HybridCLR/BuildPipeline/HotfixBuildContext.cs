@@ -53,7 +53,11 @@ namespace HybridCLR.Editor
             AOTManifest = aotManifest;
             HotfixManifest = hotfixManifest;
 
-            PlayerPlayMode = runtimeSettings == null ? EPlayMode.HostPlayMode : runtimeSettings.PlayerPlayMode;
+            PlayerPlayMode = releaseProfile != null
+                ? releaseProfile.PlayerPlayMode
+                : runtimeSettings == null
+                ? EPlayMode.HostPlayMode
+                : runtimeSettings.PlayerPlayMode;
             StartupPackageMode = releaseProfile != null
                 ? releaseProfile.StartupPackageMode
                 : runtimeSettings == null

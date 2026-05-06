@@ -53,6 +53,37 @@ namespace HybridCLR.Editor
             return defaultPlayerPlayMode;
         }
 
+#if UNITY_EDITOR
+        public void SetPlayModeForEditor(BuildTarget target, EPlayMode playMode)
+        {
+            if (target == BuildTarget.WebGL)
+            {
+                webGLPlayMode = playMode;
+                return;
+            }
+
+            if (target == BuildTarget.Android)
+            {
+                androidPlayMode = playMode;
+                return;
+            }
+
+            if (target == BuildTarget.iOS)
+            {
+                iosPlayMode = playMode;
+                return;
+            }
+
+            if (IsStandaloneTarget(target))
+            {
+                standalonePlayMode = playMode;
+                return;
+            }
+
+            defaultPlayerPlayMode = playMode;
+        }
+#endif
+
         private static bool IsStandaloneTarget(BuildTarget target)
         {
             return target == BuildTarget.StandaloneWindows ||
