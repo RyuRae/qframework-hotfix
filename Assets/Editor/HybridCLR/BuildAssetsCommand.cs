@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Framework;
@@ -707,11 +708,56 @@ namespace HybridCLR.Editor
 
         private static List<string> GetConfiguredAOTMetaAssemblies()
         {
-            return AOTGenericReferences.PatchedAOTAssemblyList
-                .Where(dll => !string.IsNullOrWhiteSpace(dll))
-                .Select(NormalizeDllName)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            if (TryGetGeneratedAOTAssemblyList(out var generatedAssemblies))
+            {
+                return generatedAssemblies;
+            }
+
+            return NormalizeDllNames(SettingsUtil.AOTAssemblyNames);
+        }
+
+        private static bool TryGetGeneratedAOTAssemblyList(out List<string> assemblies)
+        {
+            assemblies = new List<string>();
+            var referencesType = FindAOTGenericReferencesType();
+            if (referencesType == null)
+            {
+                return false;
+            }
+
+            var field = referencesType.GetField(
+                "PatchedAOTAssemblyList",
+                BindingFlags.Public | BindingFlags.Static);
+            if (field != null && field.GetValue(null) is IEnumerable<string> fieldValue)
+            {
+                assemblies = NormalizeDllNames(fieldValue);
+                return true;
+            }
+
+            var property = referencesType.GetProperty(
+                "PatchedAOTAssemblyList",
+                BindingFlags.Public | BindingFlags.Static);
+            if (property != null && property.GetValue(null) is IEnumerable<string> propertyValue)
+            {
+                assemblies = NormalizeDllNames(propertyValue);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static Type FindAOTGenericReferencesType()
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var referencesType = assembly.GetType("AOTGenericReferences", false);
+                if (referencesType != null)
+                {
+                    return referencesType;
+                }
+            }
+
+            return null;
         }
 
         private static List<string> GetManifestOrConfiguredHotfixAssemblies()
