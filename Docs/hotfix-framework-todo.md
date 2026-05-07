@@ -1,6 +1,6 @@
 # 热更新框架优化 TODO
 
-更新时间：2026-04-30  
+更新时间：2026-05-07
 适用分支：`develop`  
 适用范围：QFramework + YooAsset + HybridCLR 热更新框架
 
@@ -17,7 +17,7 @@
 1. **保留原来已完成的 TODO**，作为框架演进记录和验收基线。
 2. 删除或合并已经过期的未完成 TODO。
 3. 将当前框架已经暴露出的风险项提升为 P0。
-4. 将 Build 菜单收口、Build Center、一键首包、一键热更包作为下一阶段主线。
+4. Build 菜单收口、Build Center、一键首包、一键热更包已完成，17 项以后继续聚焦商业化发布治理和运行期稳定性。
 5. 普通开发者只面对“首包构建”和“热更包构建”；底层工具迁移到 Internal / Advanced。
 
 ---
@@ -982,10 +982,42 @@ Assets/AssetsPackage/Scripts/Main/Runtime/HotfixRemoteSettings.cs
 
 ---
 
+## 17 项以后整理结论（2026-05-07）
+
+本次整理只针对第 17 项及以后未完成内容，重点剔除已经被第 14、15、16 项和 README 更新覆盖的重复项。
+
+### 已实现或重复内容
+
+- 第 17 项的 `AppVersion`、`AppVersionMin`、`AppVersionMax`、`ResourceVersion`、`HotfixVersion`、`AotVersion`、`RequiredAotVersion`、`Channel`、`Region` 已由 `HotfixReleaseProfile`、split manifest 和构建报告覆盖；但正式版本协议、服务端发布 manifest、Git commit / 操作者 / CDN 指针记录仍未完成。
+- 第 18 项中“在 `Assembly.Load(bytes)` 之前校验 DLL SHA256”已由第 14 项完成，后续只保留 manifest 签名、公钥验签、密钥隔离和正式签名产物治理。
+- 第 19 项中“热更 DLL 内部依赖排序、循环依赖检测、重复 AssemblyName 检测、依赖记录”已由第 15 项完成，后续只保留外部依赖白名单、平台兼容性和运行时诊断。
+- 第 20 项中 `CodeEntry` 静态入口、无参 `void` 签名校验、入口异常捕获已经实现；生命周期接口、上下文参数、失败错误页、退出 / 重启 / 清理策略仍未完成。
+- 第 21 项中 `HybridCLRAssemblyLoader.LoadDllBytes()` 已以 `byte[]` 作为释放边界，属于第 14 项实现的一部分；`YooAssetKit` 通用资源 handle 生命周期仍未完成。
+- 第 22 项已经记录 `LastUsablePackageVersion`、`LastUsableAotVersion`、`LastUsableHotfixVersion` 和可用组合，清理缓存失败也不会阻断启动；但 LastGood / LastFailed 命名、连续失败自动回退、空间阈值和用户手动清理仍未完成。
+- 第 24 项已有 `BuildReports/Hotfix/*.txt` 文本报告，包含版本、输出目录、hash 和依赖信息；JSON 报告、`publish_manifest.json`、CDN hash 对比和一键回滚仍未完成。
+- 第 25 项和第 33 项大量重复。README 已补齐首包、热更包、AOT Metadata Patch、CDN 目录、回滚、常见错误、DownloadByTags 和 manifest 兼容规则；后续不再重复排期这些章节。
+- 第 30 项中的下载数量 / 大小展示、下载失败重试 / 退出 / 本地缓存路径已实现；下载速度、剩余时间、网络状态和强弱更 UI 仍未完成。
+- 第 31 项的 `.gitignore` 已覆盖 `HybridCLRData` 部分生成目录、`Assets/HybridCLRGenerate`、`Assets/StreamingAssets/yoo`、`yoo` 和 `BuildReports/Hotfix`；`Assets/Resources/yoo/DefaultPackage/BuildinCatalog.asset` 是否应忽略仍需单独确认并处理已跟踪文件。
+- 第 35 项已支持基于 `deviceUniqueIdentifier + channel + region + salt` 的稳定灰度 CDN 分流；灰度版本协议、命中上报和构建报告记录仍未完成。
+
+### 后续保留的独立未实现主线
+
+- 正式版本协议、发布 manifest、CDN 原子发布和回滚。
+- Manifest / DLL 签名、公钥验签和正式环境密钥隔离。
+- Hotfix DLL 外部依赖白名单、平台兼容性检查和运行时版本诊断。
+- 热更入口生命周期接口、上下文、错误页、退出 / 重启 / 清理策略。
+- YooAssetKit 通用资源 handle 生命周期治理。
+- LastGood / LastFailed 回滚策略、缓存阈值和手动清理。
+- BackgroundDownload 的 `Current/Pending` 版本切换规则。
+- 日志分类、错误码、线上上报和敏感信息脱敏。
+- CI / 命令行构建入口、自动化测试、下载调度扩展、Luban 配置热更集成。
+
+---
+
 ## 17. 建立完整版本协议
 
-- [ ] 设计 `AppVersion`、`ResourceVersion`、`CompatibleAppVersion`、`MinAppVersion`。
-- [ ] 明确并记录：
+- [x] 在 ReleaseProfile / Manifest 中落地 `AppVersion`、`ResourceVersion`、`AppVersionMin`、`AppVersionMax`。
+- [x] 明确并在配置、Manifest 或构建报告中记录：
   - AppVersion
   - PackageVersion
   - ResourceVersion
@@ -995,8 +1027,9 @@ Assets/AssetsPackage/Scripts/Main/Runtime/HotfixRemoteSettings.cs
   - MinAppVersion
   - MaxAppVersion
   - ReleaseChannel
-- [ ] 支持强更、弱更、灰度、回滚版本。
-- [ ] 资源版本不要只依赖当前时间字符串。
+- [ ] 将上述字段整理为正式版本协议文档和服务端发布 manifest 结构。
+- [ ] 支持强更、弱更、灰度、回滚版本的服务端选择策略。
+- [x] 资源版本不要只依赖当前时间字符串，`ResourceVersion` 可由 ReleaseProfile 固定。
 - [ ] 生成发布记录：版本号、Git commit、构建平台、资源清单、上传地址。
 - [ ] 记录客户端当前使用的资源版本，便于日志和问题定位。
 
@@ -1025,14 +1058,21 @@ P0 第 14 项先做 bytes size + sha256。
 ### 任务
 
 - [ ] 对资源发布清单增加签名校验。
-- [ ] 对热更 DLL 增加白名单、hash、签名或公钥校验。
-- [ ] 在 `Assembly.Load(bytes)` 之前校验 DLL 的 SHA256 / 签名 / 白名单。
+- [x] 对热更 DLL 增加 hash 校验。
+- [x] 在 `Assembly.Load(bytes)` 之前校验 DLL 的 SHA256。
+- [ ] 对热更 DLL 增加白名单、签名或公钥校验。
+- [ ] 在 `Assembly.Load(bytes)` 之前校验 DLL 的签名 / 白名单。
 - [ ] 防止 CDN 被污染后客户端加载未授权 DLL。
 - [ ] 明确测试环境和正式环境的签名密钥隔离策略。
 - [ ] 避免把可逆弱加密当作安全方案。
 - [ ] 移除源码中硬编码的 Web 解密密钥，至少改为环境隔离的配置和构建期注入。
 - [ ] 如果继续使用 Web 解密，补充密钥轮换、版本兼容和泄露后的废弃策略。
 - [ ] 正式环境只接受正式签名产物。
+
+整理说明：
+
+- 第 14 项已经完成 AOT metadata / Hotfix DLL bytes 的 size + sha256 校验。
+- 本项后续不再重复 hash 校验，重点推进 manifest 签名、DLL 签名、公钥验签和密钥隔离。
 
 相关位置：
 
@@ -1057,6 +1097,9 @@ YooAsset manifest 下载和校验流程
 - 第 15 项已完成 Hotfix DLL 构建期依赖排序、循环依赖检测、重复 `AssemblyName` 检测、Manifest 记录与文件一致性检查。
 - 本项不再重复“自动排序”本身，后续聚焦第 15 项之上的生产级依赖治理、白名单和运行时诊断。
 
+- [x] Hotfix DLL 内部依赖排序。
+- [x] Hotfix DLL 内部循环依赖、重复 `AssemblyName` 和文件一致性校验。
+- [x] Manifest 记录内部依赖并在 Build Center / 构建报告展示。
 - [ ] 检查热更程序集是否引用了不允许热更、不可用或平台不兼容的程序集。
 - [ ] 建立 Hotfix DLL 外部引用白名单，例如 Unity、QFramework、主工程稳定 API、允许的第三方库。
 - [ ] 构建阶段发现外部引用缺失、禁止引用、跨平台依赖不一致时直接失败。
@@ -1083,11 +1126,12 @@ Assets/AssetsPackage/Scripts/Hotfix/*/*.asmdef
 
 ## 20. 完善热更入口生命周期
 
-- [ ] 明确热更入口是场景、Prefab、静态方法还是统一 Bootstrap 类。
+- [x] 明确当前热更入口为 CodeEntry 静态方法，场景 / Prefab 入口降级为兼容字段。
 - [ ] 定义统一热更入口接口，例如 `IHotfixEntry`。
 - [ ] 入口方法支持上下文参数：资源版本、package、启动参数、环境配置。
-- [ ] 反射调用入口前校验方法签名，例如是否 static、参数是否匹配、返回值是否允许。
-- [ ] 入口方法异常要输出类型、方法名、内部异常、堆栈和当前版本信息，方便线上诊断。
+- [x] 反射调用入口前校验方法签名：当前要求 static、无参、返回 `void`。
+- [x] 入口方法异常会输出类型、方法名和内部异常。
+- [ ] 入口异常补充当前 `AppVersion + PackageVersion + HotfixVersion + AotVersion`。
 - [ ] 将 `HotfixDemo/GameMainApp` 从空壳补成完整示例，展示 Model / System / Utility 注册和热更业务启动流程。
 - [ ] 热更业务初始化失败时能回到主工程错误页，而不是静默失败。
 - [ ] 增加热更模块的退出、重启、清理策略。
@@ -1116,11 +1160,12 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/GameMainApp.cs
 
 - [ ] `LoadAssetAsync` 不应回调后立即无条件 `Release` 长生命周期资源。
 - [ ] 为资源加载返回可释放 handle，或提供统一引用计数封装。
-- [ ] 所有加载 API 检查 `handle.Status` 和 `LastError`。
+- [ ] 所有 YooAssetKit 通用加载 API 检查 `handle.Status` 和 `LastError`。
 - [ ] 异步加载失败时不要静默返回 `null`。
 - [ ] 区分短生命周期数据资源和长期持有资源。
-- [ ] `LoadDllBytes` 明确以 byte[] 拷贝作为边界，并在注释或接口上约束不要向外暴露已释放 TextAsset。
-- [ ] 场景加载失败时要把错误传回 `Boot` 或流程管理器。
+- [x] `LoadDllBytes` 明确以 byte[] 作为释放边界，不向外暴露已释放 TextAsset。
+- [x] 场景加载会检查 `SceneHandle.Status` 和 `LastError`。
+- [ ] 场景加载失败时要把错误传回 `Boot` 或流程管理器，而不仅是日志输出。
 
 相关位置：
 
@@ -1141,11 +1186,12 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 
 - [ ] 不要在每次启动后无条件清理未使用 bundle，需评估启动耗时和复用收益。
 - [ ] 支持按 package、版本、标签、空间阈值清理缓存。
-- [ ] 增加“清理失败不阻断启动”的策略配置。
-- [ ] 至少保留上一组可用 AOT + Hotfix 版本，支持热更失败后回滚。
+- [x] 清理失败不阻断启动。
+- [x] 启动成功后记录上一组可用 AOT + Hotfix 版本组合。
 - [ ] 支持用户设置页手动清理缓存。
 - [ ] 增加缓存占用统计和日志。
-- [ ] 记录 `LastGoodAotVersion`、`LastGoodHotfixVersion`、`LastGoodPackageVersion`。
+- [x] 记录 `LastUsableAotVersion`、`LastUsableHotfixVersion`、`LastUsablePackageVersion` 和可用组合。
+- [ ] 将 `LastUsable` 语义整理为正式 `LastGoodAotVersion`、`LastGoodHotfixVersion`、`LastGoodPackageVersion`。
 - [ ] 记录 `LastFailedAotVersion`、`LastFailedHotfixVersion`、`LastFailedPackageVersion`。
 - [ ] 连续失败 N 次自动回退 LastGood。
 
@@ -1166,8 +1212,8 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureManager.cs
 
 ## 23. 规范多 package 使用策略
 
-- [ ] 当前阶段默认保持单 package：`DefaultPackage`。
-- [ ] 仅当生命周期明显不同才拆 package，例如 DLC、语音包、多语言包、RawFile、大型地图包、活动资源。
+- [x] 当前阶段默认保持单 package：`DefaultPackage`。
+- [x] README 已说明仅当生命周期明显不同时才拆 package，例如 DLC、语音包、多语言包、RawFile、大型地图包、活动资源。
 - [ ] 如果启用 `RawFilePackage`，补齐初始化、版本、manifest、下载、失败兜底、缓存清理全链路。
 - [ ] 禁止只按文件夹类型拆 package。
 - [ ] 增加跨 package 资源依赖检查。
@@ -1195,16 +1241,14 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureCreateDownloader.cs
 
 ### 任务
 
+- [x] 每次一键构建生成 `BuildReports/Hotfix/*.txt` 文本报告。
 - [ ] 每次构建生成 `HotfixBuildReport.json`。
-- [ ] 报告内容包含：
+- [x] 当前文本报告已包含：
   - buildMode
   - appVersion
   - target
-  - buildOptions
-  - remoteEnvironment
-  - startupPackageMode
-  - startupDownloadMode
   - packageName
+  - resourceVersion
   - packageVersion
   - aotVersion
   - hotfixVersion
@@ -1212,6 +1256,15 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Procedure/ProcedureCreateDownloader.cs
   - outputPath
   - file list
   - hash list
+  - validation / build status summary
+- [ ] JSON 报告补充：
+  - buildOptions
+  - remoteEnvironment
+  - startupPackageMode
+  - startupDownloadMode
+  - git commit
+  - operator
+  - upload address
   - success / failed reason
 - [ ] 资源包输出目录按平台、环境、版本归档。
 - [ ] 生成发布 manifest：资源版本、app version、commit、构建时间、操作者。
@@ -1239,13 +1292,13 @@ Releases/{Platform}/{Environment}/{PackageVersion}/publish_manifest.json
 
 ### 任务
 
-- [ ] README 只推荐 Build Center 和 One Click 构建入口。
-- [ ] 删除或移动过期的手动构建步骤。
-- [ ] 明确当前使用的 YooAsset 构建管线。
-- [ ] 不再把 SBP 切换作为默认目标，除非项目明确需要。
-- [ ] 更新 Unity 版本说明。
-- [ ] 更新 HybridCLR Generate All 说明，推荐 `Generate All Safe`。
-- [ ] 新增：
+- [x] README 只推荐 Build Center 和 One Click 构建入口。
+- [x] 删除或移动过期的手动构建步骤，底层入口归入 Internal / Advanced。
+- [x] 明确当前使用的 YooAsset 构建管线。
+- [x] 不再把 SBP 切换作为默认目标，除非项目明确需要。
+- [x] 更新 Unity 版本说明。
+- [x] 更新 HybridCLR Generate All 说明，推荐 `Generate All Safe`。
+- [x] 新增：
   - 首包构建流程
   - 热更包发布流程
   - AOT Metadata Patch 流程
@@ -1254,6 +1307,11 @@ Releases/{Platform}/{Environment}/{PackageVersion}/publish_manifest.json
   - 常见错误排查
   - DownloadByTags startup 规则
   - AOT / Hotfix Manifest 兼容规则
+
+整理说明：
+
+- 本项与第 33 项高度重复；README 已完成主流程文档同步。
+- 后续文档新增项统一放到第 33 项，只保留补充型文档，不再重复“首包 / 热更包 / AOT Patch 主流程”。
 
 相关位置：
 
@@ -1280,6 +1338,7 @@ Hotfix DLL 已加载后，一般不能在当前进程卸载并替换。后台下
 
 ### 任务
 
+- [x] README 已说明 `BackgroundDownload` 目前已有缓存时优先本地启动，后台下载入口由业务层继续接入。
 - [ ] 明确文档：后台下载的新 Hotfix DLL 下次冷启动生效。
 - [ ] 增加 `CurrentHotfixVersion`。
 - [ ] 增加 `PendingHotfixVersion`。
@@ -1389,9 +1448,9 @@ Assets/AssetsPackage/Scripts/Main/Runtime/UI
 
 ## 30. 改善用户更新体验
 
-- [ ] 下载确认界面展示格式化后的文件数量和大小，例如“需要更新 15 个文件，共 23.5 MB”。
+- [x] 下载确认界面展示格式化后的文件数量和大小，例如“需要更新 15 个文件，共 23.5 MB”。
 - [ ] 下载确认界面展示网络状态、是否建议 Wi-Fi。
-- [ ] 下载失败支持重试、退出、使用本地缓存。
+- [x] 下载失败支持重试、退出、使用本地缓存。
 - [ ] 展示下载速度、剩余时间、单文件进度、已下载大小 / 总大小。
 - [ ] 当前文件和错误信息不应暴露过多技术细节，面向用户展示友好文案，详细错误写日志。
 - [ ] 支持后台下载或进入大厅后延迟下载非关键资源。
@@ -1413,10 +1472,11 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Events/DownloadEvents.cs
 
 ## 31. 清理工程生成物和大文件入库规则
 
-- [ ] 评估是否需要将 `HybridCLRData` 生成目录入库。
-- [ ] 评估是否需要将 `Assets/StreamingAssets/yoo` 的构建产物入库。
+- [x] `.gitignore` 已忽略 `HybridCLRData` 的主要生成目录。
+- [x] `.gitignore` 已忽略 `Assets/StreamingAssets/yoo` 的构建产物。
 - [ ] 明确哪些 `.bytes`、bundle、manifest 是示例必需，哪些是构建产物。
-- [ ] 更新 `.gitignore`，避免 3G 级别生成物长期污染仓库。
+- [x] 更新 `.gitignore`，避免 3G 级别生成物长期污染仓库。
+- [ ] 确认并处理 `Assets/Resources/yoo/DefaultPackage/BuildinCatalog.asset` 是否应忽略；如果已被 Git 跟踪，需要单独从索引移除。
 - [ ] 保留必要示例资源时，给出重新生成说明。
 
 相关位置：
@@ -1464,16 +1524,21 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/GameMainApp.cs
 
 ## 33. 完善文档
 
-- [ ] 新增“首包构建流程”。
-- [ ] 新增“热更包发布流程”。
-- [ ] 新增“AOT Metadata Patch 流程”。
-- [ ] 新增“CDN 目录结构和版本命名规则”。
-- [ ] 新增“线上回滚流程”。
-- [ ] 新增“常见错误排查”。
-- [ ] 新增“多 package 拆分原则”。
-- [ ] 新增“HybridCLR AOT metadata 更新规则”。
-- [ ] 新增“AOTAssemblyManifest / HotfixAssemblyManifest 拆分和兼容规则”。
-- [ ] 新增“下载失败、重试、取消、离线降级和回滚流程”。
+- [x] 新增“首包构建流程”。
+- [x] 新增“热更包发布流程”。
+- [x] 新增“AOT Metadata Patch 流程”。
+- [x] 新增“CDN 目录结构和版本命名规则”。
+- [x] 新增“线上回滚流程”。
+- [x] 新增“常见错误排查”。
+- [x] 新增“多 package 拆分原则”。
+- [x] 新增“HybridCLR AOT metadata 更新规则”。
+- [x] 新增“AOTAssemblyManifest / HotfixAssemblyManifest 拆分和兼容规则”。
+- [x] 新增“下载失败、重试、取消、离线降级和回滚流程”。
+- [ ] 补充正式版本协议、发布 manifest、签名验签、CI、LastGood 自动回退和 Luban 配置热更章节。
+
+整理说明：
+
+- 本项和第 25 项原本重复。主流程文档已落到 README，后续只保留新增高级治理文档。
 
 相关位置：
 
@@ -1514,11 +1579,12 @@ YooAsset downloader 创建和调度策略
 
 ## 35. 灰度发布
 
-- [ ] 根据 userId / deviceId 做稳定 hash。
-- [ ] 灰度命中用户使用 Gray CDN 或 Gray Version。
-- [ ] 未命中用户使用 Production CDN。
+- [x] 根据 deviceId、渠道、地区和盐值做稳定 hash。
+- [x] 灰度命中用户使用 Gray CDN。
+- [x] 未命中用户使用 Production / 当前环境 CDN。
 - [ ] 灰度失败可回退正式 CDN。
-- [ ] 支持按渠道、地区、版本灰度。
+- [x] 支持按渠道、地区参与灰度分流。
+- [ ] 支持按版本灰度。
 - [ ] 上报灰度命中状态。
 - [ ] Build Report 记录灰度版本信息。
 
@@ -1639,10 +1705,10 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 - [x] 抽离 CDN 配置。
 - [x] 明确首包资源必需项。
 - [x] 拆分 AOTAssemblyManifest 和 HotfixAssemblyManifest。
-- [ ] Build 菜单收口与构建中心。
-- [ ] HybridCLR Generate All Safe。
-- [ ] 一键首包构建。
-- [ ] 一键热更包构建。
+- [x] Build 菜单收口与构建中心。
+- [x] HybridCLR Generate All Safe。
+- [x] 一键首包构建。
+- [x] 一键热更包构建。
 
 目标：
 
@@ -1652,7 +1718,7 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 
 ## 第二阶段：防止热更事故
 
-- [ ] AOT Metadata Patch 高级模式。
+- [x] AOT Metadata Patch 高级模式。
 - [x] AOTManifest 过期校验。
 - [x] DownloadByTags 启动资源强校验。
 - [x] Hotfix DLL / AOT Metadata bytes 加载前校验。
@@ -1667,9 +1733,9 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 ## 第三阶段：商业化发布治理
 
 - [x] ReleaseProfile 发布配置。
-- [ ] 完整版本协议与版本记录。
+- [ ] 完整版本协议、发布 manifest 与版本记录。
 - [ ] Manifest 签名校验。
-- [ ] 构建报告与发布产物管理。
+- [ ] JSON 构建报告与发布产物管理。
 - [ ] CDN 原子发布与回滚。
 - [ ] CI / 命令行构建入口。
 
@@ -1681,7 +1747,7 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 
 ## 第四阶段：运行期稳定性
 
-- [ ] 热更程序集依赖排序和依赖校验。
+- [ ] 热更程序集外部依赖治理和运行时诊断。
 - [ ] 热更入口生命周期完善。
 - [ ] BackgroundDownload 生效规则。
 - [ ] YooAssetKit 资源句柄生命周期。
@@ -1698,10 +1764,10 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 
 - [ ] 自动化测试和 Smoke Test。
 - [ ] 用户更新体验优化。
-- [ ] 工程生成物和 Git 入库规则。
+- [ ] 工程生成物和 Git 入库规则收尾。
 - [ ] 多 Package 策略。
 - [ ] 下载能力扩展。
-- [ ] 灰度发布。
+- [ ] 灰度版本协议、上报和报告。
 - [ ] Luban 配置热更集成。
 
 目标：
@@ -1722,20 +1788,14 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 - 单 package 更容易保证版本一致性。
 - 当前多 package 相关代码还不完整，尤其是 raw file package 的失败兜底、版本和缓存策略。
 
-下一阶段最应该做的不是继续增加底层菜单，而是收口为：
+当前 Build Center、一键首包、一键热更包、AOT Metadata Patch 高级入口和 Generate All Safe 已完成。下一阶段最应该做的是：
 
 ```text
-Build Center
-一键首包构建
-一键热更包构建
-AOT Metadata Patch 高级入口
-Internal 底层工具菜单
-```
-
-同时必须补上：
-
-```text
-Generate All Safe
+完整版本协议与发布 manifest
+Manifest / DLL 签名验签
+JSON 构建报告与 CDN 原子回滚
+CI / 命令行构建入口
+运行期 LastGood / LastFailed 自动回退
 ```
 
 这些完成后，框架才更接近“团队可用、可交付、可商业化”的状态。
