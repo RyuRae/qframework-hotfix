@@ -112,6 +112,86 @@ namespace Framework.YooAssetBridge
             onCompleted?.Invoke(lastResult);
         }
 
+        /// <summary>
+        /// 仅从 CacheFileSystem 加载指定版本，用于严格回退已提交的 LastGood。
+        /// </summary>
+        public IEnumerator TryLoadCacheManifest(
+            string packageVersion,
+            Action<YooAssetLocalManifestResult> onCompleted)
+        {
+            if (!TryGetDefaultCacheFileSystem(out var cacheFileSystem))
+            {
+                onCompleted?.Invoke(Failed(
+                    YooAssetLocalManifestSource.Cache,
+                    packageVersion,
+                    $"Cache file system is unavailable. Package: {PackageName}"));
+                yield break;
+            }
+
+            yield return TryLoadCacheManifest(cacheFileSystem, packageVersion, onCompleted);
+        }
+
+        /// <summary>
+        /// 直接加载包体内置（WebGL 为 WebServer、编辑器为模拟目录）的 manifest。
+        /// 不经过 CacheFileSystem，避免缓存中的失败版本遮蔽首包基线。
+        /// </summary>
+        public IEnumerator TryLoadBuildinManifest(Action<YooAssetLocalManifestResult> onCompleted)
+        {
+            YooAssetLocalManifestResult lastResult = default;
+            bool foundFileSystem = false;
+            foreach (var entry in GetLocalFileSystems())
+            {
+                foundFileSystem = true;
+                string packageVersion = string.Empty;
+                string versionError = string.Empty;
+                yield return TryRequestLocalPackageVersion(
+                    entry.FileSystem,
+                    (succeeded, version, error) =>
+                    {
+                        if (succeeded)
+                        {
+                            packageVersion = version;
+                        }
+                        else
+                        {
+                            versionError = error;
+                        }
+                    });
+
+                if (string.IsNullOrWhiteSpace(packageVersion))
+                {
+                    lastResult = Failed(
+                        entry.Source,
+                        string.Empty,
+                        string.IsNullOrWhiteSpace(versionError)
+                            ? $"Build-in package version is unavailable. Package: {PackageName}, Source: {entry.Source}"
+                            : versionError);
+                    continue;
+                }
+
+                yield return TryLoadFileSystemManifest(
+                    entry.FileSystem,
+                    entry.Source,
+                    packageVersion,
+                    value => lastResult = value);
+                if (lastResult.Succeeded)
+                {
+                    onCompleted?.Invoke(lastResult);
+                    yield break;
+                }
+            }
+
+            if (!foundFileSystem)
+            {
+                lastResult = Failed(
+                    YooAssetLocalManifestSource.None,
+                    string.Empty,
+                    $"No build-in package file system available. Package: {PackageName}");
+            }
+
+            onCompleted?.Invoke(lastResult);
+        }
+
         private IEnumerator TryRequestLocalPackageVersion(IFileSystem fileSystem, List<string> candidates)
         {
             if (fileSystem == null)
@@ -125,6 +205,23 @@ namespace Framework.YooAssetBridge
             {
                 AddVersionCandidate(candidates, operation.PackageVersion);
             }
+        }
+
+        private IEnumerator TryRequestLocalPackageVersion(
+            IFileSystem fileSystem,
+            Action<bool, string, string> onCompleted)
+        {
+            if (fileSystem == null)
+            {
+                onCompleted?.Invoke(false, string.Empty, "Local package file system is null.");
+                yield break;
+            }
+
+            var operation = fileSystem.RequestPackageVersionAsync(false, LocalManifestTimeout);
+            yield return operation;
+            bool succeeded = operation.Status == EOperationStatus.Succeed &&
+                             !string.IsNullOrWhiteSpace(operation.PackageVersion);
+            onCompleted?.Invoke(succeeded, operation.PackageVersion, operation.Error);
         }
 
         private IEnumerator TryLoadFileSystemManifest(
@@ -149,17 +246,31 @@ namespace Framework.YooAssetBridge
             string packageVersion,
             Action<YooAssetLocalManifestResult> onCompleted)
         {
-            string hashFilePath = cacheFileSystem.GetCachePackageHashFilePath(packageVersion);
-            if (string.IsNullOrEmpty(hashFilePath) || !File.Exists(hashFilePath))
+            string hashFilePath = string.Empty;
+            string packageHash;
+            try
+            {
+                hashFilePath = cacheFileSystem.GetCachePackageHashFilePath(packageVersion);
+                if (string.IsNullOrEmpty(hashFilePath) || !File.Exists(hashFilePath))
+                {
+                    onCompleted?.Invoke(Failed(
+                        YooAssetLocalManifestSource.Cache,
+                        packageVersion,
+                        $"Can not found cache package hash file : {hashFilePath}"));
+                    yield break;
+                }
+
+                packageHash = FileUtility.ReadAllText(hashFilePath);
+            }
+            catch (Exception exception)
             {
                 onCompleted?.Invoke(Failed(
                     YooAssetLocalManifestSource.Cache,
                     packageVersion,
-                    $"Can not found cache package hash file : {hashFilePath}"));
+                    $"Read cache package hash failed. Path={hashFilePath ?? string.Empty}. {exception.Message}"));
                 yield break;
             }
 
-            string packageHash = FileUtility.ReadAllText(hashFilePath);
             if (string.IsNullOrWhiteSpace(packageHash))
             {
                 onCompleted?.Invoke(Failed(
@@ -193,6 +304,12 @@ namespace Framework.YooAssetBridge
                 return;
             }
 
+            if (!ValidateManifestIdentity(operation.Manifest, packageVersion, out var identityError))
+            {
+                onCompleted?.Invoke(Failed(source, packageVersion, identityError));
+                return;
+            }
+
             playModeImpl.ActiveManifest = operation.Manifest;
             onCompleted?.Invoke(Succeeded(source, packageVersion));
         }
@@ -214,8 +331,29 @@ namespace Framework.YooAssetBridge
                 return;
             }
 
+            if (!ValidateManifestIdentity(operation.Manifest, packageVersion, out var identityError))
+            {
+                onCompleted?.Invoke(Failed(YooAssetLocalManifestSource.Cache, packageVersion, identityError));
+                return;
+            }
+
             playModeImpl.ActiveManifest = operation.Manifest;
             onCompleted?.Invoke(Succeeded(YooAssetLocalManifestSource.Cache, packageVersion));
+        }
+
+        private bool ValidateManifestIdentity(PackageManifest manifest, string requestedVersion, out string error)
+        {
+            error = string.Empty;
+            if (!string.Equals(manifest.PackageName, PackageName, StringComparison.Ordinal) ||
+                !string.Equals(manifest.PackageVersion, requestedVersion, StringComparison.Ordinal))
+            {
+                error = $"Local manifest identity mismatch. " +
+                        $"Expected={PackageName}:{requestedVersion}, " +
+                        $"Actual={manifest.PackageName}:{manifest.PackageVersion}.";
+                return false;
+            }
+
+            return true;
         }
 
         private IEnumerable<LocalFileSystemEntry> GetLocalFileSystems()

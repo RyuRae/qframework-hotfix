@@ -71,8 +71,13 @@ namespace Framework.Procedure
             }
 
             mTarget.SetHotfixEntry(loader.EntryTypeName, loader.EntryMethodName);
-            mTarget.SaveUsablePackageVersions();
-            mTarget.SaveUsableAssemblyVersions();
+            if (!mTarget.ValidateLoadedAssemblyCombination(out var combinationError))
+            {
+                UIPanelRoot.Instance.ShowMessage(combinationError);
+                mTarget.SetFailed(combinationError);
+                yield break;
+            }
+
             rawProgress = 1f;
             displayProgress = 1f;
             TypeEventSystem.Global.Send(new OnAssetloadProgressEvent
@@ -81,7 +86,7 @@ namespace Framework.Procedure
                 desc = HotfixText.Get(HotfixTextKey.HotUpdateAssembliesLoaded)
             });
             LogKit.I("Hot update assemblies loaded.");
-            mFSM.ChangeState(ResPackageStates.ClearCacheBundle);
+            mFSM.ChangeState(ResPackageStates.StartGame);
         }
 
         protected override void OnExit()

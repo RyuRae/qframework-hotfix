@@ -13,7 +13,7 @@ namespace Framework.Procedure
 
         protected override bool OnCondition()
         {
-            return mFSM.CurrentStateId == ResPackageStates.ClearCacheBundle;
+            return mFSM.CurrentStateId == ResPackageStates.LoadAssemblies;
         }
 
         protected override void OnEnter()
@@ -30,6 +30,15 @@ namespace Framework.Procedure
             }
 
             LogKit.I("Hotfix CodeEntry started.");
+            if (mTarget.CommitLastGood(out var commitError))
+            {
+                mFSM.ChangeState(ResPackageStates.ClearCacheBundle);
+                return;
+            }
+
+            // 业务已经启动成功时不因本地持久化或完整性检查失败而强制退出。
+            // 跳过缓存清理，确保旧 LastGood 仍有机会在下次启动时使用。
+            LogKit.W($"Skip cache cleanup because LastGood was not committed. {commitError}");
             mTarget.SetFinish();
         }
 

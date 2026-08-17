@@ -67,6 +67,15 @@ namespace Framework.Procedure
                 yield break;
             }
 
+            // LastGood 不只固定包版本，也固定 Hotfix/AOT 组合。
+            // 在加载热更 DLL 之前尽早阻断“同版本号内容被替换”的异常缓存。
+            if (!mTarget.ValidateLoadedAssemblyCombination(out var combinationError))
+            {
+                UIPanelRoot.Instance.ShowMessage(combinationError);
+                mTarget.SetFailed(combinationError);
+                yield break;
+            }
+
             TypeEventSystem.Global.Send(new OnAssetloadProgressEvent
             {
                 progress = 1f,

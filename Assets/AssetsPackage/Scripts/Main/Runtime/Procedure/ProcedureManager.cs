@@ -41,6 +41,8 @@ namespace Framework.Procedure
         private bool _downloadCancelRequested;
         private bool _downloadPaused;
         private bool _useLocalManifestFallback;
+        private string _expectedFallbackHotfixVersion = string.Empty;
+        private string _expectedFallbackAotVersion = string.Empty;
         private IUnRegister _downloadCancelRequestUnregister;
 
         // public string EntrySceneAddress { get; private set; } = HotfixUtility.DefaultEntrySceneAddress;
@@ -51,6 +53,7 @@ namespace Framework.Procedure
         public bool IsDownloadPaused => _downloadPaused;
         public bool IsUsingLocalManifestFallback => _useLocalManifestFallback;
         public bool CanUseLocalCacheFallback => _startupUpdatePolicy != StartupUpdatePolicy.MustUpdate;
+        public bool LastGoodCommittedThisRun { get; private set; }
 
         public FSM<ResPackageStates> _mFSM = new FSM<ResPackageStates>();
 
@@ -199,13 +202,13 @@ namespace Framework.Procedure
 
             if (_startupUpdatePolicy == StartupUpdatePolicy.BackgroundDownload)
             {
-                if (string.IsNullOrEmpty(HotfixLocalManifestUtility.GetLastUsablePackageVersion(_packageName)))
+                if (!HotfixLocalManifestUtility.TryGetLastGoodRecord(_packageName, out var lastGood))
                 {
                     return false;
                 }
 
                 return !_isIncludeRawFile ||
-                       !string.IsNullOrEmpty(HotfixLocalManifestUtility.GetLastUsablePackageVersion(_rawfilwPkgName));
+                       !string.IsNullOrWhiteSpace(lastGood.RawFilePackageVersion);
             }
 
             return false;
@@ -221,61 +224,308 @@ namespace Framework.Procedure
             }
         }
 
-        public void SaveUsablePackageVersions()
+        public bool CommitLastGood(out string error)
         {
-            HotfixLocalManifestUtility.SaveLastUsablePackageVersion(_packageName, _packageVersion);
+            LastGoodCommittedThisRun = false;
+            error = string.Empty;
+            var package = YooAssets.GetPackage(_packageName);
+            if (!package.PackageValid)
+            {
+                error = $"Can not commit LastGood because package is invalid: {_packageName}";
+                return false;
+            }
+
+            string activeMainVersion = package.GetPackageVersion();
+            if (string.IsNullOrWhiteSpace(activeMainVersion) ||
+                !string.Equals(activeMainVersion, _packageVersion, StringComparison.Ordinal))
+            {
+                error = $"Can not commit LastGood because main package version changed. " +
+                        $"Expected={_packageVersion}, Active={activeMainVersion}";
+                return false;
+            }
+
+            string activeRawFileVersion = string.Empty;
             if (_isIncludeRawFile)
             {
-                HotfixLocalManifestUtility.SaveLastUsablePackageVersion(_rawfilwPkgName, _rawfilePkgVersion);
-            }
-        }
+                var rawFilePackage = YooAssets.GetPackage(_rawfilwPkgName);
+                if (!rawFilePackage.PackageValid)
+                {
+                    error = $"Can not commit LastGood because package is invalid: {_rawfilwPkgName}";
+                    return false;
+                }
 
-        public void SaveUsableAssemblyVersions()
-        {
-            HotfixLocalManifestUtility.SaveLastUsableAssemblyVersions(
+                activeRawFileVersion = rawFilePackage.GetPackageVersion();
+                if (string.IsNullOrWhiteSpace(activeRawFileVersion) ||
+                    !string.Equals(activeRawFileVersion, _rawfilePkgVersion, StringComparison.Ordinal))
+                {
+                    error = $"Can not commit LastGood because raw file package version changed. " +
+                            $"Expected={_rawfilePkgVersion}, Active={activeRawFileVersion}";
+                    return false;
+                }
+            }
+
+            if (!ValidateLoadedAssemblyCombination(out error))
+            {
+                return false;
+            }
+
+            if (!HasLocalStartupResources(package, _downloadTags, out error))
+            {
+                return false;
+            }
+
+            if (_isIncludeRawFile)
+            {
+                var rawFilePackage = YooAssets.GetPackage(_rawfilwPkgName);
+                if (!HasLocalStartupResources(rawFilePackage, _rawfileDownloadTags, out error))
+                {
+                    return false;
+                }
+            }
+
+            string hotfixVersion = AssemblyLoadContext.HotfixManifest == null
+                ? string.Empty
+                : AssemblyLoadContext.HotfixManifest.HotfixVersion;
+            string aotVersion = AssemblyLoadContext.AotManifest == null
+                ? string.Empty
+                : AssemblyLoadContext.AotManifest.AotVersion;
+            if (!HotfixLocalManifestUtility.SaveLastGoodRecord(
                 _packageName,
-                AssemblyLoadContext.HotfixManifest == null ? string.Empty : AssemblyLoadContext.HotfixManifest.HotfixVersion,
-                AssemblyLoadContext.AotManifest == null ? string.Empty : AssemblyLoadContext.AotManifest.AotVersion);
+                activeMainVersion,
+                activeRawFileVersion,
+                hotfixVersion,
+                aotVersion,
+                out error))
+            {
+                return false;
+            }
+
+            LastGoodCommittedThisRun = true;
+            LogKit.I($"LastGood committed. Package={_packageName}:{activeMainVersion}, " +
+                     $"RawFile={(_isIncludeRawFile ? $"{_rawfilwPkgName}:{activeRawFileVersion}" : "disabled")}, " +
+                     $"Hotfix={hotfixVersion}, AOT={aotVersion}");
+            return true;
         }
 
         public IEnumerator TryUseLocalManifestFallback(string reason, Action<bool, string> onCompleted)
         {
+            ClearExpectedFallbackAssemblyCombination();
+            var errors = new List<string>();
+            if (HotfixLocalManifestUtility.TryGetLastGoodRecord(_packageName, out var lastGood))
+            {
+                bool lastGoodSucceeded = false;
+                string lastGoodError = string.Empty;
+                yield return TryLoadManifestSet(
+                    false,
+                    lastGood.MainPackageVersion,
+                    lastGood.RawFilePackageVersion,
+                    (succeeded, error) =>
+                    {
+                        lastGoodSucceeded = succeeded;
+                        lastGoodError = error;
+                    });
+                if (lastGoodSucceeded)
+                {
+                    _expectedFallbackHotfixVersion = lastGood.HotfixVersion;
+                    _expectedFallbackAotVersion = lastGood.AotVersion;
+                    MarkUseLocalManifestFallback(reason);
+                    onCompleted?.Invoke(true, string.Empty);
+                    yield break;
+                }
+
+                errors.Add($"LastGood failed: {lastGoodError}");
+            }
+            else
+            {
+                errors.Add("LastGood record is missing or invalid.");
+            }
+
+            bool buildinSucceeded = false;
+            string buildinError = string.Empty;
+            yield return TryLoadManifestSet(
+                true,
+                string.Empty,
+                string.Empty,
+                (succeeded, error) =>
+                {
+                    buildinSucceeded = succeeded;
+                    buildinError = error;
+                });
+            if (buildinSucceeded)
+            {
+                ClearExpectedFallbackAssemblyCombination();
+                MarkUseLocalManifestFallback(reason);
+                onCompleted?.Invoke(true, string.Empty);
+                yield break;
+            }
+
+            errors.Add($"Build-in fallback failed: {buildinError}");
+            onCompleted?.Invoke(false, string.Join(" | ", errors));
+        }
+
+        public bool ValidateLoadedAssemblyCombination(out string error)
+        {
+            error = string.Empty;
+            if (string.IsNullOrEmpty(_expectedFallbackHotfixVersion) &&
+                string.IsNullOrEmpty(_expectedFallbackAotVersion))
+            {
+                return true;
+            }
+
+            string actualHotfixVersion = AssemblyLoadContext.HotfixManifest == null
+                ? string.Empty
+                : AssemblyLoadContext.HotfixManifest.HotfixVersion;
+            string actualAotVersion = AssemblyLoadContext.AotManifest == null
+                ? string.Empty
+                : AssemblyLoadContext.AotManifest.AotVersion;
+            if (!string.Equals(actualHotfixVersion, _expectedFallbackHotfixVersion, StringComparison.Ordinal) ||
+                !string.Equals(actualAotVersion, _expectedFallbackAotVersion, StringComparison.Ordinal))
+            {
+                error = $"LastGood assembly combination mismatch. " +
+                        $"Expected=Hotfix:{_expectedFallbackHotfixVersion},AOT:{_expectedFallbackAotVersion}; " +
+                        $"Actual=Hotfix:{actualHotfixVersion},AOT:{actualAotVersion}.";
+                return false;
+            }
+
+            return true;
+        }
+
+        private IEnumerator TryLoadManifestSet(
+            bool useBuildin,
+            string mainPackageVersion,
+            string rawFilePackageVersion,
+            Action<bool, string> onCompleted)
+        {
+            if (!useBuildin && _isIncludeRawFile && string.IsNullOrWhiteSpace(rawFilePackageVersion))
+            {
+                onCompleted?.Invoke(false, $"LastGood record has no version for raw file package: {_rawfilwPkgName}");
+                yield break;
+            }
+
             var package = YooAssets.GetPackage(_packageName);
             HotfixLocalManifestResult packageResult = default;
-            yield return HotfixLocalManifestUtility.TryLoadLocalManifest(
+            yield return LoadFallbackManifest(
                 package,
-                _packageVersion,
+                useBuildin,
+                mainPackageVersion,
                 result => packageResult = result);
-
             if (!packageResult.Succeeded)
             {
                 onCompleted?.Invoke(false, HotfixText.Get(HotfixTextKey.MainPackageLocalCacheUnavailable, packageResult.Error));
                 yield break;
             }
 
-            _packageVersion = packageResult.PackageVersion;
+            HotfixLocalManifestResult rawFileResult = default;
+            if (_isIncludeRawFile)
+            {
+                var rawFilePackage = YooAssets.GetPackage(_rawfilwPkgName);
+                yield return LoadFallbackManifest(
+                    rawFilePackage,
+                    useBuildin,
+                    rawFilePackageVersion,
+                    result => rawFileResult = result);
+                if (!rawFileResult.Succeeded)
+                {
+                    onCompleted?.Invoke(false, HotfixText.Get(HotfixTextKey.RawFilePackageLocalCacheUnavailable, rawFileResult.Error));
+                    yield break;
+                }
+            }
+
+            if (!HasLocalStartupResources(package, _downloadTags, out var availabilityError))
+            {
+                onCompleted?.Invoke(false, availabilityError);
+                yield break;
+            }
 
             if (_isIncludeRawFile)
             {
-                var rawfilePackage = YooAssets.GetPackage(_rawfilwPkgName);
-                HotfixLocalManifestResult rawfileResult = default;
-                yield return HotfixLocalManifestUtility.TryLoadLocalManifest(
-                    rawfilePackage,
-                    _rawfilePkgVersion,
-                    result => rawfileResult = result);
-
-                if (!rawfileResult.Succeeded)
+                var rawFilePackage = YooAssets.GetPackage(_rawfilwPkgName);
+                if (!HasLocalStartupResources(rawFilePackage, _rawfileDownloadTags, out availabilityError))
                 {
-                    onCompleted?.Invoke(false, HotfixText.Get(HotfixTextKey.RawFilePackageLocalCacheUnavailable, rawfileResult.Error));
+                    onCompleted?.Invoke(false, availabilityError);
                     yield break;
                 }
-
-                _rawfilePkgVersion = rawfileResult.PackageVersion;
             }
 
-            MarkUseLocalManifestFallback(reason);
-            SaveUsablePackageVersions();
+            _packageVersion = packageResult.PackageVersion;
+            if (_isIncludeRawFile)
+            {
+                _rawfilePkgVersion = rawFileResult.PackageVersion;
+            }
+
             onCompleted?.Invoke(true, string.Empty);
+        }
+
+        private static IEnumerator LoadFallbackManifest(
+            ResourcePackage package,
+            bool useBuildin,
+            string lastGoodVersion,
+            Action<HotfixLocalManifestResult> onCompleted)
+        {
+            if (useBuildin)
+            {
+                yield return HotfixLocalManifestUtility.TryLoadBuildinManifest(package, onCompleted);
+            }
+            else
+            {
+                yield return HotfixLocalManifestUtility.TryLoadLastGoodManifest(package, lastGoodVersion, onCompleted);
+            }
+        }
+
+        private bool HasLocalStartupResources(ResourcePackage package, string[] tags, out string error)
+        {
+            error = string.Empty;
+            if (package == null || !package.PackageValid)
+            {
+                error = $"Can not validate local startup resources because package is invalid: {package?.PackageName ?? "null"}";
+                return false;
+            }
+
+            ResourceDownloaderOperation downloader;
+            try
+            {
+                if (_startupDownloadMode == StartupDownloadMode.DownloadByTags)
+                {
+                    if (tags == null || tags.Length == 0)
+                    {
+                        error = $"Can not validate local startup resources because download tags are empty. Package: {package.PackageName}";
+                        return false;
+                    }
+
+                    downloader = package.CreateResourceDownloader(tags, 1, 0);
+                }
+                else
+                {
+                    // DownloadAll 和 Skip 都必须完整可用。Skip 可以正常启动，但不完整时不能成为 LastGood。
+                    downloader = package.CreateResourceDownloader(1, 0);
+                }
+            }
+            catch (Exception exception)
+            {
+                error = $"Validate local startup resources failed. Package: {package.PackageName}. {exception.Message}";
+                return false;
+            }
+
+            if (downloader == null)
+            {
+                error = $"Can not create local resource validator. Package: {package.PackageName}";
+                return false;
+            }
+
+            if (downloader.TotalDownloadCount > 0)
+            {
+                error = $"Fallback manifest is not locally complete. Package: {package.PackageName}, " +
+                        $"MissingFiles={downloader.TotalDownloadCount}, MissingBytes={downloader.TotalDownloadBytes}.";
+                return false;
+            }
+
+            return true;
+        }
+
+        private void ClearExpectedFallbackAssemblyCombination()
+        {
+            _expectedFallbackHotfixVersion = string.Empty;
+            _expectedFallbackAotVersion = string.Empty;
         }
 
 

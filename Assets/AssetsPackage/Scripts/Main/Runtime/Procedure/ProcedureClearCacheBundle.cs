@@ -1,3 +1,4 @@
+using System.Collections;
 using QFramework;
 using YooAsset;
 
@@ -11,15 +12,13 @@ namespace Framework.Procedure
 
         protected override bool OnCondition()
         {
-            return mFSM.CurrentStateId == ResPackageStates.LoadAssemblies;
+            return mFSM.CurrentStateId == ResPackageStates.StartGame;
         }
 
         protected override void OnEnter()
         {
             LogKit.I("Current state: ProcedureClearCacheBundle");
-            var package = YooAssets.GetPackage(mTarget.MainPackageName);
-            var operation = package.ClearCacheFilesAsync(EFileClearMode.ClearUnusedBundleFiles);
-            operation.Completed += OnClearCacheFilesCompleted;
+            CoroutineController.manager.StartCoroutine(ClearCacheFiles());
         }
 
         protected override void OnExit()
@@ -30,18 +29,42 @@ namespace Framework.Procedure
         {
         }
 
-        private void OnClearCacheFilesCompleted(AsyncOperationBase obj)
+        private IEnumerator ClearCacheFiles()
         {
-            if (obj.Status != EOperationStatus.Succeed)
+            if (!mTarget.LastGoodCommittedThisRun)
             {
-                LogKit.W($"Cache cleanup failed, continue startup. {obj.Error}");
-            }
-            else
-            {
-                LogKit.I("Cache cleanup completed.");
+                LogKit.W("Skip cache cleanup because LastGood was not committed in this startup.");
+                mTarget.SetFinish();
+                yield break;
             }
 
-            mFSM.ChangeState(ResPackageStates.StartGame);
+            yield return ClearPackageCache(mTarget.MainPackageName);
+            if (mTarget._isIncludeRawFile)
+            {
+                yield return ClearPackageCache(mTarget._rawfilwPkgName);
+            }
+
+            mTarget.SetFinish();
+        }
+
+        private static IEnumerator ClearPackageCache(string packageName)
+        {
+            var package = YooAssets.TryGetPackage(packageName);
+            if (package == null || !package.PackageValid)
+            {
+                LogKit.W($"Cache cleanup skipped because package is invalid: {packageName}");
+                yield break;
+            }
+
+            var operation = package.ClearCacheFilesAsync(EFileClearMode.ClearUnusedBundleFiles);
+            yield return operation;
+            if (operation.Status != EOperationStatus.Succeed)
+            {
+                LogKit.W($"Cache cleanup failed, continue startup. Package={packageName}. {operation.Error}");
+                yield break;
+            }
+
+            LogKit.I($"Cache cleanup completed. Package={packageName}");
         }
     }
 }
