@@ -265,19 +265,73 @@ namespace HybridCLR.Editor
             bool allowDevelopmentEnvironment,
             EPlayMode playerPlayMode)
         {
-            var settings = AssetDatabase.LoadAssetAtPath<HotfixRemoteSettings>(RemoteSettingsAssetPath);
-            if (settings == null)
+            var remoteSettings = AssetDatabase.LoadAssetAtPath<HotfixRemoteSettings>(RemoteSettingsAssetPath);
+            if (remoteSettings == null)
             {
                 throw new InvalidOperationException($"Hotfix remote settings missing: {RemoteSettingsAssetPath}");
             }
 
             string platform = GetRuntimePlatformName(target);
-            if (!settings.TryValidateForPlayerBuild(allowDevelopmentEnvironment, platform, out var error))
+            if (!remoteSettings.TryValidateForPlayerBuild(allowDevelopmentEnvironment, platform, out var error))
+            {
+                throw new InvalidOperationException(error);
+            }
+
+            var runtimeSettings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(RuntimeSettingsAssetPath);
+            if (runtimeSettings != null &&
+                runtimeSettings.StartupPackageMode == StartupPackageMode.EmptyPackage &&
+                !remoteSettings.TryValidateForEmptyPackageBuild(
+                    allowDevelopmentEnvironment,
+                    platform,
+                    out error))
             {
                 throw new InvalidOperationException(error);
             }
 
             BuildAssetsCommand.ValidateStartupPackageForPlayerBuild(target, playerPlayMode);
+            ValidateBuildinPackageForPlayerBuild(runtimeSettings);
+        }
+
+        private static void ValidateBuildinPackageForPlayerBuild(HotfixRuntimeSettings runtimeSettings)
+        {
+            if (runtimeSettings == null ||
+                runtimeSettings.StartupPackageMode == StartupPackageMode.EmptyPackage)
+            {
+                return;
+            }
+
+            string packageName = runtimeSettings.MainPackageName;
+            string packageRoot = Path.Combine(YooAssetSettingsData.GetYooDefaultBuildinRoot(), packageName);
+            string versionFile = Path.Combine(
+                packageRoot,
+                YooAssetSettingsData.GetPackageVersionFileName(packageName));
+            if (!File.Exists(versionFile))
+            {
+                throw new InvalidOperationException(
+                    $"StartupPackageMode.{runtimeSettings.StartupPackageMode} requires a built-in YooAsset package, " +
+                    $"but the package version file is missing: {versionFile}. " +
+                    "Run Build/热更新/一键构建/构建首包 before building the Player.");
+            }
+
+            string packageVersion = File.ReadAllText(versionFile).Trim();
+            if (string.IsNullOrWhiteSpace(packageVersion))
+            {
+                throw new InvalidOperationException($"Built-in YooAsset package version is empty: {versionFile}");
+            }
+
+            string manifestFile = Path.Combine(
+                packageRoot,
+                YooAssetSettingsData.GetManifestBinaryFileName(packageName, packageVersion));
+            string manifestHashFile = Path.Combine(
+                packageRoot,
+                YooAssetSettingsData.GetPackageHashFileName(packageName, packageVersion));
+            if (!File.Exists(manifestFile) || !File.Exists(manifestHashFile))
+            {
+                throw new InvalidOperationException(
+                    $"Built-in YooAsset manifest is incomplete for {packageName} {packageVersion}. " +
+                    $"Manifest: {manifestFile}, Hash: {manifestHashFile}. " +
+                    "Run Build/热更新/一键构建/构建首包 again before building the Player.");
+            }
         }
 
         private static bool IsDevelopmentBuild(BuildOptions options)

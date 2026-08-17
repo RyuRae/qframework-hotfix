@@ -338,7 +338,17 @@ namespace HybridCLR.Editor
             }
 
             if (context.RemoteSettings != null &&
-                !context.RemoteSettings.TryValidateForPlayerBuild(
+                !ValidateRemoteSettingsForStartupMode(context, out error))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool ValidateRemoteSettingsForStartupMode(HotfixBuildContext context, out string error)
+        {
+            if (!context.RemoteSettings.TryValidateForPlayerBuild(
                     AllowsDevelopmentCdnForBuild,
                     context.BuildTargetName,
                     RemoteEnvironment,
@@ -349,7 +359,14 @@ namespace HybridCLR.Editor
                 return false;
             }
 
-            return true;
+            return StartupPackageMode != StartupPackageMode.EmptyPackage ||
+                   context.RemoteSettings.TryValidateForEmptyPackageBuild(
+                       AllowsDevelopmentCdnForBuild,
+                       context.BuildTargetName,
+                       RemoteEnvironment,
+                       Channel,
+                       Region,
+                       out error);
         }
 
         public string ToJson()

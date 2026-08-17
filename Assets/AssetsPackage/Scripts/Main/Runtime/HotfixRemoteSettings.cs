@@ -240,6 +240,77 @@ namespace Framework
             return TryValidateForPlayerBuild(allowDevelopmentEnvironment, HotfixUtility.GetRuntimePlatformName(), out error);
         }
 
+        /// <summary>
+        /// 校验空包首次启动依赖的远端地址。空包没有内置资源，不能使用 RFC 保留的示例域名，
+        /// 否则干净安装一定无法取得首个 package version 和 manifest。
+        /// </summary>
+        public bool TryValidateForEmptyPackageBuild(
+            bool allowDevelopmentEnvironment,
+            string platform,
+            out string error)
+        {
+            return TryValidateForEmptyPackageBuild(
+                allowDevelopmentEnvironment,
+                platform,
+                defaultEnvironment,
+                defaultChannel,
+                defaultRegion,
+                out error);
+        }
+
+        public bool TryValidateForEmptyPackageBuild(
+            bool allowDevelopmentEnvironment,
+            string platform,
+            HotfixRemoteEnvironment environment,
+            string channel,
+            string region,
+            out string error)
+        {
+            if (!TryValidateForPlayerBuild(
+                    allowDevelopmentEnvironment,
+                    platform,
+                    environment,
+                    channel,
+                    region,
+                    out error))
+            {
+                return false;
+            }
+
+            var config = FindEnvironmentConfig(environment);
+            if (config == null)
+            {
+                error = $"Hotfix remote environment config missing: {environment}";
+                return false;
+            }
+
+            string normalizedPlatform = NormalizeSelector(platform);
+            string mainUrl = NormalizeBaseUrl(ReplaceTokens(
+                config.MainCdnUrlTemplate,
+                environment,
+                normalizedPlatform,
+                NormalizeSelector(channel),
+                NormalizeSelector(region),
+                "DefaultPackage"));
+            string fallbackUrl = NormalizeBaseUrl(ReplaceTokens(
+                config.FallbackCdnUrlTemplate,
+                environment,
+                normalizedPlatform,
+                NormalizeSelector(channel),
+                NormalizeSelector(region),
+                "DefaultPackage"));
+
+            if (IsReservedExampleUrl(mainUrl) || IsReservedExampleUrl(fallbackUrl))
+            {
+                error = $"StartupPackageMode.EmptyPackage requires reachable CDN URLs. " +
+                        $"RFC example domains are placeholders and can not serve the first package. " +
+                        $"Main: {mainUrl}, Fallback: {fallbackUrl}";
+                return false;
+            }
+
+            return true;
+        }
+
         public bool TryValidateForPlayerBuild(bool allowDevelopmentEnvironment, string platform, out string error)
         {
             return TryValidateForPlayerBuild(
@@ -548,6 +619,25 @@ namespace Framework
         private static bool IsLoopbackUrl(string url)
         {
             return Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.IsLoopback;
+        }
+
+        private static bool IsReservedExampleUrl(string url)
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                return false;
+            }
+
+            string host = uri.Host;
+            return IsDomainOrSubdomain(host, "example.com") ||
+                   IsDomainOrSubdomain(host, "example.net") ||
+                   IsDomainOrSubdomain(host, "example.org");
+        }
+
+        private static bool IsDomainOrSubdomain(string host, string domain)
+        {
+            return string.Equals(host, domain, StringComparison.OrdinalIgnoreCase) ||
+                   host.EndsWith($".{domain}", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool ShouldUseGrayRelease(HotfixRemoteEnvironmentConfig config, string channel, string region)

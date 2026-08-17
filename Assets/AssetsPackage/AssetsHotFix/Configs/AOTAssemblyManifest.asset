@@ -15,8 +15,8 @@ MonoBehaviour:
   AppVersion: 0.1
   BuildTarget: Android
   AotVersion: aot-8e4a27124f69d754
-  BaselineFingerprint: 43b9541d65ab38ea
-  BaselineGeneratedAtUtc: 2026-05-06T08:43:00.1571890Z
+  BaselineFingerprint: 739f374a1834d284
+  BaselineGeneratedAtUtc: 2026-05-09T08:45:23.8363670Z
   BaselineGitCommit: 
   AotMetadataAssemblies:
   - QFramework.CoreKit.dll
