@@ -78,6 +78,13 @@ namespace Framework.Procedure
                 yield break;
             }
 
+            if (!mTarget.ValidateRawFileManifestTrust(out var rawFileTrustError))
+            {
+                UIPanelRoot.Instance.ShowMessage(rawFileTrustError);
+                mTarget.SetFailed(rawFileTrustError);
+                yield break;
+            }
+
             rawProgress = 1f;
             displayProgress = 1f;
             TypeEventSystem.Global.Send(new OnAssetloadProgressEvent

@@ -201,12 +201,14 @@ namespace Framework
             StartupPackageMode packageMode,
             StartupDownloadMode downloadMode,
             StartupUpdatePolicy updatePolicy,
-            string[] downloadTags)
+            string[] downloadTags,
+            string[] rawFileDownloadTags)
         {
             startupPackageMode = packageMode;
             startupDownloadMode = downloadMode;
             startupUpdatePolicy = updatePolicy;
             startupDownloadTags = HotfixUtility.NormalizeTags(downloadTags);
+            rawfileStartupDownloadTags = HotfixUtility.NormalizeTags(rawFileDownloadTags);
         }
 
         public void SetManifestTrustForEditor(

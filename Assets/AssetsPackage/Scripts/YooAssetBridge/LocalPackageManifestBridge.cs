@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using YooAsset;
 
 namespace Framework.YooAssetBridge
@@ -25,6 +27,15 @@ namespace Framework.YooAssetBridge
         public YooAssetLocalManifestSource Source;
     }
 
+    public struct YooAssetManifestFingerprintResult
+    {
+        public bool Succeeded;
+        public string PackageName;
+        public string PackageVersion;
+        public string Sha256;
+        public string Error;
+    }
+
     public sealed class YooAssetLocalManifestBridge
     {
         private const int LocalManifestTimeout = 60;
@@ -39,6 +50,186 @@ namespace Framework.YooAssetBridge
         }
 
         public string PackageName { get; }
+
+        public static bool TryGetActiveManifestFingerprint(
+            ResourcePackage package,
+            out YooAssetManifestFingerprintResult result)
+        {
+            result = default;
+            if (!TryCreate(package, out var bridge, out var error))
+            {
+                result.Error = error;
+                return false;
+            }
+
+            PackageManifest manifest = bridge.playModeImpl.ActiveManifest;
+            if (manifest == null)
+            {
+                result.PackageName = package.PackageName;
+                result.Error = $"Active YooAsset manifest is null. Package: {package.PackageName}";
+                return false;
+            }
+
+            return TryCreateFingerprint(manifest, out result);
+        }
+
+#if UNITY_EDITOR
+        public static bool TryGetBuiltManifestFingerprint(
+            string outputPackageDirectory,
+            string packageName,
+            string packageVersion,
+            out YooAssetManifestFingerprintResult result)
+        {
+            result = default;
+            if (string.IsNullOrWhiteSpace(outputPackageDirectory) ||
+                string.IsNullOrWhiteSpace(packageName) ||
+                string.IsNullOrWhiteSpace(packageVersion))
+            {
+                result.Error = "Built manifest fingerprint requires output directory, package name, and package version.";
+                return false;
+            }
+
+            string normalizedPackageName = packageName.Trim();
+            string normalizedPackageVersion = packageVersion.Trim();
+            string manifestPath = Path.Combine(
+                outputPackageDirectory,
+                YooAssetSettingsData.GetManifestBinaryFileName(normalizedPackageName, normalizedPackageVersion));
+            if (!File.Exists(manifestPath))
+            {
+                result.PackageName = normalizedPackageName;
+                result.PackageVersion = normalizedPackageVersion;
+                result.Error = $"Built YooAsset manifest not found: {manifestPath}";
+                return false;
+            }
+
+            try
+            {
+                var manifest = ManifestTools.DeserializeFromBinary(File.ReadAllBytes(manifestPath));
+                if (!TryCreateFingerprint(manifest, out result))
+                {
+                    return false;
+                }
+
+                if (!string.Equals(result.PackageName, normalizedPackageName, StringComparison.Ordinal) ||
+                    !string.Equals(result.PackageVersion, normalizedPackageVersion, StringComparison.Ordinal))
+                {
+                    result.Succeeded = false;
+                    result.Error = $"Built manifest identity mismatch. " +
+                                   $"Expected={normalizedPackageName}:{normalizedPackageVersion}, " +
+                                   $"Actual={result.PackageName}:{result.PackageVersion}";
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception exception)
+            {
+                result.PackageName = normalizedPackageName;
+                result.PackageVersion = normalizedPackageVersion;
+                result.Error = $"Calculate built YooAsset manifest fingerprint failed. Path={manifestPath}. {exception.Message}";
+                return false;
+            }
+        }
+
+        public static bool TryCopyBuiltPackageToBuildin(
+            string outputPackageDirectory,
+            string buildinRootDirectory,
+            string packageName,
+            string packageVersion,
+            out string error)
+        {
+            error = string.Empty;
+            if (!TryLoadBuiltManifest(
+                    outputPackageDirectory,
+                    packageName,
+                    packageVersion,
+                    out var manifest,
+                    out error))
+            {
+                return false;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(buildinRootDirectory);
+                CopyBuiltFile(
+                    outputPackageDirectory,
+                    buildinRootDirectory,
+                    YooAssetSettingsData.GetManifestBinaryFileName(packageName.Trim(), packageVersion.Trim()));
+                CopyBuiltFile(
+                    outputPackageDirectory,
+                    buildinRootDirectory,
+                    YooAssetSettingsData.GetPackageHashFileName(packageName.Trim(), packageVersion.Trim()));
+                CopyBuiltFile(
+                    outputPackageDirectory,
+                    buildinRootDirectory,
+                    YooAssetSettingsData.GetPackageVersionFileName(packageName.Trim()));
+                foreach (var bundle in manifest.BundleList)
+                {
+                    CopyBuiltFile(outputPackageDirectory, buildinRootDirectory, bundle.FileName);
+                }
+
+                return true;
+            }
+            catch (Exception exception)
+            {
+                error = $"Copy built YooAsset package to build-in directory failed. " +
+                        $"Package={packageName}:{packageVersion}. {exception.Message}";
+                return false;
+            }
+        }
+
+        private static bool TryLoadBuiltManifest(
+            string outputPackageDirectory,
+            string packageName,
+            string packageVersion,
+            out PackageManifest manifest,
+            out string error)
+        {
+            manifest = null;
+            error = string.Empty;
+            if (string.IsNullOrWhiteSpace(outputPackageDirectory) ||
+                string.IsNullOrWhiteSpace(packageName) ||
+                string.IsNullOrWhiteSpace(packageVersion))
+            {
+                error = "Built YooAsset manifest requires output directory, package name, and package version.";
+                return false;
+            }
+
+            string manifestPath = Path.Combine(
+                outputPackageDirectory,
+                YooAssetSettingsData.GetManifestBinaryFileName(packageName.Trim(), packageVersion.Trim()));
+            if (!File.Exists(manifestPath))
+            {
+                error = $"Built YooAsset manifest not found: {manifestPath}";
+                return false;
+            }
+
+            manifest = ManifestTools.DeserializeFromBinary(File.ReadAllBytes(manifestPath));
+            if (!string.Equals(manifest.PackageName, packageName.Trim(), StringComparison.Ordinal) ||
+                !string.Equals(manifest.PackageVersion, packageVersion.Trim(), StringComparison.Ordinal))
+            {
+                error = $"Built manifest identity mismatch. " +
+                        $"Expected={packageName.Trim()}:{packageVersion.Trim()}, " +
+                        $"Actual={manifest.PackageName}:{manifest.PackageVersion}";
+                manifest = null;
+                return false;
+            }
+
+            return true;
+        }
+
+        private static void CopyBuiltFile(string sourceDirectory, string destinationDirectory, string fileName)
+        {
+            string sourcePath = Path.Combine(sourceDirectory, fileName);
+            if (!File.Exists(sourcePath))
+            {
+                throw new FileNotFoundException($"Built YooAsset file not found: {sourcePath}", sourcePath);
+            }
+
+            File.Copy(sourcePath, Path.Combine(destinationDirectory, fileName), true);
+        }
+#endif
 
         public static bool TryCreate(ResourcePackage package, out YooAssetLocalManifestBridge bridge, out string error)
         {
@@ -441,6 +632,136 @@ namespace Framework.YooAssetBridge
             {
                 candidates.Add(normalizedVersion);
             }
+        }
+
+        private static bool TryCreateFingerprint(
+            PackageManifest manifest,
+            out YooAssetManifestFingerprintResult result)
+        {
+            result = default;
+            if (manifest == null)
+            {
+                result.Error = "YooAsset manifest is null.";
+                return false;
+            }
+
+            try
+            {
+                using (var stream = new MemoryStream())
+                using (var writer = new BinaryWriter(stream, Encoding.UTF8))
+                {
+                    WriteString(writer, "YooAssetManifestFingerprintV1");
+                    WriteString(writer, manifest.FileVersion);
+                    writer.Write(manifest.LegacyDependency);
+                    writer.Write(manifest.EnableAddressable);
+                    writer.Write(manifest.LocationToLower);
+                    writer.Write(manifest.IncludeAssetGUID);
+                    writer.Write(manifest.OutputNameStyle);
+                    writer.Write(manifest.BuildBundleType);
+                    WriteString(writer, manifest.BuildPipeline);
+                    WriteString(writer, manifest.PackageName);
+                    WriteString(writer, manifest.PackageVersion);
+                    WriteString(writer, manifest.PackageNote);
+
+                    writer.Write(manifest.AssetList == null ? 0 : manifest.AssetList.Count);
+                    foreach (var asset in manifest.AssetList ?? new List<PackageAsset>())
+                    {
+                        WriteString(writer, asset.Address);
+                        WriteString(writer, asset.AssetPath);
+                        WriteString(writer, asset.AssetGUID);
+                        WriteStrings(writer, asset.AssetTags);
+                        writer.Write(asset.BundleID);
+                        WriteInts(writer, asset.DependBundleIDs);
+                    }
+
+                    writer.Write(manifest.BundleList == null ? 0 : manifest.BundleList.Count);
+                    foreach (var bundle in manifest.BundleList ?? new List<PackageBundle>())
+                    {
+                        WriteString(writer, bundle.BundleName);
+                        writer.Write(bundle.UnityCRC);
+                        WriteString(writer, bundle.FileHash);
+                        WriteString(writer, bundle.FileCRC);
+                        writer.Write(bundle.FileSize);
+                        writer.Write(bundle.Encrypted);
+                        WriteStrings(writer, bundle.Tags);
+                        WriteInts(writer, bundle.DependIDs);
+                        WriteInts(writer, bundle.ReferenceBundleIDs);
+                    }
+
+                    writer.Flush();
+                    using (var sha256 = SHA256.Create())
+                    {
+                        result = new YooAssetManifestFingerprintResult
+                        {
+                            Succeeded = true,
+                            PackageName = manifest.PackageName ?? string.Empty,
+                            PackageVersion = manifest.PackageVersion ?? string.Empty,
+                            Sha256 = ToHex(sha256.ComputeHash(stream.ToArray()))
+                        };
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception exception)
+            {
+                result.PackageName = manifest.PackageName ?? string.Empty;
+                result.PackageVersion = manifest.PackageVersion ?? string.Empty;
+                result.Error = $"Calculate YooAsset manifest fingerprint failed. {exception.Message}";
+                return false;
+            }
+        }
+
+        private static void WriteString(BinaryWriter writer, string value)
+        {
+            if (value == null)
+            {
+                writer.Write(-1);
+                return;
+            }
+
+            byte[] bytes = Encoding.UTF8.GetBytes(value);
+            writer.Write(bytes.Length);
+            writer.Write(bytes);
+        }
+
+        private static void WriteStrings(BinaryWriter writer, string[] values)
+        {
+            writer.Write(values == null ? -1 : values.Length);
+            if (values == null)
+            {
+                return;
+            }
+
+            foreach (var value in values)
+            {
+                WriteString(writer, value);
+            }
+        }
+
+        private static void WriteInts(BinaryWriter writer, int[] values)
+        {
+            writer.Write(values == null ? -1 : values.Length);
+            if (values == null)
+            {
+                return;
+            }
+
+            foreach (var value in values)
+            {
+                writer.Write(value);
+            }
+        }
+
+        private static string ToHex(byte[] bytes)
+        {
+            var builder = new StringBuilder(bytes.Length * 2);
+            foreach (byte value in bytes)
+            {
+                builder.Append(value.ToString("x2"));
+            }
+
+            return builder.ToString();
         }
 
         private readonly struct LocalFileSystemEntry

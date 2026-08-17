@@ -21,6 +21,7 @@ namespace HybridCLR.Editor
         public readonly StartupPackageMode StartupPackageMode;
         public readonly StartupDownloadMode StartupDownloadMode;
         public readonly string[] StartupDownloadTags;
+        public readonly string[] RawFileStartupDownloadTags;
         public readonly string MainPackageName;
         public readonly bool IncludeRawFilePackage;
         public readonly string RawFilePackageName;
@@ -73,6 +74,11 @@ namespace HybridCLR.Editor
                 : runtimeSettings == null
                 ? new string[0]
                 : runtimeSettings.StartupDownloadTags;
+            RawFileStartupDownloadTags = releaseProfile != null
+                ? releaseProfile.RawFileStartupDownloadTags ?? new string[0]
+                : runtimeSettings == null
+                ? new string[0]
+                : runtimeSettings.RawFileStartupDownloadTags;
 
             MainPackageName = runtimeSettings == null
                 ? BuildAssetsCommand.GetConfiguredMainPackageName()

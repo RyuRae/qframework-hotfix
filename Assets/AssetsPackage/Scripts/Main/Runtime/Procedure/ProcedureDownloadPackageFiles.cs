@@ -176,8 +176,7 @@ namespace Framework.Procedure
                 return package.CreateResourceDownloader(tags, DownloadingMaxNum, FailedTryAgain);
             }
 
-            Debug.Log($"No startup download tags configured for retry. Package: {packageName}");
-            return null;
+            throw new InvalidOperationException($"No startup download tags configured for retry. Package: {packageName}");
         }
 
         private void SetCurrentDownloader(ResourceDownloaderOperation downloader, bool isRawFilePackage)

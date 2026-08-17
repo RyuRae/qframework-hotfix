@@ -502,6 +502,8 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
 | `StartupDownloadTags` | 主包启动阶段下载 Tag |
 | `RawFileStartupDownloadTags` | RawFile 包启动阶段下载 Tag |
 
+RawFile 包名由 YooAsset Collector 派生并通过“一键修复”同步；RawFile 下载 Tag 则由 ReleaseProfile 统一管理并同步到 RuntimeSettings。启用 `DownloadByTags` 时，主包和 RawFile 包分别使用各自的 Tag 数组，RawFile Tag 为空或 Collector 中不存在对应 Tag 都会阻断构建，运行时也不会静默跳过。
+
 `StartupDownloadMode`：
 
 - `DownloadAll`：下载全部差异资源。
@@ -675,7 +677,7 @@ Assets/Editor/HybridCLR/HotfixReleaseProfile.asset
 - `MainCdnUrlTemplate` / `FallbackCdnUrlTemplate`
 - `RequireHttps` / `AllowedDomains` / 灰度 CDN 配置
 - `PlayerPlayMode`
-- `StartupPackageMode` / `StartupDownloadMode` / `StartupDownloadTags`
+- `StartupPackageMode` / `StartupDownloadMode` / `StartupDownloadTags` / `RawFileStartupDownloadTags`
 - `EntryTypeName` / `EntryMethodName`
 - `AllowDevelopmentCdn`
 
@@ -695,6 +697,8 @@ Assets/Editor/HybridCLR/HotfixReleaseProfile.asset
 - 写入 `HotfixRemoteSettings.asset` 的默认环境、渠道、地区和目标环境 CDN 模板。
 - 写入 `HotfixAssemblyManifest.asset` 的兼容 App 版本、HotfixVersion 和 CodeEntry。
 - `ResourceVersion` 非空时作为 YooAsset `PackageVersion`；为空时继续使用时间戳自动版本。
+- Collector 中存在 RawFile 包时，主包和 RawFile 包使用同一个 `PackageVersion`；RawFile 包名与清单 SHA-256 会写入并签名到 `HotfixAssemblyManifest.asset`。
+- Manifest 签名协议新构建使用 v2；运行时仍可验证旧 v1 AOT/Hotfix 清单，但正式环境启用 RawFile 时必须使用带 RawFile 绑定的 v2 Hotfix 清单。
 
 正式发布建议设置：
 
@@ -722,7 +726,7 @@ AllowDevelopmentCdn = false
    - `RemoteEnvironment` / `Channel` / `Region`。
    - `MainCdnUrlTemplate` / `FallbackCdnUrlTemplate` / `RequireHttps` / `AllowedDomains` / 灰度 CDN 配置。
    - `PlayerPlayMode`：`FirstPackage` / `EmptyPackage` 常用 `HostPlayMode`，WebGL 使用 `WebPlayMode`；`OfflinePackage` 使用 `OfflinePlayMode`。
-   - `StartupPackageMode` / `StartupDownloadMode` / `StartupUpdatePolicy` / `StartupDownloadTags`。
+   - `StartupPackageMode` / `StartupDownloadMode` / `StartupUpdatePolicy` / `StartupDownloadTags` / `RawFileStartupDownloadTags`。
    - `EntryTypeName` / `EntryMethodName`。
    - 正式发布设置 `RemoteEnvironment = Production` 且 `AllowDevelopmentCdn = false`。
 5. 点击 `仅校验` 或 `一键修复`。流程会把 ReleaseProfile 同步到 `HotfixRuntimeSettings.asset`、`HotfixRemoteSettings.asset`、`HotfixBuildProfile.asset` 和 `HotfixAssemblyManifest.asset`。
@@ -747,6 +751,8 @@ AllowDevelopmentCdn = false
    - ReleaseProfile 的 `StartupDownloadTags` 必须包含 `startup`。
    - 启动必需资源所在 Collector 的 `AssetTags` 必须包含 `startup`。
    - 至少包括 `AOTCodes`、`HotfixCodes`、`Configs`、`Datas` 和 CodeEntry 首帧必需资源。
+   - 启用 RawFile 包时，`RawFileStartupDownloadTags` 不能为空，并且每个 Tag 都必须真实存在于 RawFile 包的 Group 或 Collector 上。
+6. 当前运行时支持一个主包和最多一个 RawFile 包。发现多个次包时构建会明确阻断，避免静默漏构建。
 
 ### 首包发布
 
@@ -758,8 +764,8 @@ AllowDevelopmentCdn = false
    Build/热更新/一键构建/构建首包
    ```
 
-4. 构建会生成 AOT / Hotfix DLL bytes、`AOTAssemblyManifest.asset`、`HotfixAssemblyManifest.asset`、YooAsset 包和 `BuildReports/Hotfix/*.txt`。
-5. `FirstPackage` 和 `OfflinePackage` 会把 YooAsset 构建产物复制到 `StreamingAssets`；随后构建 Player。
+4. 构建会先生成 RawFile 包并计算其 YooAsset Manifest SHA-256，再写入并签名 `HotfixAssemblyManifest.asset`，最后构建包含签名清单的主包。
+5. `FirstPackage` 和 `OfflinePackage` 会先清空并复制主包，再追加 RawFile 包到 `StreamingAssets`；两个包不会互相清空。随后构建 Player。
 6. `EmptyPackage` 不会复制到 `StreamingAssets`；先上传首版远端资源，再构建 Player。
 7. 如果首包也需要远端更新能力，把输出目录上传到目标 CDN。
 
@@ -778,8 +784,8 @@ AllowDevelopmentCdn = false
    Build/热更新/一键构建/构建热更包
    ```
 
-6. 构建会复用现有 `AOTAssemblyManifest.asset`，生成新的 `HotfixAssemblyManifest.asset` 和远端 YooAsset 包。
-7. 上传 `Bundles/{UnityBuildTarget}/{PackageName}/{PackageVersion}` 到 ReleaseProfile 对应环境解析出的 CDN 根目录。
+6. 构建会复用现有 `AOTAssemblyManifest.asset`，生成同版本的主包和 RawFile 包，并把 RawFile 清单摘要绑定到新的 `HotfixAssemblyManifest.asset`。
+7. 主包与 RawFile 包都要上传：分别把 `Bundles/{UnityBuildTarget}/{MainPackageName}/{PackageVersion}` 和 `Bundles/{UnityBuildTarget}/{RawFilePackageName}/{PackageVersion}` 上传到各自包名解析出的 CDN 根目录。
 8. 上传后用浏览器或 `curl` 检查 package version、manifest 和 bundle 文件可访问。
 9. 保存 `BuildReports/Hotfix/*.txt`、ReleaseProfile JSON、上传目录和版本号，作为发布记录和回滚依据。
 
@@ -788,6 +794,7 @@ AllowDevelopmentCdn = false
 - 构建报告中 `BuildTarget`、`AppVersion`、`ResourceVersion`、`PackageVersion`、`AotVersion`、`HotfixVersion` 符合本次发布。
 - CDN 主/备地址都能访问版本文件和 manifest 文件。
 - `HotfixAssemblyManifest.asset` 的 `RequiredAotVersion` 和首包 AOT 基线一致。
+- 启用 RawFile 包时，构建报告同时包含 RawFile 包名、版本、输出/上传目录；`HotfixAssemblyManifest.asset` 的 RawFile 包名、版本和 Manifest SHA-256 都非空。
 - 测试包启动后能完成版本请求、manifest 更新、资源下载和 CodeEntry 执行。
 - 正式包没有连接 Development 环境或本地回环 CDN。
 
@@ -962,6 +969,13 @@ Bundles/{UnityBuildTarget}/{PackageName}/{PackageVersion}
 ```
 
 将该目录下的文件上传到 ReleaseProfile 最终解析出的 URL 根目录。YooAsset 请求文件时会把文件名拼到根目录后面。
+
+启用 RawFile 包时会生成两个同版本目录，必须分别上传，且 CDN 模板要保留 `{PackageName}` 或等价的包名隔离路径：
+
+```text
+Bundles/{UnityBuildTarget}/DefaultPackage/{PackageVersion}
+Bundles/{UnityBuildTarget}/RawFilePackage/{PackageVersion}
+```
 
 本地测试可以使用简单 HTTP 服务。示例：
 
@@ -1221,6 +1235,40 @@ YooAssetKit.LoadSceneAsync(
 var operation = mBattleSceneHandle.UnloadAsync();
 ```
 
+### RawFile 与多包读取
+
+RawFile 必须从明确的资源包读取，避免遗漏包名后误落到默认主包。热更入口可以直接使用 `HotfixContext.RawFilePackage`：
+
+```csharp
+public async Task StartAsync(HotfixContext context)
+{
+    if (context.RawFilePackage == null)
+    {
+        throw new InvalidOperationException("RawFile package is not enabled.");
+    }
+
+    byte[] configBytes = await YooAssetKit.LoadRawFileBytesAsync(
+        context.RawFilePackage,
+        "ConfigBytes");
+
+    string configText = await YooAssetKit.LoadRawFileTextAsync(
+        context.RawFilePackage,
+        "ConfigText");
+}
+```
+
+也可以使用显式包名重载：
+
+```csharp
+byte[] bytes = await YooAssetKit.LoadRawFileBytesAsync(
+    context.RawFilePackageName,
+    "ConfigBytes");
+```
+
+这些 API 会检查包是否已就绪、加载状态和返回数据，并在 `finally` 中释放 `RawFileHandle`；返回的 `byte[]` / `string` 不再依赖 Handle 生命周期。旧的 `LoadRawToByteAsync` / `LoadRawToStringAsync` 回调 API 已标记为 `Obsolete`。
+
+正式环境或启用 Manifest 强校验时，启动流程会在 `IHotfixEntry.StartAsync` 前校验 RawFile 活动 YooAsset Manifest 的包名、版本和 SHA-256，确保它与主包中已签名的 `HotfixAssemblyManifest` 一致。LastGood 也同时记录 RawFile 包名和版本；更换 RawFile 包名后，旧的四字段 LastGood 记录不会被错误套用到新包。
+
 ### 旧 API 迁移
 
 以下返回裸资源的 API 已标记为 `Obsolete`：
@@ -1230,6 +1278,7 @@ LoadAssetSync / LoadAssetAsync
 LoadGameObjectAsync
 LoadSubAssetSync / LoadSubAssetAsync
 LoadAssetsByTagAsync / LoadAssetsByTagsAsync
+LoadRawToByteAsync / LoadRawToStringAsync
 ```
 
 新代码应改用带 `Lease` 的 API。旧代码暂时无法迁移时，每次旧 API 加载都必须配对调用一次：
@@ -1334,6 +1383,8 @@ Build/热更新/内部工具/旧命令/构建 Win64 Player
 - 热更 asmdef 已加入 HybridCLR Settings。
 - YooAsset Collector 已收集 `AOTCodes`、`HotfixCodes`、`Configs`，以及 CodeEntry 启动阶段会立即加载的入口资源。
 - 如果 `StartupDownloadMode = DownloadByTags`，`StartupDownloadTags` 和启动资源 Collector 都包含 `startup`。
+- 启用 RawFile 且使用 `DownloadByTags` 时，`RawFileStartupDownloadTags` 非空且每个 Tag 都存在于 RawFile Collector。
+- Collector 只有一个主包和最多一个 RawFile 次包；多余次包会被构建校验阻断。
 - 灰色同步状态中 `HotfixRuntimeSettings.asset` 的包名与 Collector 一致。
 - ReleaseProfile 的主/备 CDN 不相同，且灰色解析结果符合本次发布目录。
 - `FirstPackage` / `OfflinePackage` 的启动资源完整。
@@ -1346,8 +1397,9 @@ Build/热更新/内部工具/旧命令/构建 Win64 Player
 - `HotfixAssemblyManifest.asset` 的 App 兼容版本覆盖当前 `Application.version`。
 - `HotfixAssemblyManifest.asset` 的 `HotUpdateAssemblies` 已按依赖排序。
 - `AOTAssemblyManifest.asset` / `HotfixAssemblyManifest.asset` 已记录 DLL fileName、size 和 sha256。
+- 启用 RawFile 时，主包与 RawFile 包的 `PackageVersion` 一致，构建报告包含两个输出目录，Hotfix Manifest 已记录 RawFile 包名、版本和 Manifest SHA-256。
 - 输出目录存在版本文件、manifest 文件和 bundle 文件。
-- 上传到 CDN 后，用浏览器或 curl 能访问版本文件和 manifest 文件。
+- 主包与 RawFile 包都已上传到各自 `{PackageName}` CDN 目录，用浏览器或 curl 能访问两套版本文件和 manifest 文件。
 
 ## 常见问题
 

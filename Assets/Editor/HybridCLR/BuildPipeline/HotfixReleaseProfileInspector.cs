@@ -81,6 +81,10 @@ namespace HybridCLR.Editor
                 "StartupDownloadTags",
                 requiresTags ? "* StartupDownloadTags" : "StartupDownloadTags",
                 true);
+            DrawProperty(
+                "RawFileStartupDownloadTags",
+                requiresTags ? "* RawFileStartupDownloadTags" : "RawFileStartupDownloadTags",
+                true);
 
             DrawRequiredProperty("EntryTypeName", "EntryTypeName");
         }
@@ -119,6 +123,9 @@ namespace HybridCLR.Editor
             DrawReadOnly("RawFile Package", runtimeSettings == null
                 ? "未创建 HotfixRuntimeSettings.asset"
                 : $"{runtimeSettings.IncludeRawFilePackage} / {runtimeSettings.RawFilePackageName}");
+            DrawReadOnly("RawFile StartupDownloadTags", runtimeSettings == null
+                ? "未创建 HotfixRuntimeSettings.asset"
+                : string.Join(", ", runtimeSettings.RawFileStartupDownloadTags));
             DrawReadOnly("Synced StartupPackageMode", runtimeSettings == null ? "未创建 HotfixRuntimeSettings.asset" : runtimeSettings.StartupPackageMode.ToString());
             DrawReadOnly("Synced StartupDownloadMode", runtimeSettings == null ? "未创建 HotfixRuntimeSettings.asset" : runtimeSettings.StartupDownloadMode.ToString());
             DrawReadOnly("Synced Remote Selector", ResolveSyncedRemoteSelector(profile));

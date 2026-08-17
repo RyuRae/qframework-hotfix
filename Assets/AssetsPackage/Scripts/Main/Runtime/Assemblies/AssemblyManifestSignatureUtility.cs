@@ -12,7 +12,8 @@ namespace Framework.Assemblies
     /// </summary>
     public static class AssemblyManifestSignatureUtility
     {
-        public const int CurrentSignatureVersion = 1;
+        public const int CurrentSignatureVersion = 2;
+        private const int LegacySignatureVersion = 1;
         public const string RsaSha256Algorithm = "RSA-SHA256-PKCS1";
 
         public static bool HasSignature(AOTAssemblyManifest manifest)
@@ -91,6 +92,12 @@ namespace Framework.Assemblies
             Append(builder, "BuildTarget", manifest.BuildTarget);
             Append(builder, "RequiredAotVersion", manifest.RequiredAotVersion);
             Append(builder, "HotfixVersion", manifest.HotfixVersion);
+            if (manifest.SignatureVersion >= CurrentSignatureVersion)
+            {
+                Append(builder, "RawFilePackageName", manifest.RawFilePackageName);
+                Append(builder, "RawFilePackageVersion", manifest.RawFilePackageVersion);
+                Append(builder, "RawFileManifestSha256", manifest.RawFileManifestSha256);
+            }
             Append(builder, "EntrySceneAddress", manifest.EntrySceneAddress);
             Append(builder, "EntryPrefabAddress", manifest.EntryPrefabAddress);
             Append(builder, "EntryTypeName", manifest.EntryTypeName);
@@ -227,7 +234,7 @@ namespace Framework.Assemblies
                 return false;
             }
 
-            if (signatureVersion != CurrentSignatureVersion ||
+            if ((signatureVersion != LegacySignatureVersion && signatureVersion != CurrentSignatureVersion) ||
                 !string.Equals(signatureAlgorithm, RsaSha256Algorithm, StringComparison.Ordinal))
             {
                 error = $"{label} manifest signature protocol is unsupported. " +

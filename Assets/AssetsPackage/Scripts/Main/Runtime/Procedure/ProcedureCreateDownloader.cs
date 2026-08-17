@@ -1,5 +1,6 @@
 using Framework.Events;
 using QFramework;
+using System;
 using UnityEngine;
 using YooAsset;
 
@@ -33,6 +34,21 @@ namespace Framework.Procedure
 
         private void CreateDownloader()
         {
+            if (mTarget._startupDownloadMode == StartupDownloadMode.DownloadByTags &&
+                (mTarget._downloadTags == null || mTarget._downloadTags.Length == 0))
+            {
+                mTarget.SetFailed($"Startup download tags are empty. Package: {mTarget.MainPackageName}");
+                return;
+            }
+
+            if (mTarget._startupDownloadMode == StartupDownloadMode.DownloadByTags &&
+                mTarget._isIncludeRawFile &&
+                (mTarget._rawfileDownloadTags == null || mTarget._rawfileDownloadTags.Length == 0))
+            {
+                mTarget.SetFailed($"RawFile startup download tags are empty. Package: {mTarget._rawfilwPkgName}");
+                return;
+            }
+
             if (mTarget.IsUsingLocalManifestFallback)
             {
                 Debug.Log("Using local manifest fallback, skip startup resource download.");
@@ -121,8 +137,7 @@ namespace Framework.Procedure
                 return package.CreateResourceDownloader(tags, downloadingMaxNum, failedTryAgain);
             }
 
-            Debug.Log($"No startup download tags configured. Package: {packageName}");
-            return null;
+            throw new InvalidOperationException($"No startup download tags configured. Package: {packageName}");
         }
 
         private static int GetDownloadCount(ResourceDownloaderOperation downloader)

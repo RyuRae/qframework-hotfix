@@ -91,6 +91,14 @@ namespace HybridCLR.Editor
                 HotfixBuildProfileUtility.ValidatePlayerPlayMode(context.PlayerPlayMode, context.BuildTarget);
                 ValidateStartupPackageMode(context);
                 BuildAssetsCommand.ValidateStartupDownloadTags(context.StartupDownloadMode, context.StartupDownloadTags);
+                if (context.IncludeRawFilePackage)
+                {
+                    BuildAssetsCommand.ValidateRawFilePackageForBuild(
+                        context.MainPackageName,
+                        context.RawFilePackageName,
+                        context.StartupDownloadMode,
+                        context.RawFileStartupDownloadTags);
+                }
                 report.AddInfo("Player 运行模式", context.PlayerPlayMode.ToString());
             }
             catch (Exception exception)
@@ -103,6 +111,10 @@ namespace HybridCLR.Editor
             if (context.StartupDownloadMode == StartupDownloadMode.DownloadByTags)
             {
                 report.AddInfo("启动下载 Tags", FormatTags(context.StartupDownloadTags));
+                if (context.IncludeRawFilePackage)
+                {
+                    report.AddInfo("RawFile 启动下载 Tags", FormatTags(context.RawFileStartupDownloadTags));
+                }
             }
 
             report.AddInfo("主包", context.MainPackageName);
@@ -275,6 +287,25 @@ namespace HybridCLR.Editor
             else
             {
                 report.AddInfo("Hotfix 清单", status);
+                if (context.IncludeRawFilePackage)
+                {
+                    if (string.IsNullOrWhiteSpace(context.HotfixManifest.RawFilePackageName) ||
+                        string.IsNullOrWhiteSpace(context.HotfixManifest.RawFilePackageVersion) ||
+                        string.IsNullOrWhiteSpace(context.HotfixManifest.RawFileManifestSha256))
+                    {
+                        report.AddWarning(
+                            "RawFile 清单信任",
+                            "构建时将生成",
+                            "当前 Hotfix Manifest 尚未绑定 RawFile 包身份与 YooAsset Manifest SHA-256。");
+                    }
+                    else
+                    {
+                        report.AddInfo(
+                            "RawFile 清单信任",
+                            $"{context.HotfixManifest.RawFilePackageName}:{context.HotfixManifest.RawFilePackageVersion}",
+                            context.HotfixManifest.RawFileManifestSha256);
+                    }
+                }
                 report.AddInfo(
                     "Hotfix DLL 加载顺序",
                     HotfixAssemblyDependencySorter.FormatLoadingOrder(context.HotfixManifest.HotUpdateAssemblies));

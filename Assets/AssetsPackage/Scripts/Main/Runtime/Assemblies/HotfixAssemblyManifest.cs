@@ -28,6 +28,15 @@ namespace Framework.Assemblies
         public string BuildTarget = string.Empty;
         public string RequiredAotVersion = string.Empty;
         public string HotfixVersion = string.Empty;
+
+        [Header("RawFile Package Trust")]
+        [Tooltip("本次发布绑定的 RawFile 包名；未启用 RawFile 时为空。")]
+        public string RawFilePackageName = string.Empty;
+        [Tooltip("必须与主包 ReleaseVersion 一致；未启用 RawFile 时为空。")]
+        public string RawFilePackageVersion = string.Empty;
+        [Tooltip("RawFile YooAsset Manifest 的确定性 SHA-256；正式发布参与签名并在运行时校验。")]
+        public string RawFileManifestSha256 = string.Empty;
+
         public List<string> HotUpdateAssemblies = new List<string>();
         public List<AssemblyFileRecord> HotUpdateFiles = new List<AssemblyFileRecord>();
         public List<AssemblyDependencyRecord> HotUpdateDependencies = new List<AssemblyDependencyRecord>();

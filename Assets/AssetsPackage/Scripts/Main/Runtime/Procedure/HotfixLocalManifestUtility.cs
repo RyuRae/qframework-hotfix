@@ -30,6 +30,7 @@ namespace Framework.Procedure
     internal struct HotfixLastGoodRecord
     {
         public string MainPackageVersion;
+        public string RawFilePackageName;
         public string RawFilePackageVersion;
         public string HotfixVersion;
         public string AotVersion;
@@ -81,18 +82,34 @@ namespace Framework.Procedure
             }
 
             string[] fields = serialized.Split(RecordSeparator);
-            if (fields.Length != 4)
+            if (fields.Length != 4 && fields.Length != 5)
             {
                 return false;
             }
 
-            record = new HotfixLastGoodRecord
+            if (fields.Length == 5)
             {
-                MainPackageVersion = fields[0].Trim(),
-                RawFilePackageVersion = fields[1].Trim(),
-                HotfixVersion = fields[2].Trim(),
-                AotVersion = fields[3].Trim()
-            };
+                record = new HotfixLastGoodRecord
+                {
+                    MainPackageVersion = fields[0].Trim(),
+                    RawFilePackageName = fields[1].Trim(),
+                    RawFilePackageVersion = fields[2].Trim(),
+                    HotfixVersion = fields[3].Trim(),
+                    AotVersion = fields[4].Trim()
+                };
+            }
+            else
+            {
+                // 兼容旧四字段记录。启用 RawFile 包时，调用方必须拒绝这个缺少包身份的记录。
+                record = new HotfixLastGoodRecord
+                {
+                    MainPackageVersion = fields[0].Trim(),
+                    RawFilePackageName = string.Empty,
+                    RawFilePackageVersion = fields[1].Trim(),
+                    HotfixVersion = fields[2].Trim(),
+                    AotVersion = fields[3].Trim()
+                };
+            }
             return record.IsValid;
         }
 
@@ -123,6 +140,7 @@ namespace Framework.Procedure
         public static bool SaveLastGoodRecord(
             string packageName,
             string mainPackageVersion,
+            string rawFilePackageName,
             string rawFilePackageVersion,
             string hotfixVersion,
             string aotVersion,
@@ -131,6 +149,7 @@ namespace Framework.Procedure
             return SaveLastGoodRecord(
                 packageName,
                 mainPackageVersion,
+                rawFilePackageName,
                 rawFilePackageVersion,
                 hotfixVersion,
                 aotVersion,
@@ -141,6 +160,7 @@ namespace Framework.Procedure
         public static bool SaveLastGoodRecord(
             string packageName,
             string mainPackageVersion,
+            string rawFilePackageName,
             string rawFilePackageVersion,
             string hotfixVersion,
             string aotVersion,
@@ -159,12 +179,22 @@ namespace Framework.Procedure
 
             string normalizedPackageName = packageName.Trim();
             string normalizedPackageVersion = mainPackageVersion.Trim();
+            string normalizedRawFilePackageName = string.IsNullOrWhiteSpace(rawFilePackageName)
+                ? string.Empty
+                : rawFilePackageName.Trim();
             string normalizedRawFileVersion = string.IsNullOrWhiteSpace(rawFilePackageVersion)
                 ? string.Empty
                 : rawFilePackageVersion.Trim();
             string normalizedHotfixVersion = hotfixVersion.Trim();
             string normalizedAotVersion = aotVersion.Trim();
+            if (string.IsNullOrEmpty(normalizedRawFilePackageName) != string.IsNullOrEmpty(normalizedRawFileVersion))
+            {
+                error = "LastGood RawFile package name and version must either both be set or both be empty.";
+                return false;
+            }
+
             if (ContainsRecordSeparator(normalizedPackageVersion) ||
+                ContainsRecordSeparator(normalizedRawFilePackageName) ||
                 ContainsRecordSeparator(normalizedRawFileVersion) ||
                 ContainsRecordSeparator(normalizedHotfixVersion) ||
                 ContainsRecordSeparator(normalizedAotVersion))
@@ -179,6 +209,7 @@ namespace Framework.Procedure
                 PlayerPrefs.SetString(key, string.Join(
                     RecordSeparator.ToString(),
                     normalizedPackageVersion,
+                    normalizedRawFilePackageName,
                     normalizedRawFileVersion,
                     normalizedHotfixVersion,
                     normalizedAotVersion));

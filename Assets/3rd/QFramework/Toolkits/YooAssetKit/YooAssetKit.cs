@@ -605,20 +605,44 @@ namespace QFramework
 
 
         /// <summary>
-        /// 通过包名异步加载原生文件返回bytes
+        /// 从显式 ResourcePackage 加载 RawFile 二进制。方法返回前会复制数据并释放 RawFileHandle。
         /// </summary>
-        /// <param name="assetName">资源名称</param>
-        /// <param name="onLoad">加载完成回调</param>
-        /// <param name="packageName">包名</param>
+        public static UniTask<byte[]> LoadRawFileBytesAsync(ResourcePackage package, string assetName)
+        {
+            return LoadRawFileAsync(package, assetName, handle => handle.GetRawFileData());
+        }
+
+        /// <summary>
+        /// 从显式包名加载 RawFile 二进制。多包项目必须传入明确包名。
+        /// </summary>
+        public static UniTask<byte[]> LoadRawFileBytesAsync(string packageName, string assetName)
+        {
+            return LoadRawFileBytesAsync(GetRequiredPackage(packageName), assetName);
+        }
+
+        /// <summary>
+        /// 从显式 ResourcePackage 加载 RawFile 文本。方法返回前会读取文本并释放 RawFileHandle。
+        /// </summary>
+        public static UniTask<string> LoadRawFileTextAsync(ResourcePackage package, string assetName)
+        {
+            return LoadRawFileAsync(package, assetName, handle => handle.GetRawFileText());
+        }
+
+        /// <summary>
+        /// 从显式包名加载 RawFile 文本。多包项目必须传入明确包名。
+        /// </summary>
+        public static UniTask<string> LoadRawFileTextAsync(string packageName, string assetName)
+        {
+            return LoadRawFileTextAsync(GetRequiredPackage(packageName), assetName);
+        }
+
+        /// <summary>
+        /// 旧回调 API。新代码应使用显式 ResourcePackage 的 LoadRawFileBytesAsync。
+        /// </summary>
+        [Obsolete("Use await LoadRawFileBytesAsync(ResourcePackage, assetName). Multi-package code must pass context.RawFilePackage explicitly.")]
         public static void LoadRawToByteAsync(string assetName, Action<byte[]> onLoad, string packageName = "DefaultPackage")
         {
-            var package = GetPackageOrDefault(packageName);
-            RawFileHandle handle = package.LoadRawFileAsync(assetName);
-            handle.Completed += (assetHandle) =>
-            {
-                onLoad?.Invoke(assetHandle.GetRawFileData());
-                handle.Release();
-            };
+            LoadRawFileBytesCompatAsync(packageName, assetName, onLoad).Forget();
         }
 
         /// <summary>
@@ -626,14 +650,10 @@ namespace QFramework
         /// </summary>
         /// <param name="assetName">资源名称</param>
         /// <param name="onLoad">加载完成回调</param>
+        [Obsolete("Use await LoadRawFileBytesAsync(ResourcePackage, assetName). Multi-package code must pass context.RawFilePackage explicitly.")]
         public static void LoadRawToByteAsync(string assetName, Action<byte[]> onLoad)
         {
-            RawFileHandle handle = YooAssets.LoadRawFileAsync(assetName);
-            handle.Completed += (assetHandle) =>
-            {
-                onLoad?.Invoke(assetHandle.GetRawFileData());
-                handle.Release();
-            };
+            LoadRawFileBytesCompatAsync(sDefaultPackageName, assetName, onLoad).Forget();
         }
 
 
@@ -643,15 +663,10 @@ namespace QFramework
         /// <param name="assetName">资源名称</param>
         /// <param name="onLoad">加载完成回调</param>
         /// <param name="packageName">包名</param>
+        [Obsolete("Use await LoadRawFileTextAsync(ResourcePackage, assetName). Multi-package code must pass context.RawFilePackage explicitly.")]
         public static void LoadRawToStringAsync(string assetName, Action<string> onLoad, string packageName = "DefaultPackage")
         {
-            var package = GetPackageOrDefault(packageName);
-            RawFileHandle handle = package.LoadRawFileAsync(assetName);
-            handle.Completed += (assetHandle) =>
-            {
-                onLoad?.Invoke(assetHandle.GetRawFileText());
-                handle.Release();
-            };
+            LoadRawFileTextCompatAsync(packageName, assetName, onLoad).Forget();
         }
 
         /// <summary>
@@ -659,14 +674,10 @@ namespace QFramework
         /// </summary>
         /// <param name="assetName">资源名称</param>
         /// <param name="onLoad">加载完成回调</param>
+        [Obsolete("Use await LoadRawFileTextAsync(ResourcePackage, assetName). Multi-package code must pass context.RawFilePackage explicitly.")]
         public static void LoadRawToStringAsync(string assetName, Action<string> onLoad)
         {
-            RawFileHandle handle = YooAssets.LoadRawFileAsync(assetName);
-            handle.Completed += (assetHandle) =>
-            {
-                onLoad?.Invoke(assetHandle.GetRawFileText());
-                handle.Release();
-            };
+            LoadRawFileTextCompatAsync(sDefaultPackageName, assetName, onLoad).Forget();
         }
 
         /// <summary>
@@ -765,6 +776,102 @@ namespace QFramework
             }
 
             return new YooAssetLease<T>(asset, handle, assetName, packageName);
+        }
+
+        private static ResourcePackage GetRequiredPackage(string packageName)
+        {
+            if (string.IsNullOrWhiteSpace(packageName))
+            {
+                throw new ArgumentException(
+                    "RawFile loading requires an explicit non-empty package name.",
+                    nameof(packageName));
+            }
+
+            return YooAssets.GetPackage(packageName.Trim());
+        }
+
+        private static async UniTask<T> LoadRawFileAsync<T>(
+            ResourcePackage package,
+            string assetName,
+            Func<RawFileHandle, T> readResult)
+        {
+            if (package == null)
+            {
+                throw new ArgumentNullException(nameof(package));
+            }
+
+            if (!package.PackageValid)
+            {
+                throw new InvalidOperationException(
+                    $"RawFile package is not ready: {package.PackageName}");
+            }
+
+            if (string.IsNullOrWhiteSpace(assetName))
+            {
+                throw new ArgumentException("RawFile asset name can not be empty.", nameof(assetName));
+            }
+
+            if (readResult == null)
+            {
+                throw new ArgumentNullException(nameof(readResult));
+            }
+
+            string normalizedAssetName = assetName.Trim();
+            RawFileHandle handle = package.LoadRawFileAsync(normalizedAssetName);
+            try
+            {
+                await handle.Task;
+                if (handle.Status != EOperationStatus.Succeed)
+                {
+                    throw new InvalidOperationException(
+                        $"YooAsset RawFile load failed: {package.PackageName}:{normalizedAssetName}. {handle.LastError}");
+                }
+
+                T result = readResult(handle);
+                if (ReferenceEquals(result, null))
+                {
+                    throw new InvalidOperationException(
+                        $"YooAsset RawFile returned no data: {package.PackageName}:{normalizedAssetName}");
+                }
+
+                return result;
+            }
+            finally
+            {
+                handle?.Release();
+            }
+        }
+
+        private static async UniTask LoadRawFileBytesCompatAsync(
+            string packageName,
+            string assetName,
+            Action<byte[]> onLoad)
+        {
+            try
+            {
+                onLoad?.Invoke(await LoadRawFileBytesAsync(packageName, assetName));
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+                onLoad?.Invoke(null);
+            }
+        }
+
+        private static async UniTask LoadRawFileTextCompatAsync(
+            string packageName,
+            string assetName,
+            Action<string> onLoad)
+        {
+            try
+            {
+                onLoad?.Invoke(await LoadRawFileTextAsync(packageName, assetName));
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+                onLoad?.Invoke(null);
+            }
         }
 
         private static YooAssetLease<T> CreateSubAssetLease<T>(

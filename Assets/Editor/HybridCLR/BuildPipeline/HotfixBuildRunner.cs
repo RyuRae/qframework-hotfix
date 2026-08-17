@@ -101,23 +101,39 @@ namespace HybridCLR.Editor
                 hotfixAssemblies,
                 aotManifest.AotVersion,
                 packageVersion);
+            BuildResult rawFileBuildResult = BuildRawFilePackage(
+                context,
+                packageConfig,
+                packageVersion);
+            ApplyRawFileManifestBinding(packageConfig, packageVersion, rawFileBuildResult, hotfixManifest);
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
             BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
-            BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget);
+            BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget, false);
 
             bool copyToStreamingAssets = context.StartupPackageMode != Framework.StartupPackageMode.EmptyPackage;
             var buildResult = BuildAssetsCommand.BuildYooAssetPackage(
                 packageConfig.MainPackageName,
                 context.BuildTarget,
-                copyToStreamingAssets,
+                copyToStreamingAssets
+                    ? EBuildinFileCopyOption.ClearAndCopyAll
+                    : EBuildinFileCopyOption.None,
                 packageVersion);
+            if (copyToStreamingAssets && rawFileBuildResult != null)
+            {
+                BuildAssetsCommand.AppendRawFilePackageToStreamingAssets(
+                    packageConfig.RawFilePackageName,
+                    packageVersion,
+                    rawFileBuildResult);
+            }
             Debug.Log("[HotfixBuild] 首包构建完成。");
 
             return HotfixBuildExecutionResult.Create(
                 context,
                 packageConfig.MainPackageName,
                 buildResult,
+                packageConfig.IncludeRawFilePackage ? packageConfig.RawFilePackageName : string.Empty,
+                rawFileBuildResult,
                 copyToStreamingAssets,
                 aotManifest,
                 hotfixManifest,
@@ -146,15 +162,20 @@ namespace HybridCLR.Editor
                 hotfixAssemblies,
                 aotManifest.AotVersion,
                 packageVersion);
+            BuildResult rawFileBuildResult = BuildRawFilePackage(
+                context,
+                packageConfig,
+                packageVersion);
+            ApplyRawFileManifestBinding(packageConfig, packageVersion, rawFileBuildResult, hotfixManifest);
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
             BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixManifest.HotUpdateAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
-            BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget);
+            BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget, false);
 
             var buildResult = BuildAssetsCommand.BuildYooAssetPackage(
                 packageConfig.MainPackageName,
                 context.BuildTarget,
-                false,
+                EBuildinFileCopyOption.None,
                 packageVersion);
             Debug.Log("[HotfixBuild] 热更包构建完成。");
 
@@ -162,6 +183,8 @@ namespace HybridCLR.Editor
                 context,
                 packageConfig.MainPackageName,
                 buildResult,
+                packageConfig.IncludeRawFilePackage ? packageConfig.RawFilePackageName : string.Empty,
+                rawFileBuildResult,
                 false,
                 aotManifest,
                 hotfixManifest,
@@ -215,15 +238,20 @@ namespace HybridCLR.Editor
                 hotfixAssemblies,
                 aotManifest.AotVersion,
                 packageVersion);
+            BuildResult rawFileBuildResult = BuildRawFilePackage(
+                context,
+                packageConfig,
+                packageVersion);
+            ApplyRawFileManifestBinding(packageConfig, packageVersion, rawFileBuildResult, hotfixManifest);
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
             BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
-            BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget);
+            BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget, false);
 
             var buildResult = BuildAssetsCommand.BuildYooAssetPackage(
                 packageConfig.MainPackageName,
                 context.BuildTarget,
-                false,
+                EBuildinFileCopyOption.None,
                 packageVersion);
             Debug.Log("[HotfixBuild] AOT 元数据补丁构建完成。");
 
@@ -231,10 +259,48 @@ namespace HybridCLR.Editor
                 context,
                 packageConfig.MainPackageName,
                 buildResult,
+                packageConfig.IncludeRawFilePackage ? packageConfig.RawFilePackageName : string.Empty,
+                rawFileBuildResult,
                 false,
                 aotManifest,
                 hotfixManifest,
                 true);
+        }
+
+        private static BuildResult BuildRawFilePackage(
+            HotfixBuildContext context,
+            BuildAssetsCommand.RuntimePackageConfig packageConfig,
+            string packageVersion)
+        {
+            if (!packageConfig.IncludeRawFilePackage)
+            {
+                return null;
+            }
+
+            return BuildAssetsCommand.BuildRawFilePackage(
+                packageConfig.RawFilePackageName,
+                context.BuildTarget,
+                EBuildinFileCopyOption.None,
+                packageVersion);
+        }
+
+        private static void ApplyRawFileManifestBinding(
+            BuildAssetsCommand.RuntimePackageConfig packageConfig,
+            string packageVersion,
+            BuildResult rawFileBuildResult,
+            HotfixAssemblyManifest hotfixManifest)
+        {
+            if (packageConfig.IncludeRawFilePackage)
+            {
+                BuildAssetsCommand.BindRawFileManifestToHotfixManifest(
+                    hotfixManifest,
+                    packageConfig.RawFilePackageName,
+                    packageVersion,
+                    rawFileBuildResult);
+                return;
+            }
+
+            BuildAssetsCommand.ClearRawFileManifestBinding(hotfixManifest);
         }
 
         private static HotfixBuildExecutionResult ResolveExpiredAOTManifest(
@@ -276,6 +342,13 @@ namespace HybridCLR.Editor
             builder.AppendLine($"PackageName: {result.PackageName}");
             builder.AppendLine($"ResourceVersion: {result.ResourceVersion}");
             builder.AppendLine($"PackageVersion: {result.PackageVersion}");
+            if (!string.IsNullOrWhiteSpace(result.RawFilePackageName))
+            {
+                builder.AppendLine($"RawFilePackageName: {result.RawFilePackageName}");
+                builder.AppendLine($"RawFilePackageVersion: {result.RawFilePackageVersion}");
+                builder.AppendLine($"RawFile 输出目录: {result.RawFileOutputPackageDirectory}");
+                builder.AppendLine($"RawFile CDN 上传目录: {result.RawFileCdnUploadDirectory}");
+            }
             builder.AppendLine($"AotVersion: {result.AotVersion}");
             builder.AppendLine($"HotfixVersion: {result.HotfixVersion}");
             builder.AppendLine($"RequiredAotVersion: {result.RequiredAotVersion}");
@@ -327,6 +400,10 @@ namespace HybridCLR.Editor
         public string PackageVersion;
         public string OutputPackageDirectory;
         public string CdnUploadDirectory;
+        public string RawFilePackageName;
+        public string RawFilePackageVersion;
+        public string RawFileOutputPackageDirectory;
+        public string RawFileCdnUploadDirectory;
         public string AotVersion;
         public string HotfixVersion;
         public string RequiredAotVersion;
@@ -341,12 +418,17 @@ namespace HybridCLR.Editor
             HotfixBuildContext context,
             string packageName,
             BuildResult buildResult,
+            string rawFilePackageName,
+            BuildResult rawFileBuildResult,
             bool copyToStreamingAssets,
             AOTAssemblyManifest aotManifest,
             HotfixAssemblyManifest hotfixManifest,
             bool isAOTMetadataPatch)
         {
             string outputDirectory = buildResult == null ? string.Empty : buildResult.OutputPackageDirectory;
+            string rawFileOutputDirectory = rawFileBuildResult == null
+                ? string.Empty
+                : rawFileBuildResult.OutputPackageDirectory;
             return new HotfixBuildExecutionResult
             {
                 Mode = context.Mode,
@@ -359,6 +441,10 @@ namespace HybridCLR.Editor
                 PackageVersion = GetPackageVersion(outputDirectory),
                 OutputPackageDirectory = outputDirectory,
                 CdnUploadDirectory = outputDirectory,
+                RawFilePackageName = rawFilePackageName ?? string.Empty,
+                RawFilePackageVersion = GetPackageVersion(rawFileOutputDirectory),
+                RawFileOutputPackageDirectory = rawFileOutputDirectory,
+                RawFileCdnUploadDirectory = rawFileOutputDirectory,
                 AotVersion = aotManifest == null ? string.Empty : aotManifest.AotVersion,
                 HotfixVersion = hotfixManifest == null ? string.Empty : hotfixManifest.HotfixVersion,
                 RequiredAotVersion = hotfixManifest == null ? string.Empty : hotfixManifest.RequiredAotVersion,
@@ -384,6 +470,13 @@ namespace HybridCLR.Editor
             report.AddInfo("RequiredAotVersion", RequiredAotVersion);
             report.AddInfo("YooAsset 输出目录", OutputPackageDirectory);
             report.AddInfo("CDN 上传目录", CdnUploadDirectory);
+            if (!string.IsNullOrWhiteSpace(RawFilePackageName))
+            {
+                report.AddInfo("RawFile 资源包名", RawFilePackageName);
+                report.AddInfo("RawFile 资源包版本", RawFilePackageVersion);
+                report.AddInfo("RawFile YooAsset 输出目录", RawFileOutputPackageDirectory);
+                report.AddInfo("RawFile CDN 上传目录", RawFileCdnUploadDirectory);
+            }
             report.AddInfo("StreamingAssets", CopyToStreamingAssets ? "已复制" : "不复制");
             report.AddInfo("Hotfix DLL 加载顺序", HotfixAssemblyDependencySorter.FormatLoadingOrder(HotUpdateFiles.Select(GetRecordFileName)));
             report.AddInfo("Hotfix DLL 依赖关系", HotfixAssemblyDependencySorter.FormatDependencies(HotUpdateDependencies));

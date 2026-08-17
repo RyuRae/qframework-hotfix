@@ -8,6 +8,7 @@ using System.Text;
 using Framework;
 using Framework.Assemblies;
 using Framework.Utils;
+using Framework.YooAssetBridge;
 using HybridCLR.Editor.Commands;
 using UnityEditor;
 using UnityEngine;
@@ -30,6 +31,8 @@ namespace HybridCLR.Editor
         public const string RequiredStartupTag = HotfixRuntimeSettings.DefaultStartupTag;
         // Mirrors YooAsset's internal EBuildBundleType.AssetBundle without referencing an internal enum.
         private const int YooAssetBuildBundleTypeAssetBundle = 2;
+        // Mirrors YooAsset's internal EBuildBundleType.RawBundle without referencing an internal enum.
+        private const int YooAssetBuildBundleTypeRawBundle = 3;
 
         public sealed class RuntimePackageConfig
         {
@@ -51,15 +54,42 @@ namespace HybridCLR.Editor
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
             var packageConfig = HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
             CompileDllCommand.CompileDll(target);
+            string packageVersion = CreatePackageVersion(target);
 
             var aotAssemblies = CopyAOTAssembliesToTargetPath(target);
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
-            var aotManifest = CreateOrUpdateAOTAssemblyManifest(target, aotAssemblies);
-            var hotfixManifest = CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
-            CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
-            ValidateStartupPackageForBuild(target);
+            var aotManifest = CreateOrUpdateAOTAssemblyManifest(target, aotAssemblies, packageVersion);
+            var hotfixManifest = CreateOrUpdateHotfixAssemblyManifest(
+                target,
+                hotfixAssemblies,
+                aotManifest.AotVersion,
+                packageVersion);
 
-            BuildYooAssetPackage(packageConfig.MainPackageName, target, ShouldCopyPackageToStreamingAssets());
+            bool copyToStreamingAssets = ShouldCopyPackageToStreamingAssets();
+            BuildResult rawFileBuildResult = null;
+            if (packageConfig.IncludeRawFilePackage)
+            {
+                rawFileBuildResult = BuildRawFilePackage(
+                    packageConfig.RawFilePackageName,
+                    target,
+                    EBuildinFileCopyOption.None,
+                    packageVersion);
+            }
+            ApplyRawFileManifestBinding(packageConfig, packageVersion, rawFileBuildResult, hotfixManifest);
+            CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
+            ValidateStartupPackageForBuild(target, false);
+            BuildYooAssetPackage(
+                packageConfig.MainPackageName,
+                target,
+                copyToStreamingAssets ? EBuildinFileCopyOption.ClearAndCopyAll : EBuildinFileCopyOption.None,
+                packageVersion);
+            if (copyToStreamingAssets && rawFileBuildResult != null)
+            {
+                AppendRawFilePackageToStreamingAssets(
+                    packageConfig.RawFilePackageName,
+                    packageVersion,
+                    rawFileBuildResult);
+            }
             AssetDatabase.Refresh();
         }
 
@@ -70,13 +100,28 @@ namespace HybridCLR.Editor
             var packageConfig = HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
             var aotManifest = LoadValidatedAOTManifestForHotfixBuild(target);
             CompileDllCommand.CompileDll(target);
+            string packageVersion = CreatePackageVersion(target);
 
             var hotfixAssemblies = CopyHotUpdateAssembliesToTargetPath(target);
-            var hotfixManifest = CreateOrUpdateHotfixAssemblyManifest(target, hotfixAssemblies, aotManifest.AotVersion);
+            var hotfixManifest = CreateOrUpdateHotfixAssemblyManifest(
+                target,
+                hotfixAssemblies,
+                aotManifest.AotVersion,
+                packageVersion);
+            BuildResult rawFileBuildResult = null;
+            if (packageConfig.IncludeRawFilePackage)
+            {
+                rawFileBuildResult = BuildRawFilePackage(
+                    packageConfig.RawFilePackageName,
+                    target,
+                    EBuildinFileCopyOption.None,
+                    packageVersion);
+            }
+            ApplyRawFileManifestBinding(packageConfig, packageVersion, rawFileBuildResult, hotfixManifest);
             CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixManifest.HotUpdateAssemblies);
             ValidateSplitAssemblyManifestsForBuild(target);
-            ValidateStartupPackageForBuild(target);
-            BuildYooAssetPackage(packageConfig.MainPackageName, target, false);
+            ValidateStartupPackageForBuild(target, false);
+            BuildYooAssetPackage(packageConfig.MainPackageName, target, EBuildinFileCopyOption.None, packageVersion);
             AssetDatabase.Refresh();
         }
 
@@ -218,6 +263,21 @@ namespace HybridCLR.Editor
             bool copyToStreamingAssets,
             string packageVersion = null)
         {
+            return BuildYooAssetPackage(
+                packageName,
+                target,
+                copyToStreamingAssets
+                    ? EBuildinFileCopyOption.ClearAndCopyAll
+                    : EBuildinFileCopyOption.None,
+                packageVersion);
+        }
+
+        public static BuildResult BuildYooAssetPackage(
+            string packageName,
+            BuildTarget target,
+            EBuildinFileCopyOption buildinFileCopyOption,
+            string packageVersion = null)
+        {
             packageName = NormalizePackageName(packageName, GetConfiguredMainPackageName());
             var buildParameters = new BuiltinBuildParameters
             {
@@ -233,12 +293,10 @@ namespace HybridCLR.Editor
                 EnableSharePackRule = true,
                 VerifyBuildingResult = true,
                 FileNameStyle = EFileNameStyle.HashName,
-                BuildinFileCopyOption = copyToStreamingAssets
-                    ? EBuildinFileCopyOption.ClearAndCopyAll
-                    : EBuildinFileCopyOption.None,
+                BuildinFileCopyOption = buildinFileCopyOption,
                 BuildinFileCopyParams = string.Empty,
                 CompressOption = ECompressOption.LZ4,
-                ClearBuildCacheFiles = copyToStreamingAssets,
+                ClearBuildCacheFiles = true,
                 UseAssetDependencyDB = true
             };
 
@@ -251,6 +309,66 @@ namespace HybridCLR.Editor
 
             Debug.Log($"[BuildYooAssetPackage] Output: {result.OutputPackageDirectory}");
             return result;
+        }
+
+        public static BuildResult BuildRawFilePackage(
+            string packageName,
+            BuildTarget target,
+            EBuildinFileCopyOption buildinFileCopyOption,
+            string packageVersion = null)
+        {
+            packageName = NormalizePackageName(packageName, HotfixRuntimeSettings.DefaultRawFilePackageName);
+            var buildParameters = new RawFileBuildParameters
+            {
+                BuildOutputRoot = AssetBundleBuilderHelper.GetDefaultBuildOutputRoot(),
+                BuildinFileRoot = AssetBundleBuilderHelper.GetStreamingAssetsRoot(),
+                BuildPipeline = EBuildPipeline.RawFileBuildPipeline.ToString(),
+                BuildBundleType = YooAssetBuildBundleTypeRawBundle,
+                BuildTarget = target,
+                PackageName = packageName,
+                PackageVersion = string.IsNullOrWhiteSpace(packageVersion)
+                    ? CreatePackageVersion(target)
+                    : packageVersion.Trim(),
+                VerifyBuildingResult = true,
+                FileNameStyle = EFileNameStyle.HashName,
+                BuildinFileCopyOption = buildinFileCopyOption,
+                BuildinFileCopyParams = string.Empty,
+                ClearBuildCacheFiles = true,
+                UseAssetDependencyDB = true
+            };
+
+            var pipeline = new RawFileBuildPipeline();
+            BuildResult result = pipeline.Run(buildParameters, true);
+            if (!result.Success)
+            {
+                throw new Exception($"YooAsset RawFile package build failed: {result.ErrorInfo}");
+            }
+
+            Debug.Log($"[BuildRawFilePackage] Output: {result.OutputPackageDirectory}");
+            return result;
+        }
+
+        public static void AppendRawFilePackageToStreamingAssets(
+            string packageName,
+            string packageVersion,
+            BuildResult rawFileBuildResult)
+        {
+            if (rawFileBuildResult == null || string.IsNullOrWhiteSpace(rawFileBuildResult.OutputPackageDirectory))
+            {
+                throw new InvalidOperationException("RawFile build result is missing; can not copy it to StreamingAssets.");
+            }
+
+            if (!YooAssetLocalManifestBridge.TryCopyBuiltPackageToBuildin(
+                    rawFileBuildResult.OutputPackageDirectory,
+                    AssetBundleBuilderHelper.GetStreamingAssetsRoot(),
+                    NormalizePackageName(packageName, HotfixRuntimeSettings.DefaultRawFilePackageName),
+                    packageVersion,
+                    out var error))
+            {
+                throw new InvalidOperationException(error);
+            }
+
+            AssetDatabase.Refresh();
         }
 
         public static RuntimePackageConfig GetRuntimePackageConfigFromCollectorSettings()
@@ -429,6 +547,82 @@ namespace HybridCLR.Editor
             return manifest;
         }
 
+        public static void BindRawFileManifestToHotfixManifest(
+            HotfixAssemblyManifest manifest,
+            string rawFilePackageName,
+            string packageVersion,
+            BuildResult rawFileBuildResult)
+        {
+            if (manifest == null)
+            {
+                throw new ArgumentNullException(nameof(manifest));
+            }
+
+            if (rawFileBuildResult == null || string.IsNullOrWhiteSpace(rawFileBuildResult.OutputPackageDirectory))
+            {
+                throw new InvalidOperationException("RawFile build result is missing; can not bind its manifest to the Hotfix manifest.");
+            }
+
+            string normalizedPackageName = NormalizePackageName(
+                rawFilePackageName,
+                HotfixRuntimeSettings.DefaultRawFilePackageName);
+            if (string.IsNullOrWhiteSpace(packageVersion))
+            {
+                throw new InvalidOperationException("RawFile package version is empty.");
+            }
+
+            string normalizedPackageVersion = packageVersion.Trim();
+            if (!YooAssetLocalManifestBridge.TryGetBuiltManifestFingerprint(
+                    rawFileBuildResult.OutputPackageDirectory,
+                    normalizedPackageName,
+                    normalizedPackageVersion,
+                    out var fingerprint))
+            {
+                throw new InvalidOperationException(fingerprint.Error);
+            }
+
+            manifest.RawFilePackageName = normalizedPackageName;
+            manifest.RawFilePackageVersion = normalizedPackageVersion;
+            manifest.RawFileManifestSha256 = fingerprint.Sha256;
+            HotfixManifestSigningUtility.SignOrClear(manifest);
+            EditorUtility.SetDirty(manifest);
+            AssetDatabase.SaveAssetIfDirty(manifest);
+        }
+
+        public static void ClearRawFileManifestBinding(HotfixAssemblyManifest manifest)
+        {
+            if (manifest == null)
+            {
+                throw new ArgumentNullException(nameof(manifest));
+            }
+
+            manifest.RawFilePackageName = string.Empty;
+            manifest.RawFilePackageVersion = string.Empty;
+            manifest.RawFileManifestSha256 = string.Empty;
+            HotfixManifestSigningUtility.SignOrClear(manifest);
+            EditorUtility.SetDirty(manifest);
+            AssetDatabase.SaveAssetIfDirty(manifest);
+        }
+
+        private static void ApplyRawFileManifestBinding(
+            RuntimePackageConfig packageConfig,
+            string packageVersion,
+            BuildResult rawFileBuildResult,
+            HotfixAssemblyManifest hotfixManifest)
+        {
+            if (packageConfig.IncludeRawFilePackage)
+            {
+                BindRawFileManifestToHotfixManifest(
+                    hotfixManifest,
+                    packageConfig.RawFilePackageName,
+                    packageVersion,
+                    rawFileBuildResult);
+                return;
+            }
+
+            ClearRawFileManifestBinding(hotfixManifest);
+        }
+
         public static AssemblyManifest CreateOrUpdateAssemblyManifest(List<string> aotAssemblies, List<string> hotfixAssemblies)
         {
             Directory.CreateDirectory(ConfigsPath);
@@ -473,22 +667,28 @@ namespace HybridCLR.Editor
 
         public static void ValidateStartupPackageForBuild(BuildTarget target)
         {
+            ValidateStartupPackageForBuild(target, true);
+        }
+
+        public static void ValidateStartupPackageForBuild(BuildTarget target, bool validateRawFileBinding)
+        {
             var settings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(HotfixBuildProfileUtility.RuntimeSettingsAssetPath);
             var playerPlayMode = settings == null ? EPlayMode.HostPlayMode : settings.PlayerPlayMode;
-            ValidateStartupPackageForBuild(target, settings, playerPlayMode, true);
+            ValidateStartupPackageForBuild(target, settings, playerPlayMode, true, validateRawFileBinding);
         }
 
         public static void ValidateStartupPackageForPlayerBuild(BuildTarget target, EPlayMode playerPlayMode)
         {
             var settings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(HotfixBuildProfileUtility.RuntimeSettingsAssetPath);
-            ValidateStartupPackageForBuild(target, settings, playerPlayMode, false);
+            ValidateStartupPackageForBuild(target, settings, playerPlayMode, false, true);
         }
 
         private static void ValidateStartupPackageForBuild(
             BuildTarget target,
             HotfixRuntimeSettings settings,
             EPlayMode playerPlayMode,
-            bool validatePackageAssets)
+            bool validatePackageAssets,
+            bool validateRawFileBinding)
         {
             var packageMode = settings == null ? StartupPackageMode.FirstPackage : settings.StartupPackageMode;
             ValidateStartupDownloadTags(settings);
@@ -512,6 +712,10 @@ namespace HybridCLR.Editor
             }
 
             ValidateSplitAssemblyManifestsForBuild(target);
+            if (validateRawFileBinding)
+            {
+                ValidateRawFileManifestBinding(settings);
+            }
             // var hotfixManifest = AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(HotfixAssemblyManifestAssetPath);
             // if (packageMode != StartupPackageMode.EmptyPackage)
             // {
@@ -526,12 +730,20 @@ namespace HybridCLR.Editor
 
         public static void ValidateStartupDownloadTags(HotfixRuntimeSettings settings)
         {
-            if (settings == null || settings.StartupDownloadMode != StartupDownloadMode.DownloadByTags)
+            if (settings == null)
             {
                 return;
             }
 
             ValidateStartupDownloadTags(settings.StartupDownloadMode, settings.StartupDownloadTags);
+            if (settings.IncludeRawFilePackage)
+            {
+                ValidateRawFilePackageForBuild(
+                    settings.MainPackageName,
+                    settings.RawFilePackageName,
+                    settings.StartupDownloadMode,
+                    settings.RawFileStartupDownloadTags);
+            }
         }
 
         public static void ValidateStartupDownloadTags(StartupDownloadMode downloadMode, string[] tags)
@@ -545,6 +757,126 @@ namespace HybridCLR.Editor
             {
                 throw new InvalidOperationException(
                     $"StartupDownloadMode.DownloadByTags requires StartupDownloadTags to include '{RequiredStartupTag}'. Current tags: {FormatTags(tags)}");
+            }
+        }
+
+        public static void ValidateRawFilePackageForBuild(
+            string mainPackageName,
+            string rawFilePackageName,
+            StartupDownloadMode downloadMode,
+            string[] rawFileTags)
+        {
+            string normalizedMainPackageName = NormalizePackageName(
+                mainPackageName,
+                HotfixRuntimeSettings.DefaultMainPackageName);
+            string normalizedRawFilePackageName = NormalizePackageName(
+                rawFilePackageName,
+                HotfixRuntimeSettings.DefaultRawFilePackageName);
+            if (string.Equals(
+                    normalizedMainPackageName,
+                    normalizedRawFilePackageName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"RawFile package must be different from the main package: {normalizedMainPackageName}");
+            }
+
+            var setting = AssetBundleCollectorSettingData.Setting;
+            var package = setting == null || setting.Packages == null
+                ? null
+                : setting.Packages.FirstOrDefault(candidate =>
+                    candidate != null &&
+                    string.Equals(
+                        candidate.PackageName,
+                        normalizedRawFilePackageName,
+                        StringComparison.OrdinalIgnoreCase));
+            if (package == null)
+            {
+                throw new InvalidOperationException(
+                    $"RawFile package is enabled but its YooAsset collector package was not found: {normalizedRawFilePackageName}");
+            }
+
+            if (downloadMode != StartupDownloadMode.DownloadByTags)
+            {
+                return;
+            }
+
+            string[] normalizedTags = HotfixUtility.NormalizeTags(rawFileTags);
+            if (normalizedTags.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    $"StartupDownloadMode.DownloadByTags requires RawFileStartupDownloadTags when package '{normalizedRawFilePackageName}' is enabled.");
+            }
+
+            var collectorTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var group in package.Groups ?? Enumerable.Empty<AssetBundleCollectorGroup>())
+            {
+                if (group == null)
+                {
+                    continue;
+                }
+
+                foreach (var tag in NormalizeTagText(group.AssetTags))
+                {
+                    collectorTags.Add(tag);
+                }
+
+                foreach (var collector in group.Collectors ?? Enumerable.Empty<AssetBundleCollector>())
+                {
+                    if (collector == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var tag in NormalizeTagText(collector.AssetTags))
+                    {
+                        collectorTags.Add(tag);
+                    }
+                }
+            }
+
+            string[] missingTags = normalizedTags.Where(tag => !collectorTags.Contains(tag)).ToArray();
+            if (missingTags.Length > 0)
+            {
+                throw new InvalidOperationException(
+                    $"RawFile startup download tags are not present in YooAsset collectors. " +
+                    $"Package={normalizedRawFilePackageName}, Missing={FormatTags(missingTags)}, " +
+                    $"CollectorTags={FormatTags(collectorTags)}");
+            }
+        }
+
+        private static void ValidateRawFileManifestBinding(HotfixRuntimeSettings settings)
+        {
+            var hotfixManifest = AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(HotfixAssemblyManifestAssetPath);
+            if (hotfixManifest == null)
+            {
+                throw new InvalidOperationException($"Hotfix manifest missing: {HotfixAssemblyManifestAssetPath}");
+            }
+
+            if (settings == null || !settings.IncludeRawFilePackage)
+            {
+                if (!string.IsNullOrWhiteSpace(hotfixManifest.RawFilePackageName) ||
+                    !string.IsNullOrWhiteSpace(hotfixManifest.RawFilePackageVersion) ||
+                    !string.IsNullOrWhiteSpace(hotfixManifest.RawFileManifestSha256))
+                {
+                    throw new InvalidOperationException(
+                        "Hotfix manifest contains a RawFile trust binding while RuntimeSettings has RawFile disabled. Rebuild the package.");
+                }
+
+                return;
+            }
+
+            if (!string.Equals(
+                    hotfixManifest.RawFilePackageName,
+                    settings.RawFilePackageName,
+                    StringComparison.Ordinal) ||
+                string.IsNullOrWhiteSpace(hotfixManifest.RawFilePackageVersion) ||
+                string.IsNullOrWhiteSpace(hotfixManifest.RawFileManifestSha256))
+            {
+                throw new InvalidOperationException(
+                    $"Hotfix manifest RawFile trust binding is missing or stale. " +
+                    $"Expected package={settings.RawFilePackageName}, " +
+                    $"Actual={hotfixManifest.RawFilePackageName}:{hotfixManifest.RawFilePackageVersion}:{hotfixManifest.RawFileManifestSha256}");
             }
         }
 
@@ -1504,6 +1836,14 @@ namespace HybridCLR.Editor
             var packageNames = GetConfiguredPackageNames()
                 .Where(packageName => !string.Equals(packageName, mainPackageName, StringComparison.OrdinalIgnoreCase))
                 .ToList();
+
+            if (packageNames.Count > 1)
+            {
+                throw new InvalidOperationException(
+                    "The current runtime supports one main package and at most one RawFile package. " +
+                    $"Multiple secondary YooAsset packages were found: {string.Join(", ", packageNames)}. " +
+                    "Merge them into one RawFile package or extend RuntimePackageConfig to explicit package descriptors.");
+            }
 
             var rawFilePackage = packageNames.FirstOrDefault(packageName =>
                                      string.Equals(packageName, HotfixRuntimeSettings.DefaultRawFilePackageName, StringComparison.OrdinalIgnoreCase))

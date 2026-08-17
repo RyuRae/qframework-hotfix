@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Framework.Assemblies;
 using Framework.Events;
+using Framework.YooAssetBridge;
 using QFramework;
 using UnityEngine;
 using YooAsset;
@@ -235,8 +236,7 @@ namespace Framework.Procedure
                     return false;
                 }
 
-                return !_isIncludeRawFile ||
-                       !string.IsNullOrWhiteSpace(lastGood.RawFilePackageVersion);
+                return !_isIncludeRawFile || IsRawFileLastGoodIdentityValid(lastGood, out _);
             }
 
             return false;
@@ -333,6 +333,7 @@ namespace Framework.Procedure
                         () => HotfixLocalManifestUtility.SaveLastGoodRecord(
                             _packageName,
                             activeMainVersion,
+                            _isIncludeRawFile ? _rawfilwPkgName : string.Empty,
                             activeRawFileVersion,
                             hotfixVersion,
                             aotVersion,
@@ -350,6 +351,7 @@ namespace Framework.Procedure
             else if (!HotfixLocalManifestUtility.SaveLastGoodRecord(
                 _packageName,
                 activeMainVersion,
+                _isIncludeRawFile ? _rawfilwPkgName : string.Empty,
                 activeRawFileVersion,
                 hotfixVersion,
                 aotVersion,
@@ -371,27 +373,34 @@ namespace Framework.Procedure
             var errors = new List<string>();
             if (HotfixLocalManifestUtility.TryGetLastGoodRecord(_packageName, out var lastGood))
             {
-                bool lastGoodSucceeded = false;
-                string lastGoodError = string.Empty;
-                yield return TryLoadManifestSet(
-                    false,
-                    lastGood.MainPackageVersion,
-                    lastGood.RawFilePackageVersion,
-                    (succeeded, error) =>
-                    {
-                        lastGoodSucceeded = succeeded;
-                        lastGoodError = error;
-                    });
-                if (lastGoodSucceeded)
+                if (_isIncludeRawFile && !IsRawFileLastGoodIdentityValid(lastGood, out var identityError))
                 {
-                    _expectedFallbackHotfixVersion = lastGood.HotfixVersion;
-                    _expectedFallbackAotVersion = lastGood.AotVersion;
-                    MarkUseLocalManifestFallback(reason);
-                    onCompleted?.Invoke(true, string.Empty);
-                    yield break;
+                    errors.Add($"LastGood failed: {identityError}");
                 }
+                else
+                {
+                    bool lastGoodSucceeded = false;
+                    string lastGoodError = string.Empty;
+                    yield return TryLoadManifestSet(
+                        false,
+                        lastGood.MainPackageVersion,
+                        lastGood.RawFilePackageVersion,
+                        (succeeded, error) =>
+                        {
+                            lastGoodSucceeded = succeeded;
+                            lastGoodError = error;
+                        });
+                    if (lastGoodSucceeded)
+                    {
+                        _expectedFallbackHotfixVersion = lastGood.HotfixVersion;
+                        _expectedFallbackAotVersion = lastGood.AotVersion;
+                        MarkUseLocalManifestFallback(reason);
+                        onCompleted?.Invoke(true, string.Empty);
+                        yield break;
+                    }
 
-                errors.Add($"LastGood failed: {lastGoodError}");
+                    errors.Add($"LastGood failed: {lastGoodError}");
+                }
             }
             else
             {
@@ -446,6 +455,88 @@ namespace Framework.Procedure
             }
 
             return true;
+        }
+
+        public bool ValidateRawFileManifestTrust(out string error)
+        {
+            error = string.Empty;
+            if (!IsRawFileManifestTrustRequired())
+            {
+                return true;
+            }
+
+            var hotfixManifest = AssemblyLoadContext.HotfixManifest;
+            if (!_isIncludeRawFile)
+            {
+                if (hotfixManifest != null &&
+                    (!string.IsNullOrWhiteSpace(hotfixManifest.RawFilePackageName) ||
+                     !string.IsNullOrWhiteSpace(hotfixManifest.RawFilePackageVersion) ||
+                     !string.IsNullOrWhiteSpace(hotfixManifest.RawFileManifestSha256)))
+                {
+                    error = "Hotfix manifest declares a RawFile package but RuntimeSettings has it disabled.";
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (hotfixManifest == null)
+            {
+                error = "Hotfix manifest is unavailable while validating the RawFile package.";
+                return false;
+            }
+
+            if (hotfixManifest.SignatureVersion < AssemblyManifestSignatureUtility.CurrentSignatureVersion)
+            {
+                error = $"Hotfix manifest signature protocol does not bind the RawFile package. " +
+                        $"Required={AssemblyManifestSignatureUtility.CurrentSignatureVersion}, " +
+                        $"Actual={hotfixManifest.SignatureVersion}";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(hotfixManifest.RawFilePackageName) ||
+                string.IsNullOrWhiteSpace(hotfixManifest.RawFilePackageVersion) ||
+                string.IsNullOrWhiteSpace(hotfixManifest.RawFileManifestSha256))
+            {
+                error = "Hotfix manifest does not contain a complete RawFile package trust binding.";
+                return false;
+            }
+
+            if (!string.Equals(hotfixManifest.RawFilePackageName, _rawfilwPkgName, StringComparison.Ordinal) ||
+                !string.Equals(hotfixManifest.RawFilePackageVersion, _rawfilePkgVersion, StringComparison.Ordinal))
+            {
+                error = $"RawFile release identity mismatch. " +
+                        $"Expected={hotfixManifest.RawFilePackageName}:{hotfixManifest.RawFilePackageVersion}, " +
+                        $"Active={_rawfilwPkgName}:{_rawfilePkgVersion}";
+                return false;
+            }
+
+            var rawFilePackage = YooAssets.GetPackage(_rawfilwPkgName);
+            if (!YooAssetLocalManifestBridge.TryGetActiveManifestFingerprint(rawFilePackage, out var fingerprint))
+            {
+                error = fingerprint.Error;
+                return false;
+            }
+
+            if (!string.Equals(fingerprint.PackageName, _rawfilwPkgName, StringComparison.Ordinal) ||
+                !string.Equals(fingerprint.PackageVersion, _rawfilePkgVersion, StringComparison.Ordinal) ||
+                !string.Equals(fingerprint.Sha256, hotfixManifest.RawFileManifestSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"RawFile YooAsset manifest trust validation failed. " +
+                        $"Expected={hotfixManifest.RawFilePackageName}:{hotfixManifest.RawFilePackageVersion}:{hotfixManifest.RawFileManifestSha256}, " +
+                        $"Actual={fingerprint.PackageName}:{fingerprint.PackageVersion}:{fingerprint.Sha256}";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool IsRawFileManifestTrustRequired()
+        {
+            var runtimeSettings = HotfixRuntimeSettings.Load();
+            var remoteSettings = HotfixRemoteSettings.Load();
+            return runtimeSettings != null && runtimeSettings.RequireSignedAssemblyManifests ||
+                   remoteSettings != null && remoteSettings.IsProductionRuntimeEnvironment;
         }
 
         private IEnumerator TryLoadManifestSet(
@@ -512,6 +603,36 @@ namespace Framework.Procedure
             }
 
             onCompleted?.Invoke(true, string.Empty);
+        }
+
+        private bool IsRawFileLastGoodIdentityValid(HotfixLastGoodRecord lastGood, out string error)
+        {
+            error = string.Empty;
+            if (!_isIncludeRawFile)
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(lastGood.RawFilePackageName))
+            {
+                error = $"LastGood record does not bind a RawFile package name. Expected: {_rawfilwPkgName}";
+                return false;
+            }
+
+            if (!string.Equals(lastGood.RawFilePackageName, _rawfilwPkgName, StringComparison.Ordinal))
+            {
+                error = $"LastGood RawFile package identity mismatch. " +
+                        $"Expected={_rawfilwPkgName}, Recorded={lastGood.RawFilePackageName}";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(lastGood.RawFilePackageVersion))
+            {
+                error = $"LastGood record has no version for raw file package: {_rawfilwPkgName}";
+                return false;
+            }
+
+            return true;
         }
 
         private static IEnumerator LoadFallbackManifest(

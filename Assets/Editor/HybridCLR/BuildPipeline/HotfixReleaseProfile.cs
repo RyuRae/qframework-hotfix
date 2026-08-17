@@ -114,6 +114,9 @@ namespace HybridCLR.Editor
         [Tooltip("启动阶段按 Tag 下载时使用的 Tag 列表。StartupDownloadMode=DownloadByTags 时必须包含 startup。")]
         public string[] StartupDownloadTags = Array.Empty<string>();
 
+        [Tooltip("RawFile 包启动阶段按 Tag 下载时使用的 Tag 列表。启用 RawFile 且 StartupDownloadMode=DownloadByTags 时不能为空。")]
+        public string[] RawFileStartupDownloadTags = Array.Empty<string>();
+
         [Header("热更入口")]
         [Tooltip("实现 Framework.IHotfixEntry 且带公共无参构造函数的类型完整名。构建会写入 HotfixAssemblyManifest。")]
         public string EntryTypeName = "HotfixDemo.HotfixCodeEntry";
@@ -150,7 +153,8 @@ namespace HybridCLR.Editor
                     StartupPackageMode,
                     StartupDownloadMode,
                     StartupUpdatePolicy,
-                    StartupDownloadTags);
+                    StartupDownloadTags,
+                    RawFileStartupDownloadTags);
                 runtimeSettings.SetManifestTrustForEditor(
                     IsFormalRelease,
                     ManifestSigningKeyId,
@@ -208,6 +212,7 @@ namespace HybridCLR.Editor
                 StartupDownloadMode = runtimeSettings.StartupDownloadMode;
                 StartupUpdatePolicy = runtimeSettings.StartupUpdatePolicy;
                 StartupDownloadTags = runtimeSettings.StartupDownloadTags;
+                RawFileStartupDownloadTags = runtimeSettings.RawFileStartupDownloadTags;
             }
 
             var buildProfile = AssetDatabase.LoadAssetAtPath<HotfixBuildProfile>(HotfixBuildProfile.AssetPath);
@@ -390,6 +395,14 @@ namespace HybridCLR.Editor
                 return false;
             }
 
+            if (StartupDownloadMode == StartupDownloadMode.DownloadByTags &&
+                context.IncludeRawFilePackage &&
+                HotfixUtility.NormalizeTags(RawFileStartupDownloadTags).Length == 0)
+            {
+                error = "ReleaseProfile DownloadByTags requires non-empty RawFileStartupDownloadTags when the RawFile package is enabled.";
+                return false;
+            }
+
             if (string.IsNullOrWhiteSpace(EntryTypeName))
             {
                 error = "ReleaseProfile IHotfixEntry type is required.";
@@ -516,6 +529,11 @@ namespace HybridCLR.Editor
             if (StartupDownloadTags == null)
             {
                 StartupDownloadTags = Array.Empty<string>();
+            }
+
+            if (RawFileStartupDownloadTags == null)
+            {
+                RawFileStartupDownloadTags = Array.Empty<string>();
             }
 
             GrayReleasePercent = Mathf.Clamp(GrayReleasePercent, 0, 100);

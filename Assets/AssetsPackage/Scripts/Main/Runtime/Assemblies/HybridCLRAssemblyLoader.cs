@@ -48,6 +48,7 @@ namespace Framework.Assemblies
 
     public sealed class HotfixAssemblyManifestSnapshot
     {
+        public int SignatureVersion;
         public string ReleaseVersion = string.Empty;
         public long ReleaseSequence;
         public string AppVersionMin = string.Empty;
@@ -55,6 +56,9 @@ namespace Framework.Assemblies
         public string BuildTarget = string.Empty;
         public string RequiredAotVersion = string.Empty;
         public string HotfixVersion = string.Empty;
+        public string RawFilePackageName = string.Empty;
+        public string RawFilePackageVersion = string.Empty;
+        public string RawFileManifestSha256 = string.Empty;
         public List<string> HotUpdateAssemblies = new List<string>();
         public List<AssemblyFileRecord> HotUpdateFiles = new List<AssemblyFileRecord>();
         public List<AssemblyDependencyRecord> HotUpdateDependencies = new List<AssemblyDependencyRecord>();
@@ -66,6 +70,7 @@ namespace Framework.Assemblies
         {
             return new HotfixAssemblyManifestSnapshot
             {
+                SignatureVersion = manifest == null ? 0 : manifest.SignatureVersion,
                 ReleaseVersion = manifest == null ? string.Empty : manifest.ReleaseVersion ?? string.Empty,
                 ReleaseSequence = manifest == null ? 0 : manifest.ReleaseSequence,
                 AppVersionMin = manifest == null ? string.Empty : manifest.AppVersionMin ?? string.Empty,
@@ -73,6 +78,9 @@ namespace Framework.Assemblies
                 BuildTarget = manifest == null ? string.Empty : manifest.BuildTarget ?? string.Empty,
                 RequiredAotVersion = manifest == null ? string.Empty : manifest.RequiredAotVersion ?? string.Empty,
                 HotfixVersion = manifest == null ? string.Empty : manifest.HotfixVersion ?? string.Empty,
+                RawFilePackageName = manifest == null ? string.Empty : manifest.RawFilePackageName ?? string.Empty,
+                RawFilePackageVersion = manifest == null ? string.Empty : manifest.RawFilePackageVersion ?? string.Empty,
+                RawFileManifestSha256 = manifest == null ? string.Empty : manifest.RawFileManifestSha256 ?? string.Empty,
                 HotUpdateAssemblies = NormalizeNames(manifest == null ? null : manifest.HotUpdateAssemblies),
                 HotUpdateFiles = AssemblyManifestSnapshotUtility.CloneFileRecords(manifest == null ? null : manifest.HotUpdateFiles),
                 HotUpdateDependencies = AssemblyManifestSnapshotUtility.CloneDependencyRecords(manifest == null ? null : manifest.HotUpdateDependencies),
