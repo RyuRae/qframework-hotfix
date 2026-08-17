@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using UnityEngine;
 
 namespace Framework
@@ -78,7 +79,7 @@ namespace Framework
         private bool requireHttps;
 
         [SerializeField]
-        [Tooltip("允许访问的 CDN 域名白名单。留空表示不限制，运行时直接覆盖 URL 时会跳过该校验。")]
+        [Tooltip("允许访问的 CDN 域名白名单。留空表示不限制；Production 环境禁止留空。运行时 URL 覆盖同样受此白名单限制。")]
         private string[] allowedDomains = Array.Empty<string>();
 
         [Header("证书预留")]
@@ -229,6 +230,7 @@ namespace Framework
         public HotfixRemoteEnvironment DefaultEnvironment => defaultEnvironment;
         public string DefaultChannel => NormalizeSelector(defaultChannel);
         public string DefaultRegion => NormalizeSelector(defaultRegion);
+        public bool IsProductionRuntimeEnvironment => ResolveEnvironment() == HotfixRemoteEnvironment.Production;
 
         public static HotfixRemoteSettings Load()
         {
@@ -346,6 +348,11 @@ namespace Framework
                 return false;
             }
 
+            if (!ValidateProductionSecurityPolicy(config, environment, out error))
+            {
+                return false;
+            }
+
             string mainUrl = NormalizeBaseUrl(ReplaceTokens(
                 config.MainCdnUrlTemplate,
                 environment,
@@ -361,8 +368,8 @@ namespace Framework
                 NormalizeSelector(region),
                 "DefaultPackage"));
 
-            if (!ValidateUrl(config, mainUrl, "main", false, out error) ||
-                !ValidateUrl(config, fallbackUrl, "fallback", false, out error))
+            if (!ValidateUrl(config, mainUrl, "main", out error) ||
+                !ValidateUrl(config, fallbackUrl, "fallback", out error))
             {
                 return false;
             }
@@ -398,8 +405,9 @@ namespace Framework
             }
 
             string platform = HotfixUtility.GetRuntimePlatformName();
-            string channel = ResolveSelector(defaultChannel, channelOverrideKey, channelCommandLineKey);
-            string region = ResolveSelector(defaultRegion, regionOverrideKey, regionCommandLineKey);
+            bool allowRuntimeOverride = enableRuntimeOverride && environment != HotfixRemoteEnvironment.Production;
+            string channel = ResolveSelector(defaultChannel, channelOverrideKey, channelCommandLineKey, allowRuntimeOverride);
+            string region = ResolveSelector(defaultRegion, regionOverrideKey, regionCommandLineKey, allowRuntimeOverride);
             string normalizedPackageName = string.IsNullOrWhiteSpace(packageName) ? "DefaultPackage" : packageName.Trim();
 
             string mainTemplate = config.MainCdnUrlTemplate;
@@ -416,8 +424,8 @@ namespace Framework
                     : config.GrayFallbackCdnUrlTemplate;
             }
 
-            string mainOverride = ResolveOptionalOverride(mainUrlOverrideKey, mainUrlCommandLineKey);
-            string fallbackOverride = ResolveOptionalOverride(fallbackUrlOverrideKey, fallbackUrlCommandLineKey);
+            string mainOverride = ResolveOptionalOverride(mainUrlOverrideKey, mainUrlCommandLineKey, allowRuntimeOverride);
+            string fallbackOverride = ResolveOptionalOverride(fallbackUrlOverrideKey, fallbackUrlCommandLineKey, allowRuntimeOverride);
             bool hasMainOverride = !string.IsNullOrWhiteSpace(mainOverride);
             bool hasFallbackOverride = !string.IsNullOrWhiteSpace(fallbackOverride);
 
@@ -436,8 +444,9 @@ namespace Framework
             string fallbackUrl = NormalizeBaseUrl(ReplaceTokens(fallbackTemplate, environment, platform, channel, region, normalizedPackageName));
 
             // 配置错误尽量在启动阶段暴露，避免进入下载流程后才发现远端地址不可用。
-            if (!ValidateUrl(config, mainUrl, "main", hasMainOverride, out error) ||
-                !ValidateUrl(config, fallbackUrl, "fallback", hasFallbackOverride, out error))
+            if (!ValidateProductionSecurityPolicy(config, environment, out error) ||
+                !ValidateUrl(config, mainUrl, "main", out error) ||
+                !ValidateUrl(config, fallbackUrl, "fallback", out error))
             {
                 return false;
             }
@@ -465,7 +474,8 @@ namespace Framework
 
         private HotfixRemoteEnvironment ResolveEnvironment()
         {
-            if (!enableRuntimeOverride)
+            // 包体默认指向 Production 时，任何本地 PlayerPrefs/命令行都不能把正式用户导向其它环境。
+            if (!enableRuntimeOverride || defaultEnvironment == HotfixRemoteEnvironment.Production)
             {
                 return defaultEnvironment;
             }
@@ -481,10 +491,14 @@ namespace Framework
                 : defaultEnvironment;
         }
 
-        private string ResolveSelector(string defaultValue, string playerPrefsKey, string commandLineKey)
+        private string ResolveSelector(
+            string defaultValue,
+            string playerPrefsKey,
+            string commandLineKey,
+            bool allowRuntimeOverride)
         {
-            string value = enableRuntimeOverride ? HotfixUtility.GetCommandLineValue(commandLineKey) : string.Empty;
-            if (enableRuntimeOverride && string.IsNullOrWhiteSpace(value))
+            string value = allowRuntimeOverride ? HotfixUtility.GetCommandLineValue(commandLineKey) : string.Empty;
+            if (allowRuntimeOverride && string.IsNullOrWhiteSpace(value))
             {
                 value = PlayerPrefs.GetString(playerPrefsKey, string.Empty);
             }
@@ -492,9 +506,12 @@ namespace Framework
             return string.IsNullOrWhiteSpace(value) ? NormalizeSelector(defaultValue) : NormalizeSelector(value);
         }
 
-        private string ResolveOptionalOverride(string playerPrefsKey, string commandLineKey)
+        private string ResolveOptionalOverride(
+            string playerPrefsKey,
+            string commandLineKey,
+            bool allowRuntimeOverride)
         {
-            if (!enableRuntimeOverride)
+            if (!allowRuntimeOverride)
             {
                 return string.Empty;
             }
@@ -556,7 +573,6 @@ namespace Framework
             HotfixRemoteEnvironmentConfig config,
             string url,
             string label,
-            bool skipAllowedDomainCheck,
             out string error)
         {
             error = string.Empty;
@@ -584,9 +600,41 @@ namespace Framework
                 return false;
             }
 
-            if (!skipAllowedDomainCheck && !IsAllowedDomain(config.AllowedDomains, uri.Host))
+            if (!IsAllowedDomain(config.AllowedDomains, uri.Host))
             {
                 error = HotfixText.Get(HotfixTextKey.RemoteUrlDomainNotAllowed, label, uri.Host);
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool ValidateProductionSecurityPolicy(
+            HotfixRemoteEnvironmentConfig config,
+            HotfixRemoteEnvironment environment,
+            out string error)
+        {
+            error = string.Empty;
+            if (environment != HotfixRemoteEnvironment.Production)
+            {
+                return true;
+            }
+
+            if (!config.RequireHttps)
+            {
+                error = "Production hotfix remote environment must require HTTPS.";
+                return false;
+            }
+
+            if (config.AllowedDomains == null ||
+                !config.AllowedDomains.Any(domain => !string.IsNullOrWhiteSpace(domain)) ||
+                config.AllowedDomains.Any(domain =>
+                    !string.IsNullOrWhiteSpace(domain) &&
+                    (IsDomainOrSubdomain(domain.Trim(), "example.com") ||
+                     IsDomainOrSubdomain(domain.Trim(), "example.net") ||
+                     IsDomainOrSubdomain(domain.Trim(), "example.org"))))
+            {
+                error = "Production hotfix remote environment must configure a non-empty real CDN domain allowlist; RFC example domains are not allowed.";
                 return false;
             }
 
@@ -678,6 +726,11 @@ namespace Framework
         }
 
 #if UNITY_EDITOR
+        public void SetRuntimeOverrideForEditor(bool enabled)
+        {
+            enableRuntimeOverride = enabled;
+        }
+
         public void SetDefaultSelectorForEditor(
             HotfixRemoteEnvironment environment,
             string channel,

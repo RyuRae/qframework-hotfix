@@ -212,7 +212,11 @@ namespace HybridCLR.Editor
             CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
         }
 
-        public static BuildResult BuildYooAssetPackage(string packageName, BuildTarget target, bool copyToStreamingAssets)
+        public static BuildResult BuildYooAssetPackage(
+            string packageName,
+            BuildTarget target,
+            bool copyToStreamingAssets,
+            string packageVersion = null)
         {
             packageName = NormalizePackageName(packageName, GetConfiguredMainPackageName());
             var buildParameters = new BuiltinBuildParameters
@@ -223,7 +227,9 @@ namespace HybridCLR.Editor
                 BuildBundleType = YooAssetBuildBundleTypeAssetBundle,
                 BuildTarget = target,
                 PackageName = packageName,
-                PackageVersion = CreatePackageVersion(target),
+                PackageVersion = string.IsNullOrWhiteSpace(packageVersion)
+                    ? CreatePackageVersion(target)
+                    : packageVersion.Trim(),
                 EnableSharePackRule = true,
                 VerifyBuildingResult = true,
                 FileNameStyle = EFileNameStyle.HashName,
@@ -296,7 +302,10 @@ namespace HybridCLR.Editor
                 .ToList();
         }
 
-        public static AOTAssemblyManifest CreateOrUpdateAOTAssemblyManifest(BuildTarget target, List<string> aotAssemblies)
+        public static AOTAssemblyManifest CreateOrUpdateAOTAssemblyManifest(
+            BuildTarget target,
+            List<string> aotAssemblies,
+            string releaseVersion = null)
         {
             Directory.CreateDirectory(ConfigsPath);
 
@@ -308,6 +317,11 @@ namespace HybridCLR.Editor
                 AssetDatabase.CreateAsset(manifest, AOTAssemblyManifestAssetPath);
             }
 
+            manifest.ReleaseVersion = string.IsNullOrWhiteSpace(releaseVersion)
+                ? CreatePackageVersion(target)
+                : releaseVersion.Trim();
+            var releaseProfile = HotfixReleaseProfile.LoadSelectedOrDefault();
+            manifest.ReleaseSequence = releaseProfile == null ? 0 : releaseProfile.ReleaseSequence;
             manifest.AppVersion = GetAppVersion();
             manifest.BuildTarget = GetRuntimePlatformName(target);
             manifest.AotMetadataAssemblies = NormalizeDllNames(aotAssemblies);
@@ -322,6 +336,8 @@ namespace HybridCLR.Editor
                 manifest.AotMetadataAssemblies,
                 manifest.AotMetadataFiles);
 
+            HotfixManifestSigningUtility.SignOrClear(manifest);
+
             EditorUtility.SetDirty(manifest);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -331,7 +347,8 @@ namespace HybridCLR.Editor
         public static HotfixAssemblyManifest CreateOrUpdateHotfixAssemblyManifest(
             BuildTarget target,
             List<string> hotfixAssemblies,
-            string requiredAotVersion)
+            string requiredAotVersion,
+            string releaseVersion = null)
         {
             Directory.CreateDirectory(ConfigsPath);
 
@@ -365,9 +382,13 @@ namespace HybridCLR.Editor
                 manifest.AppVersionMax = GetAppVersion();
             }
 
+            var releaseProfile = HotfixReleaseProfile.LoadSelectedOrDefault();
+            manifest.ReleaseVersion = string.IsNullOrWhiteSpace(releaseVersion)
+                ? CreatePackageVersion(target)
+                : releaseVersion.Trim();
+            manifest.ReleaseSequence = releaseProfile == null ? 0 : releaseProfile.ReleaseSequence;
             manifest.BuildTarget = GetRuntimePlatformName(target);
             manifest.RequiredAotVersion = requiredAotVersion ?? string.Empty;
-            var releaseProfile = HotfixReleaseProfile.LoadSelectedOrDefault();
             if (releaseProfile != null)
             {
                 if (!releaseProfile.IsCompatibleWith(target))
@@ -399,6 +420,8 @@ namespace HybridCLR.Editor
             }
 
             manifest.EntryMethodName = string.Empty;
+
+            HotfixManifestSigningUtility.SignOrClear(manifest);
 
             EditorUtility.SetDirty(manifest);
             AssetDatabase.SaveAssets();
@@ -580,6 +603,8 @@ namespace HybridCLR.Editor
             {
                 throw new InvalidOperationException("Hotfix manifest EntryTypeName is empty. IHotfixEntry is required.");
             }
+
+            ValidateManifestSignatureForBuild(aotManifest, hotfixManifest);
 
             ValidateHotfixEntryType(hotfixManifest);
 
@@ -1346,7 +1371,7 @@ namespace HybridCLR.Editor
             return Path.Combine(folder, $"{NormalizeDllName(dllName)}.bytes");
         }
 
-        private static string CreatePackageVersion(BuildTarget target)
+        public static string CreatePackageVersion(BuildTarget target)
         {
             var releaseProfile = HotfixReleaseProfile.LoadSelectedOrDefault();
             if (releaseProfile != null && !string.IsNullOrWhiteSpace(releaseProfile.ResourceVersion))
@@ -1361,6 +1386,57 @@ namespace HybridCLR.Editor
             }
 
             return DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
+        }
+
+        private static void ValidateManifestSignatureForBuild(
+            AOTAssemblyManifest aotManifest,
+            HotfixAssemblyManifest hotfixManifest)
+        {
+            var profile = HotfixReleaseProfile.LoadSelectedOrDefault();
+            if (profile == null || !profile.IsFormalRelease)
+            {
+                return;
+            }
+
+            var runtimeSettings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(
+                HotfixBuildProfileUtility.RuntimeSettingsAssetPath);
+            string aotError = string.Empty;
+            if (runtimeSettings == null ||
+                !runtimeSettings.TryGetTrustedManifestPublicKey(aotManifest.SigningKeyId, out var aotPublicKey) ||
+                !AssemblyManifestSignatureUtility.Verify(aotManifest, aotPublicKey, out aotError))
+            {
+                throw new InvalidOperationException(
+                    "AOT manifest signature validation failed before build. " +
+                    (string.IsNullOrWhiteSpace(aotError)
+                        ? $"Trusted key not found: {aotManifest.SigningKeyId}"
+                        : aotError));
+            }
+
+            string hotfixError = string.Empty;
+            if (!runtimeSettings.TryGetTrustedManifestPublicKey(hotfixManifest.SigningKeyId, out var hotfixPublicKey) ||
+                !AssemblyManifestSignatureUtility.Verify(hotfixManifest, hotfixPublicKey, out hotfixError))
+            {
+                throw new InvalidOperationException(
+                    "Hotfix manifest signature validation failed before build. " +
+                    (string.IsNullOrWhiteSpace(hotfixError)
+                        ? $"Trusted key not found: {hotfixManifest.SigningKeyId}"
+                        : hotfixError));
+            }
+
+            if (string.IsNullOrWhiteSpace(hotfixManifest.ReleaseVersion))
+            {
+                throw new InvalidOperationException("Signed Hotfix manifest ReleaseVersion is empty.");
+            }
+
+            if (string.IsNullOrWhiteSpace(aotManifest.ReleaseVersion) ||
+                aotManifest.ReleaseSequence <= 0 ||
+                hotfixManifest.ReleaseSequence <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"Signed manifests require a release identity. " +
+                    $"AOT={aotManifest.ReleaseVersion}:{aotManifest.ReleaseSequence}, " +
+                    $"Hotfix={hotfixManifest.ReleaseVersion}:{hotfixManifest.ReleaseSequence}");
+            }
         }
 
         private static bool ShouldCopyPackageToStreamingAssets()

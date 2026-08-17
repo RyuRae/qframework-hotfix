@@ -65,6 +65,10 @@ namespace HybridCLR.Editor
             DrawRequiredProperty("MainCdnUrlTemplate", "MainCdnUrlTemplate");
             DrawRequiredProperty("FallbackCdnUrlTemplate", "FallbackCdnUrlTemplate");
             DrawRequiredProperty("RequireHttps", "RequireHttps");
+            DrawRequiredProperty("ManifestSigningKeyId", "ManifestSigningKeyId");
+            DrawRequiredProperty("ManifestPublicKeyModulus", "ManifestPublicKeyModulus");
+            DrawRequiredProperty("ManifestPublicKeyExponent", "ManifestPublicKeyExponent");
+            DrawRequiredProperty("ManifestPrivateKeyEnvironmentVariable", "ManifestPrivateKeyEnvironmentVariable");
             DrawRequiredProperty("PlayerPlayMode", "PlayerPlayMode");
             DrawRequiredProperty("StartupPackageMode", "StartupPackageMode");
             DrawRequiredProperty("StartupDownloadMode", "StartupDownloadMode");
@@ -86,6 +90,7 @@ namespace HybridCLR.Editor
             EditorGUILayout.Space(8);
             EditorGUILayout.LabelField("可选覆盖 / 高级配置", EditorStyles.boldLabel);
             DrawProperty("ResourceVersion", "ResourceVersion");
+            DrawProperty("ReleaseSequence", "ReleaseSequence");
             DrawProperty("HotfixVersion", "HotfixVersion");
             DrawProperty("AllowedDomains", "AllowedDomains", true);
             DrawProperty("CertificatePinningEnabled", "CertificatePinningEnabled");

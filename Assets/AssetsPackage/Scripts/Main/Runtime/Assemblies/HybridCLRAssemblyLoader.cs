@@ -18,6 +18,8 @@ namespace Framework.Assemblies
 {
     public sealed class AOTAssemblyManifestSnapshot
     {
+        public string ReleaseVersion = string.Empty;
+        public long ReleaseSequence;
         public string AppVersion = string.Empty;
         public string BuildTarget = string.Empty;
         public string AotVersion = string.Empty;
@@ -28,6 +30,8 @@ namespace Framework.Assemblies
         {
             return new AOTAssemblyManifestSnapshot
             {
+                ReleaseVersion = manifest == null ? string.Empty : manifest.ReleaseVersion ?? string.Empty,
+                ReleaseSequence = manifest == null ? 0 : manifest.ReleaseSequence,
                 AppVersion = manifest == null ? string.Empty : manifest.AppVersion ?? string.Empty,
                 BuildTarget = manifest == null ? string.Empty : manifest.BuildTarget ?? string.Empty,
                 AotVersion = manifest == null ? string.Empty : manifest.AotVersion ?? string.Empty,
@@ -44,6 +48,8 @@ namespace Framework.Assemblies
 
     public sealed class HotfixAssemblyManifestSnapshot
     {
+        public string ReleaseVersion = string.Empty;
+        public long ReleaseSequence;
         public string AppVersionMin = string.Empty;
         public string AppVersionMax = string.Empty;
         public string BuildTarget = string.Empty;
@@ -60,6 +66,8 @@ namespace Framework.Assemblies
         {
             return new HotfixAssemblyManifestSnapshot
             {
+                ReleaseVersion = manifest == null ? string.Empty : manifest.ReleaseVersion ?? string.Empty,
+                ReleaseSequence = manifest == null ? 0 : manifest.ReleaseSequence,
                 AppVersionMin = manifest == null ? string.Empty : manifest.AppVersionMin ?? string.Empty,
                 AppVersionMax = manifest == null ? string.Empty : manifest.AppVersionMax ?? string.Empty,
                 BuildTarget = manifest == null ? string.Empty : manifest.BuildTarget ?? string.Empty,
@@ -134,6 +142,8 @@ namespace Framework.Assemblies
         private readonly Dictionary<string, Assembly> mLoadedAssembliesCache = new Dictionary<string, Assembly>();
         private readonly List<Assembly> mHotUpdateAssemblies = new List<Assembly>();
         private HotfixAssemblyLoadContext mContext;
+        private HotfixRuntimeSettings mRuntimeSettings;
+        private HotfixRemoteSettings mRemoteSettings;
 
         public IReadOnlyList<Assembly> HotUpdateAssemblies => mHotUpdateAssemblies;
         public bool Succeeded { get; private set; }
@@ -238,10 +248,16 @@ namespace Framework.Assemblies
             }
 
             var manifest = manifestHandle.AssetObject as HotfixAssemblyManifest;
+            if (!ValidateManifestSignature(manifest))
+            {
+                manifestHandle.Release();
+                yield break;
+            }
+
             var snapshot = HotfixAssemblyManifestSnapshot.From(manifest);
             manifestHandle.Release();
 
-            if (!ValidateHotfixManifest(snapshot))
+            if (!ValidateHotfixManifest(snapshot, package.GetPackageVersion()))
             {
                 yield break;
             }
@@ -275,6 +291,12 @@ namespace Framework.Assemblies
             }
 
             var manifest = manifestHandle.AssetObject as AOTAssemblyManifest;
+            if (!ValidateManifestSignature(manifest))
+            {
+                manifestHandle.Release();
+                yield break;
+            }
+
             var snapshot = AOTAssemblyManifestSnapshot.From(manifest);
             manifestHandle.Release();
 
@@ -286,11 +308,26 @@ namespace Framework.Assemblies
             context.SetAotManifest(snapshot);
         }
 
-        private bool ValidateHotfixManifest(HotfixAssemblyManifestSnapshot manifest)
+        private bool ValidateHotfixManifest(HotfixAssemblyManifestSnapshot manifest, string activePackageVersion)
         {
             if (manifest == null)
             {
                 Fail($"Hotfix manifest not found: {HotfixAssemblyManifest.AssetName}");
+                return false;
+            }
+
+            if (!ValidateReleaseVersion(manifest.ReleaseVersion, activePackageVersion, "Hotfix"))
+            {
+                return false;
+            }
+
+            if (AreSignedManifestsRequired() &&
+                !HotfixReleaseTrustStore.TryValidate(
+                    manifest.ReleaseSequence,
+                    manifest.ReleaseVersion,
+                    out var rollbackError))
+            {
+                Fail(rollbackError);
                 return false;
             }
 
@@ -342,11 +379,19 @@ namespace Framework.Assemblies
             return true;
         }
 
-        private bool ValidateAotManifest(AOTAssemblyManifestSnapshot aotManifest, HotfixAssemblyManifestSnapshot hotfixManifest)
+        private bool ValidateAotManifest(
+            AOTAssemblyManifestSnapshot aotManifest,
+            HotfixAssemblyManifestSnapshot hotfixManifest,
+            string activePackageVersion = "")
         {
             if (aotManifest == null)
             {
                 Fail($"AOT manifest not found: {AOTAssemblyManifest.AssetName}");
+                return false;
+            }
+
+            if (!ValidateReleaseVersion(aotManifest.ReleaseVersion, activePackageVersion, "AOT"))
+            {
                 return false;
             }
 
@@ -389,6 +434,96 @@ namespace Framework.Assemblies
 
             return true;
         }
+
+        private bool ValidateManifestSignature(HotfixAssemblyManifest manifest)
+        {
+            bool hasMetadata = AssemblyManifestSignatureUtility.HasAnySignatureMetadata(manifest);
+            bool required = AreSignedManifestsRequired();
+            if (!required && !hasMetadata)
+            {
+                return true;
+            }
+
+            if (RuntimeSettings == null ||
+                !RuntimeSettings.TryGetTrustedManifestPublicKey(
+                    manifest == null ? string.Empty : manifest.SigningKeyId,
+                    out var publicKey))
+            {
+                Fail($"Hotfix manifest signing key is not trusted. KeyId={manifest?.SigningKeyId}");
+                return false;
+            }
+
+            if (!AssemblyManifestSignatureUtility.Verify(manifest, publicKey, out var error))
+            {
+                Fail(error);
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool ValidateManifestSignature(AOTAssemblyManifest manifest)
+        {
+            bool hasMetadata = AssemblyManifestSignatureUtility.HasAnySignatureMetadata(manifest);
+            bool required = AreSignedManifestsRequired();
+            if (!required && !hasMetadata)
+            {
+                return true;
+            }
+
+            if (RuntimeSettings == null ||
+                !RuntimeSettings.TryGetTrustedManifestPublicKey(
+                    manifest == null ? string.Empty : manifest.SigningKeyId,
+                    out var publicKey))
+            {
+                Fail($"AOT manifest signing key is not trusted. KeyId={manifest?.SigningKeyId}");
+                return false;
+            }
+
+            if (!AssemblyManifestSignatureUtility.Verify(manifest, publicKey, out var error))
+            {
+                Fail(error);
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool ValidateReleaseVersion(string manifestReleaseVersion, string activePackageVersion, string label)
+        {
+            bool required = AreSignedManifestsRequired();
+            if (!required)
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(manifestReleaseVersion))
+            {
+                Fail($"{label} manifest ReleaseVersion is empty.");
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(activePackageVersion) &&
+                !string.Equals(manifestReleaseVersion.Trim(), activePackageVersion.Trim(), StringComparison.Ordinal))
+            {
+                Fail($"{label} manifest ReleaseVersion mismatch. Manifest={manifestReleaseVersion}, Package={activePackageVersion}");
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool AreSignedManifestsRequired()
+        {
+            return RuntimeSettings != null && RuntimeSettings.RequireSignedAssemblyManifests ||
+                   RemoteSettings != null && RemoteSettings.IsProductionRuntimeEnvironment;
+        }
+
+        private HotfixRuntimeSettings RuntimeSettings =>
+            mRuntimeSettings == null ? mRuntimeSettings = HotfixRuntimeSettings.Load() : mRuntimeSettings;
+
+        private HotfixRemoteSettings RemoteSettings =>
+            mRemoteSettings == null ? mRemoteSettings = HotfixRemoteSettings.Load() : mRemoteSettings;
 
         private IEnumerator LoadAotMetadataAssemblies(ResourcePackage package, Action<float> onProgress)
         {

@@ -18,6 +18,12 @@ namespace Framework.Assemblies
     {
         public const string AssetName = "AOTAssemblyManifest";
 
+        [Header("Release Identity")]
+        [Tooltip("与本次 YooAsset PackageVersion 一致，参与签名，用于识别清单所属发布。")]
+        public string ReleaseVersion = string.Empty;
+        [Tooltip("单调递增的正式发布序号，用于阻止已签名旧版本回滚。开发环境可为 0。")]
+        public long ReleaseSequence;
+
         public string AppVersion = string.Empty;
         public string BuildTarget = string.Empty;
         public string AotVersion = string.Empty;
@@ -26,5 +32,12 @@ namespace Framework.Assemblies
         public string BaselineGitCommit = string.Empty;
         public List<string> AotMetadataAssemblies = new List<string>();
         public List<AssemblyFileRecord> AotMetadataFiles = new List<AssemblyFileRecord>();
+
+        [Header("Signature")]
+        public int SignatureVersion;
+        public string SignatureAlgorithm = string.Empty;
+        public string SigningKeyId = string.Empty;
+        [TextArea(2, 6)]
+        public string Signature = string.Empty;
     }
 }

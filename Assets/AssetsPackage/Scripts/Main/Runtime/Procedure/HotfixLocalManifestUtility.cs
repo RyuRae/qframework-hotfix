@@ -128,6 +128,25 @@ namespace Framework.Procedure
             string aotVersion,
             out string error)
         {
+            return SaveLastGoodRecord(
+                packageName,
+                mainPackageVersion,
+                rawFilePackageVersion,
+                hotfixVersion,
+                aotVersion,
+                true,
+                out error);
+        }
+
+        public static bool SaveLastGoodRecord(
+            string packageName,
+            string mainPackageVersion,
+            string rawFilePackageVersion,
+            string hotfixVersion,
+            string aotVersion,
+            bool flushImmediately,
+            out string error)
+        {
             error = string.Empty;
             if (string.IsNullOrWhiteSpace(packageName) ||
                 string.IsNullOrWhiteSpace(mainPackageVersion) ||
@@ -163,7 +182,10 @@ namespace Framework.Procedure
                     normalizedRawFileVersion,
                     normalizedHotfixVersion,
                     normalizedAotVersion));
-                PlayerPrefs.Save();
+                if (flushImmediately)
+                {
+                    PlayerPrefs.Save();
+                }
                 return true;
             }
             catch (Exception exception)

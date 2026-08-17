@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Framework;
 using Framework.Assemblies;
 using UnityEditor;
@@ -32,6 +33,23 @@ namespace HybridCLR.Editor
 
         [Tooltip("热更 DLL 版本号。通常留空由 DLL hash 自动生成；只有接入外部版本协议时才手动固定。")]
         public string HotfixVersion = string.Empty;
+
+        [Tooltip("正式发布单调递增序号。每次发布新 ResourceVersion 必须递增，用于阻止合法旧签名包回滚。")]
+        public long ReleaseSequence;
+
+        [Header("Manifest 发布签名")]
+        [Tooltip("包体可信 RSA 公钥的标识。正式发布必须填写；轮换密钥时请使用新 KeyId。")]
+        public string ManifestSigningKeyId = string.Empty;
+
+        [Tooltip("RSA 公钥 Modulus，Base64 编码。正式发布必须使用至少 2048 位密钥。")]
+        [TextArea(2, 6)]
+        public string ManifestPublicKeyModulus = string.Empty;
+
+        [Tooltip("RSA 公钥 Exponent，Base64 编码。常见值为 AQAB。")]
+        public string ManifestPublicKeyExponent = "AQAB";
+
+        [Tooltip("保存私钥 XML 内容或仓库外私钥 XML 路径的环境变量名。私钥不会写入 Asset。")]
+        public string ManifestPrivateKeyEnvironmentVariable = "HOTFIX_MANIFEST_PRIVATE_KEY";
 
         [Header("远端资源")]
         [Tooltip("发布使用的远端资源环境。正式发布应选择 Production。")]
@@ -108,7 +126,7 @@ namespace HybridCLR.Editor
         public bool AllowsDevelopmentCdnForBuild =>
             AllowDevelopmentCdn && RemoteEnvironment != HotfixRemoteEnvironment.Production;
 
-        public bool IsFormalRelease => !AllowsDevelopmentCdnForBuild;
+        public bool IsFormalRelease => RemoteEnvironment == HotfixRemoteEnvironment.Production;
 
         public bool IsCompatibleWith(BuildTarget target)
         {
@@ -133,6 +151,11 @@ namespace HybridCLR.Editor
                     StartupDownloadMode,
                     StartupUpdatePolicy,
                     StartupDownloadTags);
+                runtimeSettings.SetManifestTrustForEditor(
+                    IsFormalRelease,
+                    ManifestSigningKeyId,
+                    ManifestPublicKeyModulus,
+                    ManifestPublicKeyExponent);
                 EditorUtility.SetDirty(runtimeSettings);
                 AssetDatabase.SaveAssetIfDirty(runtimeSettings);
             }
@@ -142,6 +165,7 @@ namespace HybridCLR.Editor
             {
                 FillMissingRemoteEnvironmentConfig(remoteSettings);
                 remoteSettings.SetDefaultSelectorForEditor(RemoteEnvironment, Channel, Region);
+                remoteSettings.SetRuntimeOverrideForEditor(RemoteEnvironment != HotfixRemoteEnvironment.Production);
                 remoteSettings.SetEnvironmentConfigForEditor(
                     RemoteEnvironment,
                     MainCdnUrlTemplate,
@@ -296,6 +320,46 @@ namespace HybridCLR.Editor
             {
                 error = "Formal ReleaseProfile can not use Development remote environment.";
                 return false;
+            }
+
+            if (IsFormalRelease)
+            {
+                if (RemoteEnvironment != HotfixRemoteEnvironment.Production)
+                {
+                    error = "Formal ReleaseProfile must use the Production remote environment.";
+                    return false;
+                }
+
+                if (!RequireHttps)
+                {
+                    error = "Formal ReleaseProfile must require HTTPS.";
+                    return false;
+                }
+
+                if (AllowedDomains == null ||
+                    !AllowedDomains.Any(domain => !string.IsNullOrWhiteSpace(domain)) ||
+                    AllowedDomains.Any(IsReservedExampleDomain))
+                {
+                    error = "Formal ReleaseProfile must configure a non-empty real CDN domain allowlist; RFC example domains are not allowed.";
+                    return false;
+                }
+
+                if (string.IsNullOrWhiteSpace(ResourceVersion))
+                {
+                    error = "Formal ReleaseProfile must set an explicit ResourceVersion so the signed Manifest is bound to a stable PackageVersion.";
+                    return false;
+                }
+
+                if (ReleaseSequence <= 0)
+                {
+                    error = "Formal ReleaseProfile ReleaseSequence must be greater than zero and increase for every release.";
+                    return false;
+                }
+
+                if (!HotfixManifestSigningUtility.TryValidateSigningConfiguration(this, out error))
+                {
+                    return false;
+                }
             }
 
             if (string.IsNullOrWhiteSpace(MainCdnUrlTemplate) ||
@@ -458,6 +522,16 @@ namespace HybridCLR.Editor
             if (string.IsNullOrWhiteSpace(GrayReleaseSalt))
             {
                 GrayReleaseSalt = "hotfix";
+            }
+
+            if (string.IsNullOrWhiteSpace(ManifestPublicKeyExponent))
+            {
+                ManifestPublicKeyExponent = "AQAB";
+            }
+
+            if (string.IsNullOrWhiteSpace(ManifestPrivateKeyEnvironmentVariable))
+            {
+                ManifestPrivateKeyEnvironmentVariable = "HOTFIX_MANIFEST_PRIVATE_KEY";
             }
         }
 
@@ -634,6 +708,25 @@ namespace HybridCLR.Editor
             }
 
             return true;
+        }
+
+        private static bool IsReservedExampleDomain(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            string host = value.Trim().TrimEnd('.');
+            return IsDomainOrSubdomain(host, "example.com") ||
+                   IsDomainOrSubdomain(host, "example.net") ||
+                   IsDomainOrSubdomain(host, "example.org");
+        }
+
+        private static bool IsDomainOrSubdomain(string host, string domain)
+        {
+            return string.Equals(host, domain, StringComparison.OrdinalIgnoreCase) ||
+                   host.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase);
         }
 
         private static string[] CloneArray(string[] values)

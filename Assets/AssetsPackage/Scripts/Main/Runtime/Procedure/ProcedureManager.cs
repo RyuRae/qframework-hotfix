@@ -317,7 +317,37 @@ namespace Framework.Procedure
             string aotVersion = AssemblyLoadContext.AotManifest == null
                 ? string.Empty
                 : AssemblyLoadContext.AotManifest.AotVersion;
-            if (!HotfixLocalManifestUtility.SaveLastGoodRecord(
+            var runtimeSettings = HotfixRuntimeSettings.Load();
+            var remoteSettings = HotfixRemoteSettings.Load();
+            bool requireSignedManifests =
+                runtimeSettings != null && runtimeSettings.RequireSignedAssemblyManifests ||
+                remoteSettings != null && remoteSettings.IsProductionRuntimeEnvironment;
+            if (requireSignedManifests)
+            {
+                var hotfixManifest = AssemblyLoadContext.HotfixManifest;
+                string lastGoodError = string.Empty;
+                if (hotfixManifest == null ||
+                    !HotfixReleaseTrustStore.TryCommit(
+                        hotfixManifest.ReleaseSequence,
+                        hotfixManifest.ReleaseVersion,
+                        () => HotfixLocalManifestUtility.SaveLastGoodRecord(
+                            _packageName,
+                            activeMainVersion,
+                            activeRawFileVersion,
+                            hotfixVersion,
+                            aotVersion,
+                            false,
+                            out lastGoodError),
+                        out error))
+                {
+                    if (string.IsNullOrWhiteSpace(error))
+                    {
+                        error = lastGoodError;
+                    }
+                    return false;
+                }
+            }
+            else if (!HotfixLocalManifestUtility.SaveLastGoodRecord(
                 _packageName,
                 activeMainVersion,
                 activeRawFileVersion,

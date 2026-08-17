@@ -5,6 +5,20 @@ using YooAsset;
 
 namespace Framework
 {
+    [Serializable]
+    public sealed class HotfixManifestPublicKey
+    {
+        [Tooltip("发布签名密钥标识。Manifest 通过该值选择包体内可信公钥。")]
+        public string KeyId = string.Empty;
+
+        [Tooltip("RSA 公钥 Modulus，Base64 编码。只包含公钥，不要在 Assets 中保存私钥。")]
+        [TextArea(2, 6)]
+        public string Modulus = string.Empty;
+
+        [Tooltip("RSA 公钥 Exponent，Base64 编码。常见值为 AQAB。")]
+        public string Exponent = "AQAB";
+    }
+
     public enum StartupDownloadMode
     {
         /// <summary>
@@ -108,6 +122,15 @@ namespace Framework
         [SerializeField]
         private string[] rawfileStartupDownloadTags = new string[0];
 
+        [Header("热更清单信任根")]
+        [SerializeField]
+        [Tooltip("开启后，AOT/Hotfix Manifest 必须通过包体内可信 RSA 公钥验签，才允许加载任何 DLL。正式环境必须开启。")]
+        private bool requireSignedAssemblyManifests;
+
+        [SerializeField]
+        [Tooltip("允许验证热更 Manifest 的 RSA 公钥。可同时保留新旧公钥完成轮换。私钥只能由外部构建环境提供。")]
+        private HotfixManifestPublicKey[] trustedManifestPublicKeys = Array.Empty<HotfixManifestPublicKey>();
+
         public EPlayMode PlayMode
         {
             get
@@ -129,6 +152,29 @@ namespace Framework
         public StartupPackageMode StartupPackageMode => startupPackageMode;
         public string[] StartupDownloadTags => HotfixUtility.NormalizeTags(startupDownloadTags);
         public string[] RawFileStartupDownloadTags => HotfixUtility.NormalizeTags(rawfileStartupDownloadTags);
+        public bool RequireSignedAssemblyManifests => requireSignedAssemblyManifests;
+        public HotfixManifestPublicKey[] TrustedManifestPublicKeys => trustedManifestPublicKeys ?? Array.Empty<HotfixManifestPublicKey>();
+
+        public bool TryGetTrustedManifestPublicKey(string keyId, out HotfixManifestPublicKey publicKey)
+        {
+            publicKey = null;
+            if (string.IsNullOrWhiteSpace(keyId))
+            {
+                return false;
+            }
+
+            foreach (var candidate in TrustedManifestPublicKeys)
+            {
+                if (candidate != null &&
+                    string.Equals(candidate.KeyId, keyId.Trim(), StringComparison.Ordinal))
+                {
+                    publicKey = candidate;
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         public static HotfixRuntimeSettings Load()
         {
@@ -161,6 +207,34 @@ namespace Framework
             startupDownloadMode = downloadMode;
             startupUpdatePolicy = updatePolicy;
             startupDownloadTags = HotfixUtility.NormalizeTags(downloadTags);
+        }
+
+        public void SetManifestTrustForEditor(
+            bool requireSignedManifests,
+            string keyId,
+            string modulus,
+            string exponent)
+        {
+            requireSignedAssemblyManifests = requireSignedManifests;
+            if (string.IsNullOrWhiteSpace(keyId))
+            {
+                return;
+            }
+
+            string normalizedKeyId = keyId.Trim();
+            var keys = new List<HotfixManifestPublicKey>(TrustedManifestPublicKeys);
+            var key = keys.Find(candidate => candidate != null &&
+                                             string.Equals(candidate.KeyId, normalizedKeyId, StringComparison.Ordinal));
+            if (key == null)
+            {
+                key = new HotfixManifestPublicKey();
+                keys.Add(key);
+            }
+
+            key.KeyId = normalizedKeyId;
+            key.Modulus = modulus == null ? string.Empty : modulus.Trim();
+            key.Exponent = string.IsNullOrWhiteSpace(exponent) ? "AQAB" : exponent.Trim();
+            trustedManifestPublicKeys = keys.ToArray();
         }
 #endif
     }

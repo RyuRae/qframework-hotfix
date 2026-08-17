@@ -88,13 +88,19 @@ namespace HybridCLR.Editor
             HybridCLRGenerateAllSafe.Run();
             CompileDllCommand.CompileDll(context.BuildTarget);
 
+            string packageVersion = BuildAssetsCommand.CreatePackageVersion(context.BuildTarget);
+
             var aotAssemblies = BuildAssetsCommand.CopyAOTAssembliesToTargetPath(context.BuildTarget);
             var hotfixAssemblies = BuildAssetsCommand.CopyHotUpdateAssembliesToTargetPath(context.BuildTarget);
-            var aotManifest = BuildAssetsCommand.CreateOrUpdateAOTAssemblyManifest(context.BuildTarget, aotAssemblies);
+            var aotManifest = BuildAssetsCommand.CreateOrUpdateAOTAssemblyManifest(
+                context.BuildTarget,
+                aotAssemblies,
+                packageVersion);
             var hotfixManifest = BuildAssetsCommand.CreateOrUpdateHotfixAssemblyManifest(
                 context.BuildTarget,
                 hotfixAssemblies,
-                aotManifest.AotVersion);
+                aotManifest.AotVersion,
+                packageVersion);
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
             BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
@@ -104,7 +110,8 @@ namespace HybridCLR.Editor
             var buildResult = BuildAssetsCommand.BuildYooAssetPackage(
                 packageConfig.MainPackageName,
                 context.BuildTarget,
-                copyToStreamingAssets);
+                copyToStreamingAssets,
+                packageVersion);
             Debug.Log("[HotfixBuild] 首包构建完成。");
 
             return HotfixBuildExecutionResult.Create(
@@ -132,11 +139,13 @@ namespace HybridCLR.Editor
             }
 
             CompileDllCommand.CompileDll(context.BuildTarget);
+            string packageVersion = BuildAssetsCommand.CreatePackageVersion(context.BuildTarget);
             var hotfixAssemblies = BuildAssetsCommand.CopyHotUpdateAssembliesToTargetPath(context.BuildTarget);
             var hotfixManifest = BuildAssetsCommand.CreateOrUpdateHotfixAssemblyManifest(
                 context.BuildTarget,
                 hotfixAssemblies,
-                aotManifest.AotVersion);
+                aotManifest.AotVersion,
+                packageVersion);
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
             BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixManifest.HotUpdateAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
@@ -145,7 +154,8 @@ namespace HybridCLR.Editor
             var buildResult = BuildAssetsCommand.BuildYooAssetPackage(
                 packageConfig.MainPackageName,
                 context.BuildTarget,
-                false);
+                false,
+                packageVersion);
             Debug.Log("[HotfixBuild] 热更包构建完成。");
 
             return HotfixBuildExecutionResult.Create(
@@ -192,13 +202,19 @@ namespace HybridCLR.Editor
             HybridCLRGenerateAllSafe.Run();
             CompileDllCommand.CompileDll(context.BuildTarget);
 
+            string packageVersion = BuildAssetsCommand.CreatePackageVersion(context.BuildTarget);
+
             var aotAssemblies = BuildAssetsCommand.CopyAOTAssembliesToTargetPath(context.BuildTarget);
             var hotfixAssemblies = BuildAssetsCommand.CopyHotUpdateAssembliesToTargetPath(context.BuildTarget);
-            var aotManifest = BuildAssetsCommand.CreateOrUpdateAOTAssemblyManifest(context.BuildTarget, aotAssemblies);
+            var aotManifest = BuildAssetsCommand.CreateOrUpdateAOTAssemblyManifest(
+                context.BuildTarget,
+                aotAssemblies,
+                packageVersion);
             var hotfixManifest = BuildAssetsCommand.CreateOrUpdateHotfixAssemblyManifest(
                 context.BuildTarget,
                 hotfixAssemblies,
-                aotManifest.AotVersion);
+                aotManifest.AotVersion,
+                packageVersion);
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
             BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
@@ -207,7 +223,8 @@ namespace HybridCLR.Editor
             var buildResult = BuildAssetsCommand.BuildYooAssetPackage(
                 packageConfig.MainPackageName,
                 context.BuildTarget,
-                false);
+                false,
+                packageVersion);
             Debug.Log("[HotfixBuild] AOT 元数据补丁构建完成。");
 
             return HotfixBuildExecutionResult.Create(
