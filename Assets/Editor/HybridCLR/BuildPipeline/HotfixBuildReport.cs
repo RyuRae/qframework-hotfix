@@ -37,6 +37,9 @@ namespace HybridCLR.Editor
 
         public IReadOnlyList<HotfixBuildReportItem> Items => mItems;
         public bool HasErrors => mItems.Any(item => item.Severity == HotfixBuildReportSeverity.Error);
+        public int ErrorCount => mItems.Count(item => item.Severity == HotfixBuildReportSeverity.Error);
+        public int WarningCount => mItems.Count(item => item.Severity == HotfixBuildReportSeverity.Warning);
+        public int InfoCount => mItems.Count(item => item.Severity == HotfixBuildReportSeverity.Info);
 
         public void AddInfo(string label, string value, string message = "")
         {

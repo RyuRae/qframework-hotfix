@@ -65,10 +65,14 @@ namespace HybridCLR.Editor
             DrawRequiredProperty("MainCdnUrlTemplate", "MainCdnUrlTemplate");
             DrawRequiredProperty("FallbackCdnUrlTemplate", "FallbackCdnUrlTemplate");
             DrawRequiredProperty("RequireHttps", "RequireHttps");
-            DrawRequiredProperty("ManifestSigningKeyId", "ManifestSigningKeyId");
-            DrawRequiredProperty("ManifestPublicKeyModulus", "ManifestPublicKeyModulus");
-            DrawRequiredProperty("ManifestPublicKeyExponent", "ManifestPublicKeyExponent");
-            DrawRequiredProperty("ManifestPrivateKeyEnvironmentVariable", "ManifestPrivateKeyEnvironmentVariable");
+            if (IsProductionSelected())
+            {
+                EditorGUILayout.LabelField("正式发布签名", EditorStyles.boldLabel);
+                DrawRequiredProperty("ManifestSigningKeyId", "ManifestSigningKeyId");
+                DrawRequiredProperty("ManifestPublicKeyModulus", "ManifestPublicKeyModulus");
+                DrawRequiredProperty("ManifestPublicKeyExponent", "ManifestPublicKeyExponent");
+                DrawRequiredProperty("ManifestPrivateKeyEnvironmentVariable", "ManifestPrivateKeyEnvironmentVariable");
+            }
             DrawRequiredProperty("PlayerPlayMode", "PlayerPlayMode");
             DrawRequiredProperty("StartupPackageMode", "StartupPackageMode");
             DrawRequiredProperty("StartupDownloadMode", "StartupDownloadMode");
@@ -93,8 +97,8 @@ namespace HybridCLR.Editor
         {
             EditorGUILayout.Space(8);
             EditorGUILayout.LabelField("可选覆盖 / 高级配置", EditorStyles.boldLabel);
-            DrawProperty("ResourceVersion", "ResourceVersion");
-            DrawProperty("ReleaseSequence", "ReleaseSequence");
+            DrawProperty("ResourceVersion", IsProductionSelected() ? "* ResourceVersion" : "ResourceVersion");
+            DrawProperty("ReleaseSequence", IsProductionSelected() ? "* ReleaseSequence" : "ReleaseSequence");
             DrawProperty("HotfixVersion", "HotfixVersion");
             DrawProperty("AllowedDomains", "AllowedDomains", true);
             DrawProperty("CertificatePinningEnabled", "CertificatePinningEnabled");
@@ -156,7 +160,7 @@ namespace HybridCLR.Editor
                 ShowNotification("已绑定当前 Profile。");
             }
 
-            if (GUILayout.Button("应用到 Settings"))
+            if (GUILayout.Button("应用 Profile 到底层 Settings"))
             {
                 RunAction(
                     profile,
@@ -168,7 +172,7 @@ namespace HybridCLR.Editor
                     "已应用到 Settings。");
             }
 
-            if (GUILayout.Button("保存当前配置"))
+            if (GUILayout.Button("从底层 Settings 覆盖 Profile"))
             {
                 SavePendingProfileEdits(profile);
                 Undo.RecordObject(profile, "Capture Hotfix Release Profile");
@@ -181,12 +185,12 @@ namespace HybridCLR.Editor
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("仅校验"))
+            if (GUILayout.Button("只读检查"))
             {
                 RefreshReport(profile);
             }
 
-            if (GUILayout.Button("一键修复"))
+            if (GUILayout.Button("应用并自动修复"))
             {
                 RunAction(profile, () => mReport = HotfixBuildRunner.FixAll(mMode), "修复完成。");
             }
@@ -242,6 +246,13 @@ namespace HybridCLR.Editor
         private void DrawRequiredProperty(string propertyName, string label)
         {
             DrawProperty(propertyName, "* " + label);
+        }
+
+        private bool IsProductionSelected()
+        {
+            var environment = serializedObject.FindProperty("RemoteEnvironment");
+            return environment != null &&
+                   environment.enumValueIndex == (int)HotfixRemoteEnvironment.Production;
         }
 
         private void DrawProperty(string propertyName, string label, bool includeChildren = false)

@@ -12,6 +12,7 @@ namespace HybridCLR.Editor
             var report = new HotfixBuildReport();
             AddBuildIdentity(context, report);
             AddReleaseProfile(context, report);
+            AddLogPolicy(context, report);
             AddRuntimeSettings(context, report);
             AddRemoteSettings(context, report);
             AddEntryResource(context, report);
@@ -26,7 +27,7 @@ namespace HybridCLR.Editor
                 report.AddError(
                     "ReleaseProfile",
                     "缺失",
-                    $"缺少发布配置：{HotfixReleaseProfile.DefaultAssetPath}。请在构建中心执行“一键修复”创建。");
+                    $"缺少发布配置：{HotfixReleaseProfile.DefaultAssetPath}。请在构建中心创建并绑定默认发布配置。");
                 return;
             }
 
@@ -34,7 +35,7 @@ namespace HybridCLR.Editor
             report.AddInfo(
                 "ReleaseProfile",
                 profile.DisplayName,
-                $"Target={profile.BuildTarget}, App={profile.AppVersion}, Compat={profile.AppVersionMin}-{profile.AppVersionMax}, Resource={FormatOptional(profile.ResourceVersion)}, Hotfix={FormatOptional(profile.HotfixVersion)}, Env={profile.RemoteEnvironment}, Channel={profile.Channel}, Region={profile.Region}");
+                $"Flavor={profile.BuildFlavor}, Target={profile.BuildTarget}, App={profile.AppVersion}, Compat={profile.AppVersionMin}-{profile.AppVersionMax}, Resource={FormatOptional(profile.ResourceVersion)}, Hotfix={FormatOptional(profile.HotfixVersion)}, Env={profile.RemoteEnvironment}, Channel={profile.Channel}, Region={profile.Region}");
 
             if (!profile.ValidateForBuild(context, out var error))
             {
@@ -75,6 +76,33 @@ namespace HybridCLR.Editor
             }
         }
 
+        private static void AddLogPolicy(HotfixBuildContext context, HotfixBuildReport report)
+        {
+            var profile = context.ReleaseProfile;
+            if (profile == null)
+            {
+                report.AddWarning(
+                    "Player 日志策略",
+                    EditorUserBuildSettings.development ? "完整日志" : "仅 Error/Exception",
+                    "缺少 ReleaseProfile，当前显示 Unity Development Build 状态。");
+                return;
+            }
+
+            string desired = profile.UsesDevelopmentBuild ? "完整日志" : "仅 Error/Exception";
+            string synced = EditorUserBuildSettings.development ? "完整日志" : "仅 Error/Exception";
+            if (profile.UsesDevelopmentBuild == EditorUserBuildSettings.development)
+            {
+                report.AddInfo("Player 日志策略", desired, "由构建环境预设自动控制，无需 ENABLE_LOG。");
+            }
+            else
+            {
+                report.AddWarning(
+                    "Player 日志策略",
+                    $"Profile={desired} / 当前 Unity={synced}",
+                    "执行“应用并自动修复”或开始构建后会同步 Development Build。无需配置 ENABLE_LOG。");
+            }
+        }
+
         private static void AddRuntimeSettings(HotfixBuildContext context, HotfixBuildReport report)
         {
             if (context.RuntimeSettings == null)
@@ -82,7 +110,7 @@ namespace HybridCLR.Editor
                 report.AddError(
                     "运行时设置",
                     "缺失",
-                    $"缺少资源：{HotfixBuildProfileUtility.RuntimeSettingsAssetPath}。可使用“一键修复”创建并同步。");
+                    $"缺少资源：{HotfixBuildProfileUtility.RuntimeSettingsAssetPath}。可使用“应用并自动修复”创建并同步。");
                 return;
             }
 
@@ -144,6 +172,23 @@ namespace HybridCLR.Editor
                 FormatRemoteSelector(context));
 
             var releaseProfile = context.ReleaseProfile;
+            if (releaseProfile != null)
+            {
+                if (!releaseProfile.ValidateRemoteConfigurationForBuild(context, out var profileError))
+                {
+                    report.AddError("远端设置", releaseProfile.RemoteEnvironment.ToString(), profileError);
+                }
+                else
+                {
+                    report.AddInfo(
+                        "远端设置",
+                        "Profile 配置有效",
+                        "只读校验直接检查 ReleaseProfile；底层 HotfixRemoteSettings 会在修复或构建时同步。");
+                }
+
+                return;
+            }
+
             bool allowDevelopmentCdn = releaseProfile == null || releaseProfile.AllowsDevelopmentCdnForBuild;
             var environment = releaseProfile == null
                 ? context.RemoteSettings.DefaultEnvironment

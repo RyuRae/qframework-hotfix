@@ -56,6 +56,11 @@ namespace HybridCLR.Editor
             string outputPath = $"{SettingsUtil.ProjectDir}/Release-Win64";
 
             var buildOptions = BuildOptions.CompressWithLz4;
+            var releaseProfile = HotfixReleaseProfile.LoadSelectedOrDefault();
+            if (releaseProfile != null && releaseProfile.UsesDevelopmentBuild)
+            {
+                buildOptions |= BuildOptions.Development;
+            }
 
             string location = $"{outputPath}/HybridCLRTrial.exe";
 

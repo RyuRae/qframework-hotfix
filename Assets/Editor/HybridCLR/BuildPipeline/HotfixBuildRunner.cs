@@ -16,12 +16,6 @@ namespace HybridCLR.Editor
         public static HotfixBuildReport ValidateOnly(HotfixBuildMode mode)
         {
             var context = HotfixBuildContext.Create(mode);
-            if (context.ReleaseProfile != null)
-            {
-                context.ReleaseProfile.ApplyToEditorSettings();
-                context = HotfixBuildContext.Create(mode);
-            }
-
             return HotfixBuildValidator.Validate(context);
         }
 
@@ -44,7 +38,7 @@ namespace HybridCLR.Editor
             if (context.ReleaseProfile == null)
             {
                 throw new InvalidOperationException(
-                    $"缺少 ReleaseProfile：{HotfixReleaseProfile.DefaultAssetPath}。请在构建中心执行“一键修复”创建并绑定。");
+                    $"缺少 ReleaseProfile：{HotfixReleaseProfile.DefaultAssetPath}。请在构建中心创建并绑定默认发布配置。");
             }
 
             context.ReleaseProfile.ApplyToEditorSettings();

@@ -9,6 +9,14 @@ using YooAsset;
 
 namespace HybridCLR.Editor
 {
+    public enum HotfixBuildFlavor
+    {
+        Development,
+        Testing,
+        Staging,
+        Production
+    }
+
     [CreateAssetMenu(fileName = "HotfixReleaseProfile", menuName = "Hotfix/Release Profile", order = 10)]
     public sealed class HotfixReleaseProfile : ScriptableObject
     {
@@ -131,14 +139,62 @@ namespace HybridCLR.Editor
 
         public bool IsFormalRelease => RemoteEnvironment == HotfixRemoteEnvironment.Production;
 
+        public HotfixBuildFlavor BuildFlavor => ToBuildFlavor(RemoteEnvironment);
+
+        public bool UsesDevelopmentBuild =>
+            BuildFlavor == HotfixBuildFlavor.Development ||
+            BuildFlavor == HotfixBuildFlavor.Testing;
+
         public bool IsCompatibleWith(BuildTarget target)
         {
             return BuildTarget == target;
         }
 
+        public void ApplyBuildFlavorPreset(HotfixBuildFlavor flavor)
+        {
+            switch (flavor)
+            {
+                case HotfixBuildFlavor.Development:
+                    RemoteEnvironment = HotfixRemoteEnvironment.Development;
+                    AllowDevelopmentCdn = true;
+                    StartupUpdatePolicy = StartupUpdatePolicy.AllowCached;
+                    break;
+                case HotfixBuildFlavor.Testing:
+                    RemoteEnvironment = HotfixRemoteEnvironment.Testing;
+                    AllowDevelopmentCdn = true;
+                    StartupUpdatePolicy = StartupUpdatePolicy.AllowCached;
+                    break;
+                case HotfixBuildFlavor.Staging:
+                    RemoteEnvironment = HotfixRemoteEnvironment.Staging;
+                    AllowDevelopmentCdn = false;
+                    RequireHttps = true;
+                    StartupUpdatePolicy = StartupUpdatePolicy.MustUpdate;
+                    break;
+                case HotfixBuildFlavor.Production:
+                    RemoteEnvironment = HotfixRemoteEnvironment.Production;
+                    AllowDevelopmentCdn = false;
+                    RequireHttps = true;
+                    StartupUpdatePolicy = StartupUpdatePolicy.MustUpdate;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(flavor), flavor, null);
+            }
+
+            LoadRemoteEnvironmentDefaults();
+            if (flavor == HotfixBuildFlavor.Production)
+            {
+                RequireHttps = true;
+                AllowDevelopmentCdn = false;
+            }
+
+            EnsureEditorDefaults();
+        }
+
         public void ApplyToEditorSettings()
         {
             EnsureEditorDefaults();
+
+            EditorUserBuildSettings.development = UsesDevelopmentBuild;
 
             if (!string.IsNullOrWhiteSpace(AppVersion))
             {
@@ -409,8 +465,7 @@ namespace HybridCLR.Editor
                 return false;
             }
 
-            if (context.RemoteSettings != null &&
-                !ValidateRemoteSettingsForStartupMode(context, out error))
+            if (!ValidateRemoteConfigurationForBuild(context, out error))
             {
                 return false;
             }
@@ -418,27 +473,42 @@ namespace HybridCLR.Editor
             return true;
         }
 
-        private bool ValidateRemoteSettingsForStartupMode(HotfixBuildContext context, out string error)
+        public bool ValidateRemoteConfigurationForBuild(HotfixBuildContext context, out string error)
         {
-            if (!context.RemoteSettings.TryValidateForPlayerBuild(
-                    AllowsDevelopmentCdnForBuild,
-                    context.BuildTargetName,
-                    RemoteEnvironment,
-                    Channel,
-                    Region,
-                    out error))
+            error = string.Empty;
+            if (!TryValidateRemoteUrl(MainCdnUrlTemplate, "主 CDN", out var mainUri, out error) ||
+                !TryValidateRemoteUrl(FallbackCdnUrlTemplate, "备用 CDN", out var fallbackUri, out error))
             {
                 return false;
             }
 
-            return StartupPackageMode != StartupPackageMode.EmptyPackage ||
-                   context.RemoteSettings.TryValidateForEmptyPackageBuild(
-                       AllowsDevelopmentCdnForBuild,
-                       context.BuildTargetName,
-                       RemoteEnvironment,
-                       Channel,
-                       Region,
-                       out error);
+            if (RequireHttps &&
+                (mainUri.Scheme != Uri.UriSchemeHttps || fallbackUri.Scheme != Uri.UriSchemeHttps))
+            {
+                error = "当前 ReleaseProfile 要求 HTTPS，但主 CDN 或备用 CDN 不是 HTTPS。";
+                return false;
+            }
+
+            if (!AllowsDevelopmentCdnForBuild && (mainUri.IsLoopback || fallbackUri.IsLoopback))
+            {
+                error = "非开发发布不能使用本机回环 CDN 地址。";
+                return false;
+            }
+
+            if (!IsHostAllowed(mainUri.Host) || !IsHostAllowed(fallbackUri.Host))
+            {
+                error = $"CDN 域名不在 AllowedDomains 中。Main={mainUri.Host}, Fallback={fallbackUri.Host}";
+                return false;
+            }
+
+            if (StartupPackageMode == StartupPackageMode.EmptyPackage &&
+                (IsReservedExampleDomain(mainUri.Host) || IsReservedExampleDomain(fallbackUri.Host)))
+            {
+                error = "EmptyPackage 首次启动依赖远端资源，不能使用 example.com/example.net/example.org 占位域名。";
+                return false;
+            }
+
+            return true;
         }
 
         public string ToJson()
@@ -606,6 +676,13 @@ namespace HybridCLR.Editor
             GrayReleaseSalt = grayReleaseSalt;
         }
 
+        private void LoadRemoteEnvironmentDefaults()
+        {
+            var remoteSettings = AssetDatabase.LoadAssetAtPath<HotfixRemoteSettings>(
+                HotfixBuildProfileUtility.RemoteSettingsAssetPath);
+            CaptureRemoteEnvironmentConfig(remoteSettings);
+        }
+
         private void FillMissingRemoteEnvironmentConfig(HotfixRemoteSettings remoteSettings)
         {
             if (remoteSettings == null ||
@@ -692,6 +769,23 @@ namespace HybridCLR.Editor
             return false;
         }
 
+        private static HotfixBuildFlavor ToBuildFlavor(HotfixRemoteEnvironment environment)
+        {
+            switch (environment)
+            {
+                case HotfixRemoteEnvironment.Development:
+                    return HotfixBuildFlavor.Development;
+                case HotfixRemoteEnvironment.Testing:
+                    return HotfixBuildFlavor.Testing;
+                case HotfixRemoteEnvironment.Staging:
+                    return HotfixBuildFlavor.Staging;
+                case HotfixRemoteEnvironment.Production:
+                    return HotfixBuildFlavor.Production;
+                default:
+                    return HotfixBuildFlavor.Development;
+            }
+        }
+
         private static int CompareVersion(string left, string right)
         {
             if (Version.TryParse(left, out var leftVersion) &&
@@ -739,6 +833,44 @@ namespace HybridCLR.Editor
             return IsDomainOrSubdomain(host, "example.com") ||
                    IsDomainOrSubdomain(host, "example.net") ||
                    IsDomainOrSubdomain(host, "example.org");
+        }
+
+        private static bool TryValidateRemoteUrl(
+            string template,
+            string label,
+            out Uri uri,
+            out string error)
+        {
+            uri = null;
+            error = string.Empty;
+            string resolved = (template ?? string.Empty)
+                .Replace("{Environment}", "Development")
+                .Replace("{Platform}", "Platform")
+                .Replace("{Channel}", "default")
+                .Replace("{Region}", "global")
+                .Replace("{PackageName}", HotfixRuntimeSettings.DefaultMainPackageName)
+                .Trim()
+                .TrimEnd('/');
+            if (!Uri.TryCreate(resolved, UriKind.Absolute, out uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                error = $"{label} 地址模板无效，仅支持绝对 HTTP/HTTPS URL：{template}";
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool IsHostAllowed(string host)
+        {
+            if (AllowedDomains == null || !AllowedDomains.Any(domain => !string.IsNullOrWhiteSpace(domain)))
+            {
+                return true;
+            }
+
+            return AllowedDomains.Any(domain =>
+                !string.IsNullOrWhiteSpace(domain) &&
+                string.Equals(domain.Trim(), host, StringComparison.OrdinalIgnoreCase));
         }
 
         private static bool IsDomainOrSubdomain(string host, string domain)

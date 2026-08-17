@@ -17,8 +17,7 @@ namespace Framework
 
         void Awake()
         {
-            
-#if ENABLE_LOG
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
             LogKit.Level = LogKit.LogLevel.Normal;
 #else
             LogKit.Level = LogKit.LogLevel.Error;
