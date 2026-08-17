@@ -12,11 +12,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ec3b401b9ef14ad282669bc721319451, type: 3}
   m_Name: HotfixAssemblyManifest
   m_EditorClassIdentifier: 
+  ReleaseVersion: 
+  ReleaseSequence: 0
   AppVersionMin: 0.1
   AppVersionMax: 0.1
   BuildTarget: Android
   RequiredAotVersion: aot-8e4a27124f69d754
   HotfixVersion: hotfix-57a6f98849d9a2fb
+  RawFilePackageName: 
+  RawFilePackageVersion: 
+  RawFileManifestSha256: 
   HotUpdateAssemblies:
   - HotfixCommon.dll
   - HotfixDemo.dll
@@ -39,4 +44,8 @@ MonoBehaviour:
   EntrySceneAddress: 
   EntryPrefabAddress: 
   EntryTypeName: HotfixDemo.HotfixCodeEntry
-  EntryMethodName:
+  EntryMethodName: 
+  SignatureVersion: 0
+  SignatureAlgorithm: 
+  SigningKeyId: 
+  Signature: 

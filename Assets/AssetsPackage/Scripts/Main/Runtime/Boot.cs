@@ -17,6 +17,12 @@ namespace Framework
 
         void Awake()
         {
+            
+#if ENABLE_LOG
+            LogKit.Level = LogKit.LogLevel.Normal;
+#else
+            LogKit.Level = LogKit.LogLevel.Error;
+#endif
             Application.targetFrameRate = targetFrame;//设置目标帧率
             Application.runInBackground = true;//设置后台运行
             DontDestroyOnLoad(gameObject);

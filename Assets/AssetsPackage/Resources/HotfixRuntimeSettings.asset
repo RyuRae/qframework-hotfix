@@ -22,3 +22,5 @@ MonoBehaviour:
   startupPackageMode: 0
   startupDownloadTags: []
   rawfileStartupDownloadTags: []
+  requireSignedAssemblyManifests: 0
+  trustedManifestPublicKeys: []
