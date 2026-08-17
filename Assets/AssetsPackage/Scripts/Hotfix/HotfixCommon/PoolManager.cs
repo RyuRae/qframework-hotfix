@@ -7,7 +7,7 @@ using System;
 namespace Common
 {
     /// <summary>
-    /// ¶ÔÏó³Ø¹ÜÀíÆ÷
+    /// å¯¹è±¡æ± ç®¡ç†å™¨
     /// </summary>
     public class PoolManager : Singleton<PoolManager>
     {
@@ -15,19 +15,52 @@ namespace Common
 
         private SimpleObjectPool<GameObject> pool;
 
+        private Dictionary<string, YooAssetLease<GameObject>> assetLeases =
+            new Dictionary<string, YooAssetLease<GameObject>>();
+
+        private HashSet<string> loadingAssets = new HashSet<string>();
+        private bool isDisposed;
+
         private PoolManager()
         {
 
         }
 
         /// <summary>
-        /// ³õÊ¼»¯µ±Ç°ÎïÌå¶ÔÏó³Ø
+        /// åˆå§‹åŒ–å½“å‰ç‰©ä½“å¯¹è±¡æ± 
         /// </summary>
         /// <param name="assetName"></param>
         public void InitPool(string assetName)
         {
-            YooAssetKit.LoadAssetAsync<GameObject>(assetName, asset =>
+            if (isDisposed || poolDict.ContainsKey(assetName) || !loadingAssets.Add(assetName))
             {
+                return;
+            }
+
+            YooAssetKit.LoadAssetLeaseAsync<GameObject>(assetName, lease =>
+            {
+                loadingAssets.Remove(assetName);
+                if (isDisposed)
+                {
+                    lease?.Dispose();
+                    return;
+                }
+
+                if (lease == null || lease.Asset == null)
+                {
+                    LogKit.E($"Load pool prefab failed: {assetName}");
+                    lease?.Dispose();
+                    return;
+                }
+
+                if (poolDict.ContainsKey(assetName))
+                {
+                    lease.Dispose();
+                    return;
+                }
+
+                assetLeases[assetName] = lease;
+                var asset = lease.Asset;
                 pool = new SimpleObjectPool<GameObject>(
                     () =>
                     {
@@ -46,7 +79,7 @@ namespace Common
         }
 
         /// <summary>
-        /// »ñÈ¡¶ÔÏóÎïÌå
+        /// è·å–å¯¹è±¡ç‰©ä½“
         /// </summary>
         /// <param name="assetName"></param>
         /// <returns></returns>
@@ -57,12 +90,12 @@ namespace Common
                 pool = poolDict[assetName];
                 return pool.Allocate();
             }
-            LogKit.W("¶ÔÏó³ØÎ´³õÊ¼»¯£¬ÇëÏÈ³õÊ¼»¯");
+            LogKit.W("å¯¹è±¡æ± æœªåˆå§‹åŒ–ï¼Œè¯·å…ˆåˆå§‹åŒ–");
             return null;
         }
 
         /// <summary>
-        /// »ØÊÕ¶ÔÏóÎïÌå
+        /// å›æ”¶å¯¹è±¡ç‰©ä½“
         /// </summary>
         /// <param name="obj"></param>
         public void Recycle(GameObject obj)
@@ -70,7 +103,7 @@ namespace Common
             string tempName = obj.name;
             if (!poolDict.ContainsKey(tempName))
             {
-                LogKit.W("·Ç¶ÔÏó³ØÎïÌå");
+                LogKit.W("éå¯¹è±¡æ± ç‰©ä½“");
                 return;
             }
             poolDict[tempName].Recycle(obj);
@@ -78,10 +111,11 @@ namespace Common
         }
 
         /// <summary>
-        /// ÇåÀíÊÍ·Å×ÊÔ´
+        /// æ¸…ç†é‡Šæ”¾èµ„æº
         /// </summary>
         public override void Dispose()
         {
+            isDisposed = true;
             base.Dispose();
             var it = poolDict.GetEnumerator();
             while (it.MoveNext())
@@ -89,6 +123,12 @@ namespace Common
                 it.Current.Value.Clear();
             }
             poolDict.Clear();
+            foreach (var lease in assetLeases.Values)
+            {
+                lease.Dispose();
+            }
+            assetLeases.Clear();
+            loadingAssets.Clear();
         }
     }
 }

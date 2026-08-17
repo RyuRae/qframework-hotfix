@@ -1075,13 +1075,170 @@ YooAssetKit.DownloadByTagsAsync(
     });
 ```
 
-按 Tag 加载：
+按 Tag 加载时也需要持有并释放资源租约：
 
 ```csharp
-var prefabs = await YooAssetKit.LoadAssetsByTagAsync<UnityEngine.GameObject>("ui");
+using (var leases = await YooAssetKit.LoadAssetsByTagLeaseAsync<UnityEngine.GameObject>("ui"))
+{
+    foreach (var prefab in leases.GetAssets())
+    {
+        // 在 leases.Dispose() 前使用资源，或把 leases 保存为长期成员。
+        UnityEngine.Debug.Log(prefab.name);
+    }
+}
 ```
 
 注意：按 Tag 加载前，相关 bundle 必须已经在本地可用。
+
+## YooAssetKit 资源生命周期
+
+`YooAssetKit` 使用显式资源租约管理 YooAsset Handle。加载成功后，资源的使用方同时拥有返回的 `YooAssetLease<T>`；租约存活期间资源引用有效，调用 `Dispose()` 后释放底层 Handle。
+
+不要只保存 `lease.Asset` 而丢弃租约，也不要在仍使用资源时提前释放租约。
+
+### 短生命周期资源
+
+只在当前方法内读取配置、文本或纹理时，推荐使用 `using`：
+
+```csharp
+using (var lease = await YooAssetKit.LoadAssetLeaseAsync<TextAsset>("tbperson"))
+{
+    byte[] bytes = lease.Asset.bytes;
+    // 在此处完成数据解析或复制。
+}
+```
+
+同步加载同样返回租约：
+
+```csharp
+using (var lease = YooAssetKit.LoadAssetLeaseSync<Material>("RoleMaterial"))
+{
+    renderer.sharedMaterial = lease.Asset;
+    // 如果 renderer 后续仍依赖该 Material，就不能在这里释放，应该改为长期持有。
+}
+```
+
+### 长期持有资源
+
+Prefab、AudioClip、Material 等会跨帧使用的资源，应把租约保存为成员，并在组件、系统或对象池销毁时释放：
+
+```csharp
+private YooAssetLease<GameObject> mPrefabLease;
+
+private async UniTask LoadPrefabAsync()
+{
+    mPrefabLease?.Dispose();
+    mPrefabLease = await YooAssetKit.LoadAssetLeaseAsync<GameObject>("Cube");
+
+    GameObject instance = Instantiate(mPrefabLease.Asset);
+}
+
+private void OnDestroy()
+{
+    mPrefabLease?.Dispose();
+    mPrefabLease = null;
+}
+```
+
+回调式加载时，成功回调接管租约所有权。对象可能在加载完成前销毁，因此需要处理迟到回调：
+
+```csharp
+private bool mDestroyed;
+private YooAssetLease<AudioClip> mAudioLease;
+
+private void LoadAudio()
+{
+    YooAssetKit.LoadAssetLeaseAsync<AudioClip>("Bgm", lease =>
+    {
+        if (mDestroyed)
+        {
+            lease?.Dispose();
+            return;
+        }
+
+        mAudioLease = lease;
+        audioSource.clip = lease == null ? null : lease.Asset;
+    });
+}
+
+private void OnDestroy()
+{
+    mDestroyed = true;
+    mAudioLease?.Dispose();
+}
+```
+
+### 子资源和批量资源
+
+子资源租约持有对应的 `SubAssetsHandle`：
+
+```csharp
+using (var lease = await YooAssetKit.LoadSubAssetLeaseAsync<Sprite>(
+           "UIAtlas",
+           "ButtonNormal"))
+{
+    image.sprite = lease.Asset;
+}
+```
+
+批量加载返回 `YooAssetLeaseCollection<T>`，释放集合会释放其中所有 Handle：
+
+```csharp
+private YooAssetLeaseCollection<GameObject> mUiPrefabLeases;
+
+private async UniTask LoadUiPrefabsAsync()
+{
+    mUiPrefabLeases?.Dispose();
+    mUiPrefabLeases = await YooAssetKit.LoadAssetsByTagsLeaseAsync<GameObject>(
+        new[] { "ui", "common" });
+
+    foreach (var prefab in mUiPrefabLeases.GetAssets())
+    {
+        UnityEngine.Debug.Log(prefab.name);
+    }
+}
+
+private void OnDestroy()
+{
+    mUiPrefabLeases?.Dispose();
+}
+```
+
+### 场景句柄
+
+调用 `YooAssetKit.LoadSceneAsync` 并提供 `onCompleted` 时，成功的 `SceneHandle` 所有权转移给回调。不要在回调外假设句柄已经释放；Additive 场景应通过 `SceneHandle.UnloadAsync()` 卸载，场景卸载成功后 YooAsset 会自动释放该句柄。
+
+```csharp
+YooAssetKit.LoadSceneAsync(
+    "Battle",
+    UnityEngine.SceneManagement.LoadSceneMode.Additive,
+    onCompleted: sceneHandle =>
+    {
+        mBattleSceneHandle = sceneHandle;
+    });
+
+// 退出战斗时：
+var operation = mBattleSceneHandle.UnloadAsync();
+```
+
+### 旧 API 迁移
+
+以下返回裸资源的 API 已标记为 `Obsolete`：
+
+```text
+LoadAssetSync / LoadAssetAsync
+LoadGameObjectAsync
+LoadSubAssetSync / LoadSubAssetAsync
+LoadAssetsByTagAsync / LoadAssetsByTagsAsync
+```
+
+新代码应改用带 `Lease` 的 API。旧代码暂时无法迁移时，每次旧 API 加载都必须配对调用一次：
+
+```csharp
+YooAssetKit.ReleaseAsset(asset);
+```
+
+`ReleaseAllLegacyAssets()` 只适合退出游戏或自动化测试清理，不应作为日常资源释放方案。`TryUnloadUnusedAsset` 和 `UnloadUnusedAssets` 也不能替代租约释放：只要 Handle 仍被租约或兼容层持有，资源引用计数就不会归零。
 
 ## 下载取消和失败处理
 

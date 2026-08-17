@@ -20,45 +20,42 @@ namespace QFramework
         {
             public AudioClip Clip => mClip;
             private AudioClip mClip;
-            private ResourcePackage mPackage;
-            private string mCurrAudioName;
+            private YooAssetLease<AudioClip> mClipLease;
+            private int mLoadVersion;
 
             public AudioClip LoadClip(AudioSearchKeys audioSearchKeys)
             {
-                mPackage = SetCurrResPackage();
-                AssetHandle assetHandle = null;
-                mCurrAudioName = audioSearchKeys.AssetName;
-                assetHandle = mPackage.LoadAssetSync<AudioClip>(mCurrAudioName);
-                mClip = assetHandle.AssetObject as AudioClip;
+                Unload();
+                mClipLease = YooAssetKit.LoadAssetLeaseSync<AudioClip>(audioSearchKeys.AssetName);
+                mClip = mClipLease.Asset;
 
                 return mClip;
             }
 
             public void LoadClipAsync(AudioSearchKeys audioSearchKeys, Action<bool, AudioClip> onLoad)
             {
-                mPackage = SetCurrResPackage();
-                AssetHandle handle = null;
-                mCurrAudioName = audioSearchKeys.AssetName;
-                handle = mPackage.LoadAssetSync<AudioClip>(mCurrAudioName);
-                handle.Completed += (assetHandle) =>
+                Unload();
+                int loadVersion = mLoadVersion;
+                YooAssetKit.LoadAssetLeaseAsync<AudioClip>(audioSearchKeys.AssetName, lease =>
                 {
-                    mClip = assetHandle.AssetObject as AudioClip;
-                    onLoad(assetHandle.IsDone, mClip);
-                };
-            }
+                    if (loadVersion != mLoadVersion)
+                    {
+                        lease?.Dispose();
+                        return;
+                    }
 
-            //设置当前资源包
-            private ResourcePackage SetCurrResPackage()
-            {
-                var package = YooAssetKit.GetPackageOrDefault();
-                return package;
+                    mClipLease = lease;
+                    mClip = lease == null ? null : lease.Asset;
+                    onLoad?.Invoke(mClip != null, mClip);
+                });
             }
 
             public void Unload()
             {
-                mPackage = SetCurrResPackage();
-                mPackage.TryUnloadUnusedAsset(mCurrAudioName);
-                mPackage = null;
+                mLoadVersion++;
+                mClipLease?.Dispose();
+                mClipLease = null;
+                mClip = null;
             }
 
         }

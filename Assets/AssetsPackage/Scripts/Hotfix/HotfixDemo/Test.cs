@@ -10,12 +10,27 @@ public class Test : MonoBehaviour
 {
 
     GameObject go = null;
+    private YooAssetLease<GameObject> mCubeLease;
+    private bool mDestroyed;
     async void Start()
     {
         
 
-        YooAssetKit.LoadAssetAsync<GameObject>("Cube", obj => 
+        YooAssetKit.LoadAssetLeaseAsync<GameObject>("Cube", lease =>
         {
+            if (mDestroyed)
+            {
+                lease?.Dispose();
+                return;
+            }
+
+            mCubeLease = lease;
+            var obj = lease == null ? null : lease.Asset;
+            if (obj == null)
+            {
+                LogKit.E("Load Cube failed.");
+                return;
+            }
             go = Instantiate(obj);
             LogKit.I(go.name);
         });
@@ -33,8 +48,17 @@ public class Test : MonoBehaviour
 
     private async UniTask<byte[]> LoadTable()
     {
-        var textAsset = await YooAssetKit.LoadAssetAsync<TextAsset>("tbperson");
-        return textAsset.bytes;
+        using (var lease = await YooAssetKit.LoadAssetLeaseAsync<TextAsset>("tbperson"))
+        {
+            return lease.Asset.bytes;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        mDestroyed = true;
+        mCubeLease?.Dispose();
+        mCubeLease = null;
     }
 
     //private static async UniTask<ByteBuf> LoadByteBuf(string file)

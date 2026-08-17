@@ -17,6 +17,8 @@ namespace QFramework
     {
         private const string DefaultPackageName = "DefaultPackage";
         private static string sDefaultPackageName = DefaultPackageName;
+        private static readonly Dictionary<int, Stack<IDisposable>> sLegacyAssetLeases =
+            new Dictionary<int, Stack<IDisposable>>();
 
         /// <summary>
         /// 设置默认包
@@ -48,20 +50,157 @@ namespace QFramework
         }
 
         /// <summary>
-        /// 通过资源包名同步加载资源
+        /// 同步加载资源并把底层 Handle 的所有权交给租约。调用方必须 Dispose 返回值。
         /// </summary>
-        public static T LoadAssetSync<T>(string assetName, string packageName = "DefaultPackage") where T : UnityEngine.Object
+        public static YooAssetLease<T> LoadAssetLeaseSync<T>(
+            string assetName,
+            string packageName = null) where T : UnityEngine.Object
         {
             var package = GetPackageOrDefault(packageName);
-            return package.LoadAssetSync<T>(assetName).AssetObject as T;
+            AssetHandle handle = package.LoadAssetSync<T>(assetName);
+            try
+            {
+                return CreateAssetLease<T>(handle, assetName, package.PackageName);
+            }
+            catch
+            {
+                handle?.Release();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 异步加载资源并把底层 Handle 的所有权交给租约。调用方必须 Dispose 返回值。
+        /// </summary>
+        public static async UniTask<YooAssetLease<T>> LoadAssetLeaseAsync<T>(
+            string assetName,
+            string packageName = null) where T : UnityEngine.Object
+        {
+            var package = GetPackageOrDefault(packageName);
+            AssetHandle handle = package.LoadAssetAsync<T>(assetName);
+            try
+            {
+                await handle.Task;
+                return CreateAssetLease<T>(handle, assetName, package.PackageName);
+            }
+            catch
+            {
+                handle?.Release();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 回调式异步加载。成功时 lease 的所有权转移给回调；失败时回调收到 null。
+        /// </summary>
+        public static void LoadAssetLeaseAsync<T>(
+            string assetName,
+            Action<YooAssetLease<T>> onLoad,
+            string packageName = null) where T : UnityEngine.Object
+        {
+            var package = GetPackageOrDefault(packageName);
+            AssetHandle handle = package.LoadAssetAsync<T>(assetName);
+            handle.Completed += completedHandle =>
+            {
+                YooAssetLease<T> lease;
+                try
+                {
+                    lease = CreateAssetLease<T>(completedHandle, assetName, package.PackageName);
+                }
+                catch (Exception exception)
+                {
+                    Debug.LogError(exception);
+                    completedHandle.Release();
+                    try
+                    {
+                        onLoad?.Invoke(null);
+                    }
+                    catch (Exception callbackException)
+                    {
+                        Debug.LogException(callbackException);
+                    }
+                    return;
+                }
+
+                if (onLoad == null)
+                {
+                    lease.Dispose();
+                    return;
+                }
+
+                try
+                {
+                    onLoad(lease);
+                }
+                catch (Exception exception)
+                {
+                    lease.Dispose();
+                    Debug.LogException(exception);
+                }
+            };
+        }
+
+        /// <summary>
+        /// 同步加载指定子资源。返回的租约持有整个 SubAssetsHandle，调用方必须 Dispose。
+        /// </summary>
+        public static YooAssetLease<T> LoadSubAssetLeaseSync<T>(
+            string assetName,
+            string subAssetName,
+            string packageName = null) where T : UnityEngine.Object
+        {
+            var package = GetPackageOrDefault(packageName);
+            SubAssetsHandle handle = package.LoadSubAssetsSync<T>(assetName);
+            try
+            {
+                return CreateSubAssetLease<T>(handle, assetName, subAssetName, package.PackageName);
+            }
+            catch
+            {
+                handle?.Release();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 异步加载指定子资源。返回的租约持有整个 SubAssetsHandle，调用方必须 Dispose。
+        /// </summary>
+        public static async UniTask<YooAssetLease<T>> LoadSubAssetLeaseAsync<T>(
+            string assetName,
+            string subAssetName,
+            string packageName = null) where T : UnityEngine.Object
+        {
+            var package = GetPackageOrDefault(packageName);
+            SubAssetsHandle handle = package.LoadSubAssetsAsync<T>(assetName);
+            try
+            {
+                await handle.Task;
+                return CreateSubAssetLease<T>(handle, assetName, subAssetName, package.PackageName);
+            }
+            catch
+            {
+                handle?.Release();
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 通过资源包名同步加载资源
+        /// </summary>
+        [Obsolete("Use LoadAssetLeaseSync<T>() and dispose the returned lease. If compatibility is required, call ReleaseAsset(asset).")]
+        public static T LoadAssetSync<T>(string assetName, string packageName = "DefaultPackage") where T : UnityEngine.Object
+        {
+            var lease = LoadAssetLeaseSync<T>(assetName, packageName);
+            return RetainLegacyAsset(lease);
         }
 
         /// <summary>
         /// 同步加载资源
         /// </summary>
+        [Obsolete("Use LoadAssetLeaseSync<T>() and dispose the returned lease. If compatibility is required, call ReleaseAsset(asset).")]
         public static T LoadAssetSync<T>(string assetName) where T : UnityEngine.Object
         {
-            return YooAssets.LoadAssetSync<T>(assetName).AssetObject as T;
+            var lease = LoadAssetLeaseSync<T>(assetName);
+            return RetainLegacyAsset(lease);
         }
 
         /// <summary>
@@ -71,10 +210,10 @@ namespace QFramework
         /// <param name="assetName"></param>
         /// <param name="subAssetName"></param>
         /// <returns></returns>
+        [Obsolete("Use LoadSubAssetLeaseSync<T>() and dispose the returned lease. If compatibility is required, call ReleaseAsset(asset).")]
         public static T LoadSubAssetSync<T>(string assetName, string subAssetName, string packageName = "DefaultPackage") where T : UnityEngine.Object
         {
-            var package = GetPackageOrDefault(packageName);
-            return package.LoadSubAssetsSync<T>(assetName).GetSubAssetObject<T>(subAssetName);
+            return RetainLegacyAsset(LoadSubAssetLeaseSync<T>(assetName, subAssetName, packageName));
         }
 
         /// <summary>
@@ -83,9 +222,10 @@ namespace QFramework
         /// <param name="assetName"></param>
         /// <param name="subAssetName"></param>
         /// <returns></returns>
+        [Obsolete("Use LoadSubAssetLeaseSync<T>() and dispose the returned lease. If compatibility is required, call ReleaseAsset(asset).")]
         public static T LoadSubAssetSync<T>(string assetName, string subAssetName) where T : UnityEngine.Object
         {
-            return YooAssets.LoadSubAssetsSync<T>(assetName).GetSubAssetObject<T>(subAssetName);
+            return RetainLegacyAsset(LoadSubAssetLeaseSync<T>(assetName, subAssetName));
         }
 
         /// <summary>
@@ -95,15 +235,10 @@ namespace QFramework
         /// <param name="assetName">资源名称</param>
         /// <param name="onLoad">加载完成回调</param>
         /// <param name="packageName">资源包名</param>
+        [Obsolete("Use LoadAssetLeaseAsync<T>() and dispose the lease after use. If compatibility is required, call ReleaseAsset(asset).")]
         public static void LoadAssetAsync<T>(string assetName, Action<T> onLoad, string packageName = "DefaultPackage") where T : UnityEngine.Object
         {
-            var package = GetPackageOrDefault(packageName);
-            AssetHandle handle = package.LoadAssetAsync<T>(assetName);
-            handle.Completed += (assetHandle) =>
-            {
-                onLoad?.Invoke(assetHandle.AssetObject as T);
-                handle.Release();
-            };
+            LoadAssetLeaseAsync<T>(assetName, lease => InvokeLegacyCallback(lease, onLoad), packageName);
         }
 
         /// <summary>
@@ -112,14 +247,10 @@ namespace QFramework
         /// <typeparam name="T">资源类型</typeparam>
         /// <param name="assetName">资源名称</param>
         /// <param name="onLoad">加载完成回调</param>
+        [Obsolete("Use LoadAssetLeaseAsync<T>() and dispose the lease after use. If compatibility is required, call ReleaseAsset(asset).")]
         public static void LoadAssetAsync<T>(string assetName, Action<T> onLoad) where T : UnityEngine.Object
         {
-            AssetHandle handle = YooAssets.LoadAssetAsync<T>(assetName);
-            handle.Completed += (assetHandle) => 
-            {
-                onLoad?.Invoke(assetHandle.AssetObject as T);
-                handle.Release();
-            };
+            LoadAssetLeaseAsync<T>(assetName, lease => InvokeLegacyCallback(lease, onLoad));
         }
 
         /// <summary>
@@ -128,13 +259,54 @@ namespace QFramework
         /// <typeparam name="T"></typeparam>
         /// <param name="assetName"></param>
         /// <returns></returns>
+        [Obsolete("Use LoadAssetLeaseAsync<T>() and dispose the returned lease. If compatibility is required, call ReleaseAsset(asset).")]
         public static async UniTask<T> LoadAssetAsync<T>(string assetName) where T : UnityEngine.Object
         {
-            AssetHandle handle = YooAssets.LoadAssetAsync<T>(assetName);
-            await handle.Task;
-            T asset = handle.AssetObject as T;
-            handle.Release();
-            return asset;
+            var lease = await LoadAssetLeaseAsync<T>(assetName);
+            return RetainLegacyAsset(lease);
+        }
+
+        /// <summary>
+        /// 仅用于旧裸资源 API 的配对释放。新代码应直接 Dispose YooAssetLease。
+        /// 同一资源被旧 API 加载多次时，每次调用只释放一次引用。
+        /// </summary>
+        public static bool ReleaseAsset(UnityEngine.Object asset)
+        {
+            if (ReferenceEquals(asset, null))
+            {
+                return false;
+            }
+
+            int instanceId = asset.GetInstanceID();
+            if (!sLegacyAssetLeases.TryGetValue(instanceId, out var leases) || leases.Count == 0)
+            {
+                Debug.LogWarning($"YooAssetKit.ReleaseAsset ignored: no legacy lease owns '{asset.name}'.");
+                return false;
+            }
+
+            leases.Pop().Dispose();
+            if (leases.Count == 0)
+            {
+                sLegacyAssetLeases.Remove(instanceId);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 释放所有仍由旧裸资源 API 托管的句柄。只建议在退出游戏或测试清理阶段使用。
+        /// </summary>
+        public static void ReleaseAllLegacyAssets()
+        {
+            foreach (var leases in sLegacyAssetLeases.Values)
+            {
+                while (leases.Count > 0)
+                {
+                    leases.Pop().Dispose();
+                }
+            }
+
+            sLegacyAssetLeases.Clear();
         }
 
         /// <summary>
@@ -236,6 +408,7 @@ namespace QFramework
         /// <summary>
         /// 根据Tag异步加载资源集合。
         /// </summary>
+        [Obsolete("Use LoadAssetsByTagsLeaseAsync<T>() and dispose the returned collection. If compatibility is required, call ReleaseAsset for every asset.")]
         public static void LoadAssetsByTagAsync<T>(
             string tag,
             Action<List<T>> onLoad,
@@ -247,18 +420,19 @@ namespace QFramework
         /// <summary>
         /// 根据多个Tag异步加载资源集合。
         /// </summary>
+        [Obsolete("Use LoadAssetsByTagsLeaseAsync<T>() and dispose the returned collection. If compatibility is required, call ReleaseAsset for every asset.")]
         public static void LoadAssetsByTagsAsync<T>(
             string[] tags,
             Action<List<T>> onLoad,
             string packageName = "DefaultPackage") where T : UnityEngine.Object
         {
-            var package = GetPackageOrDefault(packageName);
-            LoadAssetsByTags<T>(package, tags, onLoad).ToAction().StartGlobal();
+            LoadAssetsByTagsCompatAsync<T>(tags, onLoad, packageName).Forget();
         }
 
         /// <summary>
         /// 根据Tag异步加载资源集合。
         /// </summary>
+        [Obsolete("Use LoadAssetsByTagsLeaseAsync<T>() and dispose the returned collection. If compatibility is required, call ReleaseAsset for every asset.")]
         public static async UniTask<List<T>> LoadAssetsByTagAsync<T>(
             string tag,
             string packageName = "DefaultPackage") where T : UnityEngine.Object
@@ -269,49 +443,84 @@ namespace QFramework
         /// <summary>
         /// 根据多个Tag异步加载资源集合。
         /// </summary>
+        [Obsolete("Use LoadAssetsByTagsLeaseAsync<T>() and dispose the returned collection. If compatibility is required, call ReleaseAsset for every asset.")]
         public static async UniTask<List<T>> LoadAssetsByTagsAsync<T>(
             string[] tags,
             string packageName = "DefaultPackage") where T : UnityEngine.Object
+        {
+            var leases = await LoadAssetsByTagsLeaseAsync<T>(tags, packageName);
+            return RetainLegacyAssets(leases);
+        }
+
+        public static UniTask<YooAssetLeaseCollection<T>> LoadAssetsByTagLeaseAsync<T>(
+            string tag,
+            string packageName = null) where T : UnityEngine.Object
+        {
+            return LoadAssetsByTagsLeaseAsync<T>(new[] { tag }, packageName);
+        }
+
+        public static async UniTask<YooAssetLeaseCollection<T>> LoadAssetsByTagsLeaseAsync<T>(
+            string[] tags,
+            string packageName = null) where T : UnityEngine.Object
         {
             var package = GetPackageOrDefault(packageName);
             var normalizedTags = NormalizeTags(tags);
             if (normalizedTags.Length == 0)
             {
-                return new List<T>();
+                return new YooAssetLeaseCollection<T>(new List<YooAssetLease<T>>());
             }
 
             var assetInfos = package.GetAssetInfos(normalizedTags);
-            var handles = new List<AssetHandle>(assetInfos.Length);
-            var assets = new List<T>(assetInfos.Length);
+            var leases = new List<YooAssetLease<T>>(assetInfos.Length);
 
-            foreach (var assetInfo in assetInfos)
+            try
             {
-                var handle = package.LoadAssetAsync(assetInfo);
-                handles.Add(handle);
-                await handle.Task;
-
-                if (handle.Status != EOperationStatus.Succeed)
+                foreach (var assetInfo in assetInfos)
                 {
-                    Debug.LogError(handle.LastError);
-                    continue;
+                    AssetHandle handle = package.LoadAssetAsync(assetInfo);
+                    try
+                    {
+                        await handle.Task;
+                        leases.Add(CreateAssetLease<T>(handle, assetInfo.Address, package.PackageName));
+                    }
+                    catch
+                    {
+                        handle?.Release();
+                        throw;
+                    }
                 }
 
-                if (handle.AssetObject is T asset)
+                return new YooAssetLeaseCollection<T>(leases);
+            }
+            catch
+            {
+                foreach (var lease in leases)
                 {
-                    assets.Add(asset);
+                    lease.Dispose();
                 }
-                else
-                {
-                    Debug.LogError($"Asset type cast failed: {assetInfo.Address}");
-                }
+
+                throw;
+            }
+        }
+
+        private static async UniTask LoadAssetsByTagsCompatAsync<T>(
+            string[] tags,
+            Action<List<T>> onLoad,
+            string packageName) where T : UnityEngine.Object
+        {
+            YooAssetLeaseCollection<T> leases;
+            try
+            {
+                leases = await LoadAssetsByTagsLeaseAsync<T>(tags, packageName);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+                onLoad?.Invoke(new List<T>());
+                return;
             }
 
-            foreach (var handle in handles)
-            {
-                handle.Release();
-            }
-
-            return assets;
+            InvokeLegacyCollectionCallback(leases, onLoad);
         }
 
 
@@ -332,15 +541,10 @@ namespace QFramework
         /// <param name="assetName">资源名称</param>
         /// <param name="onLoad">加载完成回调</param>
         /// <param name="packageName">包名</param>
+        [Obsolete("Use LoadAssetLeaseAsync<GameObject>() and dispose the returned lease. If compatibility is required, call ReleaseAsset(asset).")]
         public static void LoadGameObjectAsync(string assetName, Action<GameObject> onLoad, string packageName = "DefaultPackage")
         {
-            var package = GetPackageOrDefault(packageName);
-            AssetHandle handle = package.LoadAssetAsync<GameObject>(assetName);
-            handle.Completed += (assetHanlde) =>
-            {
-                onLoad?.Invoke(assetHanlde.AssetObject as GameObject);
-                handle.Release();
-            };
+            LoadAssetLeaseAsync<GameObject>(assetName, lease => InvokeLegacyCallback(lease, onLoad), packageName);
         }
 
         /// <summary>
@@ -348,14 +552,10 @@ namespace QFramework
         /// </summary>
         /// <param name="assetName">资源名称</param>
         /// <param name="onLoad">加载完成回调</param>
+        [Obsolete("Use LoadAssetLeaseAsync<GameObject>() and dispose the returned lease. If compatibility is required, call ReleaseAsset(asset).")]
         public static void LoadGameObjectAsync(string assetName, Action<GameObject> onLoad)
         {
-            AssetHandle handle = YooAssets.LoadAssetAsync<GameObject>(assetName);
-            handle.Completed += (assetHanlde) =>
-            {
-                onLoad?.Invoke(assetHanlde.AssetObject as GameObject);
-                handle.Release();
-            };
+            LoadAssetLeaseAsync<GameObject>(assetName, lease => InvokeLegacyCallback(lease, onLoad));
         }
 
         /// <summary>
@@ -366,15 +566,28 @@ namespace QFramework
         /// <param name="subAssetName">子对象名称</param>
         /// <param name="onLoad">加载完成回调</param>
         /// <param name="packageName">包名</param>
+        [Obsolete("Use LoadSubAssetLeaseAsync<T>() and dispose the returned lease. If compatibility is required, call ReleaseAsset(asset).")]
         public static void LoadSubAssetAsync<T>(string assetName, string subAssetName, Action<T> onLoad, string packageName = "DefaultPackage") where T : UnityEngine.Object
         {
-            var package = GetPackageOrDefault(packageName);
-            SubAssetsHandle handle = package.LoadSubAssetsAsync<T>(assetName);
-            handle.Completed += (assetHandle) =>
+            LoadSubAssetLeaseCompatAsync(assetName, subAssetName, onLoad, packageName).Forget();
+        }
+
+        private static async UniTask LoadSubAssetLeaseCompatAsync<T>(
+            string assetName,
+            string subAssetName,
+            Action<T> onLoad,
+            string packageName) where T : UnityEngine.Object
+        {
+            try
             {
-                onLoad?.Invoke(assetHandle.GetSubAssetObject<T>(subAssetName));
-                handle.Release();
-            };
+                var lease = await LoadSubAssetLeaseAsync<T>(assetName, subAssetName, packageName);
+                InvokeLegacyCallback(lease, onLoad);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+                onLoad?.Invoke(null);
+            }
         }
 
         /// <summary>
@@ -384,14 +597,10 @@ namespace QFramework
         /// <param name="assetName">资源名称</param>
         /// <param name="subAssetName">子对象名称</param>
         /// <param name="onLoad">加载完成回调</param>
+        [Obsolete("Use LoadSubAssetLeaseAsync<T>() and dispose the returned lease. If compatibility is required, call ReleaseAsset(asset).")]
         public static void LoadSubAssetAsync<T>(string assetName, string subAssetName, Action<T> onLoad) where T : UnityEngine.Object
         {
-            SubAssetsHandle handle = YooAssets.LoadSubAssetsAsync<T>(assetName);
-            handle.Completed += (assetHandle) =>
-            {
-                onLoad?.Invoke(assetHandle.GetSubAssetObject<T>(subAssetName));
-                handle.Release();
-            };
+            LoadSubAssetLeaseCompatAsync(assetName, subAssetName, onLoad, null).Forget();
         }
 
 
@@ -468,6 +677,7 @@ namespace QFramework
         /// <param name="suspendLoad">是否追加</param>
         /// <param name="onUpdateProgress">加载进度</param>
         /// <param name="packageName">包名</param>
+        /// <remarks>onCompleted 非空时，成功 SceneHandle 的所有权转移给调用方；场景卸载后 YooAsset 会自动释放。</remarks>
         public static void LoadSceneAsync(string sceneName, LoadSceneMode loadSceneMode = LoadSceneMode.Single, LocalPhysicsMode physicsMode = LocalPhysicsMode.None, bool suspendLoad = true, Action<float> onUpdateProgress = null, Action<SceneHandle> onCompleted = null, string packageName = "DefaultPackage")
         {
             var package = GetPackageOrDefault(packageName);
@@ -481,6 +691,7 @@ namespace QFramework
         /// <param name="loadSceneMode">加载模式</param>
         /// <param name="suspendLoad">是否追加</param>
         /// <param name="onUpdateProgress">加载进度</param>
+        /// <remarks>onCompleted 非空时，成功 SceneHandle 的所有权转移给调用方；场景卸载后 YooAsset 会自动释放。</remarks>
         public static void LoadSceneAsync(string sceneName, LoadSceneMode loadSceneMode = LoadSceneMode.Single, LocalPhysicsMode physicsMode = LocalPhysicsMode.None, bool suspendLoad = true, Action<float> onUpdateProgress = null, Action<SceneHandle> onCompleted = null)
         {
             LoadScene(sceneName, loadSceneMode, physicsMode, suspendLoad, onUpdateProgress, onCompleted).ToAction().StartGlobal();
@@ -530,6 +741,153 @@ namespace QFramework
             yield return operation;
         }
 
+        private static YooAssetLease<T> CreateAssetLease<T>(
+            AssetHandle handle,
+            string assetName,
+            string packageName) where T : UnityEngine.Object
+        {
+            if (handle == null)
+            {
+                throw new InvalidOperationException($"YooAsset load returned a null handle: {packageName}:{assetName}");
+            }
+
+            if (handle.Status != EOperationStatus.Succeed)
+            {
+                throw new InvalidOperationException(
+                    $"YooAsset load failed: {packageName}:{assetName}. {handle.LastError}");
+            }
+
+            var asset = handle.GetAssetObject<T>();
+            if (asset == null)
+            {
+                throw new InvalidCastException(
+                    $"YooAsset type mismatch or empty asset: {packageName}:{assetName}, Expected={typeof(T).FullName}");
+            }
+
+            return new YooAssetLease<T>(asset, handle, assetName, packageName);
+        }
+
+        private static YooAssetLease<T> CreateSubAssetLease<T>(
+            SubAssetsHandle handle,
+            string assetName,
+            string subAssetName,
+            string packageName) where T : UnityEngine.Object
+        {
+            if (handle == null)
+            {
+                throw new InvalidOperationException($"YooAsset sub-asset load returned a null handle: {packageName}:{assetName}");
+            }
+
+            if (handle.Status != EOperationStatus.Succeed)
+            {
+                throw new InvalidOperationException(
+                    $"YooAsset sub-asset load failed: {packageName}:{assetName}. {handle.LastError}");
+            }
+
+            var asset = handle.GetSubAssetObject<T>(subAssetName);
+            if (asset == null)
+            {
+                throw new InvalidOperationException(
+                    $"YooAsset sub-asset is missing or has the wrong type: " +
+                    $"{packageName}:{assetName}/{subAssetName}, Expected={typeof(T).FullName}");
+            }
+
+            return new YooAssetLease<T>(asset, handle, $"{assetName}/{subAssetName}", packageName);
+        }
+
+        private static T RetainLegacyAsset<T>(YooAssetLease<T> lease) where T : UnityEngine.Object
+        {
+            if (lease == null || !lease.IsValid)
+            {
+                lease?.Dispose();
+                return null;
+            }
+
+            T asset = lease.Asset;
+            int instanceId = asset.GetInstanceID();
+            if (!sLegacyAssetLeases.TryGetValue(instanceId, out var leases))
+            {
+                leases = new Stack<IDisposable>();
+                sLegacyAssetLeases.Add(instanceId, leases);
+            }
+
+            leases.Push(lease);
+            return asset;
+        }
+
+        private static List<T> RetainLegacyAssets<T>(
+            YooAssetLeaseCollection<T> collection) where T : UnityEngine.Object
+        {
+            var assets = new List<T>();
+            if (collection == null)
+            {
+                return assets;
+            }
+
+            foreach (var lease in collection.TransferOwnership())
+            {
+                T asset = RetainLegacyAsset(lease);
+                if (asset != null)
+                {
+                    assets.Add(asset);
+                }
+            }
+
+            return assets;
+        }
+
+        private static void InvokeLegacyCallback<T>(
+            YooAssetLease<T> lease,
+            Action<T> onLoad) where T : UnityEngine.Object
+        {
+            if (onLoad == null)
+            {
+                lease?.Dispose();
+                return;
+            }
+
+            T asset = lease == null ? null : RetainLegacyAsset(lease);
+            try
+            {
+                onLoad(asset);
+            }
+            catch
+            {
+                if (!ReferenceEquals(asset, null))
+                {
+                    ReleaseAsset(asset);
+                }
+
+                throw;
+            }
+        }
+
+        private static void InvokeLegacyCollectionCallback<T>(
+            YooAssetLeaseCollection<T> collection,
+            Action<List<T>> onLoad) where T : UnityEngine.Object
+        {
+            if (onLoad == null)
+            {
+                collection?.Dispose();
+                return;
+            }
+
+            var assets = RetainLegacyAssets(collection);
+            try
+            {
+                onLoad(assets);
+            }
+            catch (Exception exception)
+            {
+                foreach (var asset in assets)
+                {
+                    ReleaseAsset(asset);
+                }
+
+                Debug.LogException(exception);
+            }
+        }
+
         private static string NormalizePackageName(string packageName)
         {
             return string.IsNullOrWhiteSpace(packageName) ? sDefaultPackageName : packageName.Trim();
@@ -556,55 +914,6 @@ namespace QFramework
             downloader.BeginDownload();
             yield return downloader;
             onCompleted?.Invoke(downloader);
-        }
-
-        private static IEnumerator LoadAssetsByTags<T>(
-            ResourcePackage package,
-            string[] tags,
-            Action<List<T>> onLoad) where T : UnityEngine.Object
-        {
-            var normalizedTags = NormalizeTags(tags);
-            if (normalizedTags.Length == 0)
-            {
-                onLoad?.Invoke(new List<T>());
-                yield break;
-            }
-
-            var assetInfos = package.GetAssetInfos(normalizedTags);
-            var handles = new List<AssetHandle>(assetInfos.Length);
-            var assets = new List<T>(assetInfos.Length);
-
-            foreach (var assetInfo in assetInfos)
-            {
-                var handle = package.LoadAssetAsync(assetInfo);
-                handles.Add(handle);
-            }
-
-            foreach (var handle in handles)
-            {
-                yield return handle;
-                if (handle.Status != EOperationStatus.Succeed)
-                {
-                    Debug.LogError(handle.LastError);
-                    continue;
-                }
-
-                if (handle.AssetObject is T asset)
-                {
-                    assets.Add(asset);
-                }
-                else
-                {
-                    Debug.LogError($"Asset type cast failed: {handle.GetAssetInfo().Address}");
-                }
-            }
-
-            foreach (var handle in handles)
-            {
-                handle.Release();
-            }
-
-            onLoad?.Invoke(assets);
         }
 
         private static string[] NormalizeTags(string[] tags)
@@ -672,8 +981,7 @@ namespace QFramework
                 yield break;
             }
 
-            onCompleted?.Invoke(handle);
-            handle.Release();
+            TransferSceneHandle(handle, onCompleted);
         }
 
 
@@ -716,8 +1024,26 @@ namespace QFramework
                 yield break;
             }
 
-            onCompleted?.Invoke(handle);
-            handle.Release();
+            TransferSceneHandle(handle, onCompleted);
+        }
+
+        private static void TransferSceneHandle(SceneHandle handle, Action<SceneHandle> onCompleted)
+        {
+            if (onCompleted == null)
+            {
+                handle.Release();
+                return;
+            }
+
+            try
+            {
+                onCompleted(handle);
+            }
+            catch (Exception exception)
+            {
+                handle.Release();
+                Debug.LogException(exception);
+            }
         }
 
     }

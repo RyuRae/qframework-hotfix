@@ -26,61 +26,47 @@ namespace QFramework
     {
         public class YooAssetPanelLoader : IPanelLoader
         {
-            private ResourcePackage mPackage;
-            private string mCurrOpenPanelName;
+            private YooAssetLease<GameObject> mPrefabLease;
+            private int mLoadVersion;
 
             public GameObject LoadPanelPrefab(PanelSearchKeys panelSearchKeys)
             {
-                mPackage = SetCurrResPackage();
-                AssetHandle assetHandle = null;
-                if (panelSearchKeys.PanelType.IsNotNull() && panelSearchKeys.GameObjName.IsNullOrEmpty())
-                {
-                    mCurrOpenPanelName = panelSearchKeys.PanelType.Name;
-                    assetHandle = mPackage.LoadAssetSync<GameObject>(mCurrOpenPanelName);
-                    return assetHandle.AssetObject as GameObject;
-                }
-
-                mCurrOpenPanelName = panelSearchKeys.GameObjName;
-                assetHandle = mPackage.LoadAssetSync<GameObject>(mCurrOpenPanelName);
-                return assetHandle.AssetObject as GameObject;
+                Unload();
+                string assetName = ResolveAssetName(panelSearchKeys);
+                mPrefabLease = YooAssetKit.LoadAssetLeaseSync<GameObject>(assetName);
+                return mPrefabLease.Asset;
             }
 
             public void LoadPanelPrefabAsync(PanelSearchKeys panelSearchKeys, Action<GameObject> onLoad)
             {
-                mPackage = SetCurrResPackage();
-                AssetHandle handle = null;
-                if (panelSearchKeys.PanelType.IsNotNull() && panelSearchKeys.GameObjName.IsNullOrEmpty())
+                Unload();
+                string assetName = ResolveAssetName(panelSearchKeys);
+                int loadVersion = mLoadVersion;
+                YooAssetKit.LoadAssetLeaseAsync<GameObject>(assetName, lease =>
                 {
-                    mCurrOpenPanelName = panelSearchKeys.PanelType.Name;
-                    handle = mPackage.LoadAssetSync<GameObject>(mCurrOpenPanelName);
-                    handle.Completed += (assetHandle) =>
+                    if (loadVersion != mLoadVersion)
                     {
-                        onLoad(assetHandle.AssetObject as GameObject);
-                    };
-                    return;
-                }
+                        lease?.Dispose();
+                        return;
+                    }
 
-                mCurrOpenPanelName = panelSearchKeys.GameObjName;
-                //可以是fullName（路径全拼）或者物体名称
-                handle = mPackage.LoadAssetSync<GameObject>(mCurrOpenPanelName);
-                handle.Completed += (assetHandle) =>
-                {
-                    onLoad(assetHandle.AssetObject as GameObject);
-                };
+                    mPrefabLease = lease;
+                    onLoad?.Invoke(lease == null ? null : lease.Asset);
+                });
             }
 
-            //设置当前资源包
-            private ResourcePackage SetCurrResPackage()
+            private static string ResolveAssetName(PanelSearchKeys panelSearchKeys)
             {
-                var package = YooAssetKit.GetPackageOrDefault();
-                return package;
+                return panelSearchKeys.PanelType.IsNotNull() && panelSearchKeys.GameObjName.IsNullOrEmpty()
+                    ? panelSearchKeys.PanelType.Name
+                    : panelSearchKeys.GameObjName;
             }
 
             public void Unload()
             {
-                mPackage = SetCurrResPackage();
-                mPackage.TryUnloadUnusedAsset(mCurrOpenPanelName);
-                mPackage = null;
+                mLoadVersion++;
+                mPrefabLease?.Dispose();
+                mPrefabLease = null;
             }
         }
 
