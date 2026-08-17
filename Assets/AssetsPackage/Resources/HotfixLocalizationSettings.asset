@@ -203,3 +203,15 @@ MonoBehaviour:
   - key: AotMetadataLoaded
     chineseSimplified: "AOT元数据加载完成"
     english: "AOT metadata loaded"
+  - key: PreloadingHotfixResources
+    chineseSimplified: "预加载启动资源"
+    english: "Preloading startup resources"
+  - key: HotfixResourcePreloadFailed
+    chineseSimplified: "热更资源预加载失败：\n{0}"
+    english: "Hotfix resource preload failed:\n{0}"
+  - key: HotfixResourcePreloadCanceled
+    chineseSimplified: "热更资源预加载已取消。"
+    english: "Hotfix resource preload was canceled."
+  - key: HotfixResourcesPreloaded
+    chineseSimplified: "启动资源预加载完成"
+    english: "Startup resources preloaded"

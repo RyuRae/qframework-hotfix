@@ -13,6 +13,43 @@ namespace Framework
         Task StartAsync(HotfixContext context);
     }
 
+    /// <summary>
+    /// 可选的热更资源预加载契约。Task 成功完成表示业务启动所需的配置和关键资源已准备就绪。
+    /// </summary>
+    public interface IHotfixResourcePreloader
+    {
+        Task PreloadAsync(
+            HotfixContext context,
+            IProgress<HotfixPreloadProgress> progress);
+    }
+
+    /// <summary>
+    /// 热更资源预加载进度。Progress 取值范围为 0 到 1。
+    /// </summary>
+    public readonly struct HotfixPreloadProgress
+    {
+        public HotfixPreloadProgress(float progress, string description = null)
+        {
+            if (float.IsNaN(progress) || float.IsNegativeInfinity(progress))
+            {
+                Progress = 0f;
+            }
+            else if (float.IsPositiveInfinity(progress))
+            {
+                Progress = 1f;
+            }
+            else
+            {
+                Progress = Math.Max(0f, Math.Min(1f, progress));
+            }
+
+            Description = description ?? string.Empty;
+        }
+
+        public float Progress { get; }
+        public string Description { get; }
+    }
+
     public sealed class HotfixContext
     {
         public HotfixContext(

@@ -1,10 +1,7 @@
 using QFramework;
-using System.Collections;
 using UnityEngine;
-using YooAsset;
-using Luban;
-using Cysharp.Threading.Tasks;
 using cfg;
+using HotfixDemo;
 
 public class Test : MonoBehaviour
 {
@@ -12,7 +9,7 @@ public class Test : MonoBehaviour
     GameObject go = null;
     private YooAssetLease<GameObject> mCubeLease;
     private bool mDestroyed;
-    async void Start()
+    void Start()
     {
         
 
@@ -35,25 +32,14 @@ public class Test : MonoBehaviour
             LogKit.I(go.name);
         });
 
-        byte[] datas = await LoadTable();
-
-        TbPerson person = new TbPerson(new ByteBuf(datas));
+        // 配置已在 ProcedurePreloadHotfixResources 阶段完成加载和解析。
+        TbPerson person = GameConfig.Tables.TbPerson;
         var item = person.DataList[1];
         Person person1 = person.Get(item.Name);
         UnityEngine.Debug.LogFormat("item[1]:{0}", item);
         LogKit.I(person1);
 
     }
-
-
-    private async UniTask<byte[]> LoadTable()
-    {
-        using (var lease = await YooAssetKit.LoadAssetLeaseAsync<TextAsset>("tbperson"))
-        {
-            return lease.Asset.bytes;
-        }
-    }
-
     private void OnDestroy()
     {
         mDestroyed = true;

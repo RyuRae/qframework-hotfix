@@ -13,7 +13,7 @@ namespace Framework.Procedure
 
         protected override bool OnCondition()
         {
-            return mFSM.CurrentStateId == ResPackageStates.LoadAssemblies;
+            return mFSM.CurrentStateId == ResPackageStates.PreloadHotfixResources;
         }
 
         protected override void OnEnter()
@@ -24,12 +24,11 @@ namespace Framework.Procedure
 
         private IEnumerator StartGame()
         {
-            // 关键：在调用 CodeEntry 前设置默认资源包
-            YooAssetKit.SetDefaultPackage(mTarget.MainPackageName);
-
-            if (!HotfixCodeEntryInvoker.TryCreateEntry(mTarget.EntryTypeName, out var entry, out var error))
+            var entry = mTarget.HotfixEntry;
+            var context = mTarget.HotfixContext;
+            if (entry == null || context == null)
             {
-                mTarget.SetFailed(error);
+                mTarget.SetFailed("Hotfix entry was not initialized before business startup.");
                 yield break;
             }
 
@@ -38,7 +37,7 @@ namespace Framework.Procedure
             {
                 startupTask = HotfixCodeEntryInvoker.StartAsync(
                     entry,
-                    mTarget.CreateHotfixContext(),
+                    context,
                     mTarget.StartupCancellationToken);
             }
             catch (Exception exception)

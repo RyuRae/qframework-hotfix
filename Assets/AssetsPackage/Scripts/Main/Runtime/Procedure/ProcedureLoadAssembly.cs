@@ -85,6 +85,13 @@ namespace Framework.Procedure
                 yield break;
             }
 
+            if (!mTarget.TryInitializeHotfixEntry(out var entryError))
+            {
+                UIPanelRoot.Instance.ShowMessage(entryError);
+                mTarget.SetFailed(entryError);
+                yield break;
+            }
+
             rawProgress = 1f;
             displayProgress = 1f;
             TypeEventSystem.Global.Send(new OnAssetloadProgressEvent
@@ -93,7 +100,7 @@ namespace Framework.Procedure
                 desc = HotfixText.Get(HotfixTextKey.HotUpdateAssembliesLoaded)
             });
             LogKit.I("Hot update assemblies loaded.");
-            mFSM.ChangeState(ResPackageStates.StartGame);
+            mFSM.ChangeState(ResPackageStates.PreloadHotfixResources);
         }
 
         protected override void OnExit()

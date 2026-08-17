@@ -75,7 +75,11 @@ namespace Framework
         HotUpdateAssembliesLoaded,
         LoadingAotMetadata,
         AotMetadataLoadFailed,
-        AotMetadataLoaded
+        AotMetadataLoaded,
+        PreloadingHotfixResources,
+        HotfixResourcePreloadFailed,
+        HotfixResourcePreloadCanceled,
+        HotfixResourcesPreloaded
     }
 
     [Serializable]

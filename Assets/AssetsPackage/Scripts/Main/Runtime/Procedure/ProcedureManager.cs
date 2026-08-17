@@ -21,8 +21,10 @@ namespace Framework.Procedure
         DownloadPackageOver,
         LoadAOTMetadata,
         LoadAssemblies,
+        // 保留已有状态的枚举值，避免外部持久化或日志协议因插入新状态而改变。
         ClearCacheBundle,
-        StartGame
+        StartGame,
+        PreloadHotfixResources
     }
 
     public class ProcedureManager : GameAsyncOperation
@@ -47,6 +49,8 @@ namespace Framework.Procedure
         private string _expectedFallbackAotVersion = string.Empty;
         private readonly CancellationTokenSource _startupCancellation = new CancellationTokenSource();
         private IUnRegister _downloadCancelRequestUnregister;
+        private IHotfixEntry _hotfixEntry;
+        private HotfixContext _hotfixContext;
 
         // public string EntrySceneAddress { get; private set; } = HotfixUtility.DefaultEntrySceneAddress;
         public string EntryTypeName { get; private set; } = string.Empty;
@@ -56,6 +60,8 @@ namespace Framework.Procedure
         public bool IsUsingLocalManifestFallback => _useLocalManifestFallback;
         public bool CanUseLocalCacheFallback => _startupUpdatePolicy != StartupUpdatePolicy.MustUpdate;
         public bool LastGoodCommittedThisRun { get; private set; }
+        public IHotfixEntry HotfixEntry => _hotfixEntry;
+        public HotfixContext HotfixContext => _hotfixContext;
 
         public FSM<ResPackageStates> _mFSM = new FSM<ResPackageStates>();
 
@@ -91,8 +97,9 @@ namespace Framework.Procedure
             _mFSM.AddState(ResPackageStates.DownloadPackageFiles, new ProcedureDownloadPackageFiles(_mFSM, this));
             _mFSM.AddState(ResPackageStates.DownloadPackageOver, new ProcedureDownloadPackageOver(_mFSM, this));
             _mFSM.AddState(ResPackageStates.LoadAssemblies, new ProcedureLoadAssembly(_mFSM, this));
-            _mFSM.AddState(ResPackageStates.ClearCacheBundle, new ProcedureClearCacheBundle(_mFSM, this));
+            _mFSM.AddState(ResPackageStates.PreloadHotfixResources, new ProcedurePreloadHotfixResources(_mFSM, this));
             _mFSM.AddState(ResPackageStates.StartGame, new ProcedureStartGame(_mFSM, this));
+            _mFSM.AddState(ResPackageStates.ClearCacheBundle, new ProcedureClearCacheBundle(_mFSM, this));
 
             RegisterDownloadControlEvents();
         }
@@ -160,6 +167,35 @@ namespace Framework.Procedure
                     : AssemblyLoadContext.AotManifest.AotVersion,
                 _useLocalManifestFallback,
                 StartupCancellationToken);
+        }
+
+        public bool TryInitializeHotfixEntry(out string error)
+        {
+            error = string.Empty;
+            if (_hotfixEntry != null && _hotfixContext != null)
+            {
+                return true;
+            }
+
+            try
+            {
+                // 预加载和业务启动都使用同一明确的默认包、入口实例和上下文。
+                YooAssetKit.SetDefaultPackage(MainPackageName);
+                var context = CreateHotfixContext();
+                if (!HotfixCodeEntryInvoker.TryCreateEntry(EntryTypeName, out var entry, out error))
+                {
+                    return false;
+                }
+
+                _hotfixContext = context;
+                _hotfixEntry = entry;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                error = $"Initialize hotfix entry failed.\n{HotfixCodeEntryInvoker.GetRootException(exception)}";
+                return false;
+            }
         }
 
         public void CancelDownload(string reason = null)

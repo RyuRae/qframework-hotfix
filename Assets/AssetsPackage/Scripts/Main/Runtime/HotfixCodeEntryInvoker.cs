@@ -90,6 +90,34 @@ namespace Framework
             LogKit.I($"[HotfixCodeEntryInvoker] {entry.GetType().FullName}.StartAsync completed.");
         }
 
+        public static async Task PreloadAsync(
+            IHotfixResourcePreloader preloader,
+            HotfixContext context,
+            IProgress<HotfixPreloadProgress> progress,
+            CancellationToken cancellationToken)
+        {
+            if (preloader == null)
+            {
+                throw new ArgumentNullException(nameof(preloader));
+            }
+
+            if (context == null)
+            {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            Task preloadTask = preloader.PreloadAsync(context, progress);
+            if (preloadTask == null)
+            {
+                throw new InvalidOperationException($"{preloader.GetType().FullName}.PreloadAsync returned null.");
+            }
+
+            await preloadTask;
+            cancellationToken.ThrowIfCancellationRequested();
+            LogKit.I($"[HotfixCodeEntryInvoker] {preloader.GetType().FullName}.PreloadAsync completed.");
+        }
+
         public static Exception GetRootException(Exception exception)
         {
             while (exception is AggregateException aggregateException &&

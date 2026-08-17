@@ -258,10 +258,10 @@ flowchart TD
     OVER --> AOT
 
     AOT[ProcedureLoadAOTMetadata\n加载 HotfixAssemblyManifest\n加载匹配的 AOTAssemblyManifest\n校验并加载 AOT 元数据 DLL] --> HOTFIX[ProcedureLoadAssembly\n校验 Hotfix DLL size + sha256\n按 Manifest 顺序加载热更 DLL]
-    HOTFIX --> CLEAR[ProcedureClearCacheBundle\n清理未使用缓存]
-    CLEAR --> GAME[ProcedureStartGame\n设置默认资源包\n调用 CodeEntry]
-    GAME --> ENTRY[HotfixCodeEntry.Entrance\n热更业务初始化/加载入口资源]
-    ENTRY --> END([进入游戏])
+    HOTFIX --> PRELOAD[ProcedurePreloadHotfixResources\n调用可选 IHotfixResourcePreloader\n加载并解析启动配置/关键资源]
+    PRELOAD --> GAME[ProcedureStartGame\n复用同一热更入口实例\n调用 IHotfixEntry.StartAsync]
+    GAME --> CLEAR[提交 LastGood\nProcedureClearCacheBundle 清理未使用缓存]
+    CLEAR --> END([进入游戏])
 
     style AOT fill:#fbb,stroke:#333
     style HOTFIX fill:#bfb,stroke:#333
@@ -302,7 +302,8 @@ flowchart LR
         R5[下载资源\nDownloadPackageFiles]
         R6[加载 AOT 元数据\nLoadAOTMetadata]
         R7[校验并加载热更 DLL\nLoadAssemblies]
-        R8[调用 CodeEntry\nStartGame]
+        R8[预加载启动资源\nPreloadHotfixResources]
+        R9[调用 CodeEntry\nStartGame]
     end
 
     subgraph CDN 服务
@@ -431,9 +432,12 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
 8. `ProcedureDownloadPackageFiles` 下载缺失或 hash 变化的 bundle。
 9. `ProcedureLoadAOTMetadata` 先加载 `HotfixAssemblyManifest`，再加载匹配的 `AOTAssemblyManifest` 和 AOT metadata。
 10. `ProcedureLoadAssembly` 按 `HotfixAssemblyManifest.HotUpdateAssemblies` 顺序校验并加载热更 DLL，并记录本次可用的 `HotfixVersion + AotVersion` 组合。
-11. `ProcedureClearCacheBundle` 清理缓存。
-12. `ProcedureStartGame` 设置默认 YooAsset 包并调用 `EntryTypeName.EntryMethodName` 指向的 CodeEntry。
-13. CodeEntry 负责业务初始化，并按热更业务需要加载入口场景、入口 Prefab 或其他启动资源。
+11. `ProcedureLoadAssembly` 创建一次 `IHotfixEntry` 入口实例和 `HotfixContext`。
+12. `ProcedurePreloadHotfixResources` 检查同一入口是否实现可选的 `IHotfixResourcePreloader`；实现时等待预加载完成，未实现时直接通过。
+13. `ProcedureStartGame` 复用同一入口实例和上下文，等待 `IHotfixEntry.StartAsync` 真正完成。
+14. 业务启动成功后提交 LastGood，再由 `ProcedureClearCacheBundle` 清理未使用缓存。
+
+预加载失败或取消会直接阻断 `StartGame`，也不会提交 LastGood。Procedure 只负责生命周期、进度、取消和错误处理；Luban、JSON、本地化等具体业务资源仍由热更入口实现。
 
 弱网或远端异常时，`StartupUpdatePolicy` 决定是否可以使用本地缓存或首包内置资源启动。
 
@@ -622,7 +626,8 @@ Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset
 - `HotUpdateDependencies`：每个热更 DLL 的内部依赖关系，用于构建中心和构建报告展示。
 - `EntrySceneAddress`：已废弃，场景加载交给 CodeEntry 管理。
 - `EntryPrefabAddress`：已废弃，Prefab 加载交给 CodeEntry 管理。
-- `EntryTypeName` 和 `EntryMethodName`：必填静态 CodeEntry 入口方法。
+- `EntryTypeName`：实现 `IHotfixEntry` 且带公共无参构造函数的热更入口类型完整名。
+- `EntryMethodName`：旧静态入口兼容字段；当前 `IHotfixEntry` 协议不再使用，构建时保持为空。
 
 运行时会校验：
 
@@ -631,7 +636,7 @@ Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset
 - `BuildTarget` 是否匹配当前运行平台。
 - `HotfixAssemblyManifest.RequiredAotVersion == AOTAssemblyManifest.AotVersion`。
 - AOT DLL 和热更 DLL 列表不能为空。
-- `EntryTypeName` 和 `EntryMethodName` 必填。
+- `EntryTypeName` 必填，入口类型必须实现 `IHotfixEntry` 并带公共无参构造函数。
 - AOT / Hotfix hash 记录不能缺失、重复或包含额外 DLL，sha256 必须是 64 位十六进制。
 - AOT Metadata bytes 加载前校验 size + sha256。
 - Hotfix DLL `Assembly.Load(bytes)` 前校验 size + sha256。
@@ -1102,7 +1107,73 @@ using (var leases = await YooAssetKit.LoadAssetsByTagLeaseAsync<UnityEngine.Game
 }
 ```
 
-注意：按 Tag 加载前，相关 bundle 必须已经在本地可用。
+注意：按 Tag 加载前，相关 bundle 必须已经在本地可用。`DownloadByTags` 只保证 bundle 下载到本地，不代表资源已经加载、配置已经解析；启动必需配置应通过下面的预加载阶段准备。
+
+## 热更资源预加载
+
+启动链路在 `LoadAssemblies` 与 `StartGame` 之间预留了 `ProcedurePreloadHotfixResources`。热更入口按需实现 `IHotfixResourcePreloader`：
+
+```csharp
+public sealed class HotfixCodeEntry : IHotfixEntry, IHotfixResourcePreloader
+{
+    public async Task PreloadAsync(
+        HotfixContext context,
+        IProgress<HotfixPreloadProgress> progress)
+    {
+        context.CancellationToken.ThrowIfCancellationRequested();
+        progress?.Report(new HotfixPreloadProgress(0f, "加载游戏配置"));
+
+        using (var lease = await YooAssetKit.LoadAssetLeaseAsync<TextAsset>(
+                   "tbperson",
+                   context.MainPackageName))
+        {
+            context.CancellationToken.ThrowIfCancellationRequested();
+            byte[] bytes = lease.Asset.bytes;
+            // 必须在释放租约前完成解析或复制；把解析后的纯托管对象交给配置服务。
+            GameConfig.SetTables(ParseTables(bytes));
+        }
+
+        progress?.Report(new HotfixPreloadProgress(1f, "游戏配置加载完成"));
+    }
+
+    public Task StartAsync(HotfixContext context)
+    {
+        // 只有 PreloadAsync 成功后才会执行。
+        return StartBusinessAsync(context);
+    }
+}
+```
+
+RawFile 配置使用上下文中的明确资源包，读取 API 返回的数据已与 Handle 生命周期解耦：
+
+```csharp
+public async Task PreloadAsync(
+    HotfixContext context,
+    IProgress<HotfixPreloadProgress> progress)
+{
+    if (context.RawFilePackage == null)
+    {
+        throw new InvalidOperationException("RawFile package is not enabled.");
+    }
+
+    byte[] bytes = await YooAssetKit.LoadRawFileBytesAsync(
+        context.RawFilePackage,
+        "ConfigBytes");
+    context.CancellationToken.ThrowIfCancellationRequested();
+    GameConfig.SetTables(ParseTables(bytes));
+    progress?.Report(new HotfixPreloadProgress(1f, "游戏配置加载完成"));
+}
+```
+
+适合预加载 Luban 表、JSON/二进制配置、本地化、首屏所需少量 Prefab。角色全集、全量音频和全部关卡等大型资源应按业务阶段加载。Prefab、AudioClip 等 Unity 对象若要跨阶段使用，必须长期持有对应租约，并在业务模块退出时释放。
+
+示例实现位于：
+
+```text
+Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/HotfixCodeEntry.cs
+Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/PreloadConfigCommand.cs
+Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/GameConfig.cs
+```
 
 ## YooAssetKit 资源生命周期
 
