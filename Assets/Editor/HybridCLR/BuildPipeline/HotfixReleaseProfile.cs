@@ -97,11 +97,11 @@ namespace HybridCLR.Editor
         public string[] StartupDownloadTags = Array.Empty<string>();
 
         [Header("热更入口")]
-        [Tooltip("热更入口类型完整名，例如 HotfixDemo.HotfixCodeEntry。构建会写入 HotfixAssemblyManifest。")]
+        [Tooltip("实现 Framework.IHotfixEntry 且带公共无参构造函数的类型完整名。构建会写入 HotfixAssemblyManifest。")]
         public string EntryTypeName = "HotfixDemo.HotfixCodeEntry";
 
-        [Tooltip("热更入口静态方法名，例如 Entrance。启动加载热更 DLL 后会反射调用。")]
-        public string EntryMethodName = "Entrance";
+        [HideInInspector]
+        public string EntryMethodName = string.Empty;
 
         public string DisplayName => string.IsNullOrWhiteSpace(name) ? "未命名 ReleaseProfile" : name;
 
@@ -214,9 +214,7 @@ namespace HybridCLR.Editor
                 EntryTypeName = string.IsNullOrWhiteSpace(hotfixManifest.EntryTypeName)
                     ? EntryTypeName
                     : hotfixManifest.EntryTypeName.Trim();
-                EntryMethodName = string.IsNullOrWhiteSpace(hotfixManifest.EntryMethodName)
-                    ? EntryMethodName
-                    : hotfixManifest.EntryMethodName.Trim();
+                EntryMethodName = string.Empty;
             }
             else
             {
@@ -252,10 +250,7 @@ namespace HybridCLR.Editor
                 manifest.EntryTypeName = EntryTypeName.Trim();
             }
 
-            if (!string.IsNullOrWhiteSpace(EntryMethodName))
-            {
-                manifest.EntryMethodName = EntryMethodName.Trim();
-            }
+            manifest.EntryMethodName = string.Empty;
         }
 
         public bool ValidateForBuild(HotfixBuildContext context, out string error)
@@ -331,9 +326,9 @@ namespace HybridCLR.Editor
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(EntryTypeName) || string.IsNullOrWhiteSpace(EntryMethodName))
+            if (string.IsNullOrWhiteSpace(EntryTypeName))
             {
-                error = "ReleaseProfile CodeEntry type and method are required.";
+                error = "ReleaseProfile IHotfixEntry type is required.";
                 return false;
             }
 

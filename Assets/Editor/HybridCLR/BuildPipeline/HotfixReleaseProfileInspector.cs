@@ -79,7 +79,6 @@ namespace HybridCLR.Editor
                 true);
 
             DrawRequiredProperty("EntryTypeName", "EntryTypeName");
-            DrawRequiredProperty("EntryMethodName", "EntryMethodName");
         }
 
         private void DrawOptionalSettings()

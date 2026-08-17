@@ -55,7 +55,6 @@ namespace Framework.Assemblies
         public string EntrySceneAddress = string.Empty;
         public string EntryPrefabAddress = string.Empty;
         public string EntryTypeName = string.Empty;
-        public string EntryMethodName = string.Empty;
 
         public static HotfixAssemblyManifestSnapshot From(HotfixAssemblyManifest manifest)
         {
@@ -71,8 +70,7 @@ namespace Framework.Assemblies
                 HotUpdateDependencies = AssemblyManifestSnapshotUtility.CloneDependencyRecords(manifest == null ? null : manifest.HotUpdateDependencies),
                 EntrySceneAddress = manifest == null ? string.Empty : manifest.EntrySceneAddress ?? string.Empty,
                 EntryPrefabAddress = manifest == null ? string.Empty : manifest.EntryPrefabAddress ?? string.Empty,
-                EntryTypeName = manifest == null ? string.Empty : manifest.EntryTypeName ?? string.Empty,
-                EntryMethodName = manifest == null ? string.Empty : manifest.EntryMethodName ?? string.Empty
+                EntryTypeName = manifest == null ? string.Empty : manifest.EntryTypeName ?? string.Empty
             };
         }
 
@@ -142,7 +140,6 @@ namespace Framework.Assemblies
         public string Error { get; private set; }
         public string EntrySceneAddress { get; private set; } = HotfixUtility.DefaultEntrySceneAddress;
         public string EntryTypeName { get; private set; } = string.Empty;
-        public string EntryMethodName { get; private set; } = string.Empty;
         public AOTAssemblyManifestSnapshot AotManifest => mContext == null ? null : mContext.AotManifest;
         public HotfixAssemblyManifestSnapshot HotfixManifest => mContext == null ? null : mContext.HotfixManifest;
 
@@ -213,7 +210,6 @@ namespace Framework.Assemblies
             Error = string.Empty;
             EntrySceneAddress = HotfixUtility.DefaultEntrySceneAddress;
             EntryTypeName = string.Empty;
-            EntryMethodName = string.Empty;
             mContext = context ?? new HotfixAssemblyLoadContext();
         }
 
@@ -339,13 +335,7 @@ namespace Framework.Assemblies
 
             if (string.IsNullOrWhiteSpace(manifest.EntryTypeName))
             {
-                Fail("Hotfix manifest EntryTypeName is empty. CodeEntry is required.");
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(manifest.EntryMethodName))
-            {
-                Fail("Hotfix manifest EntryMethodName is empty. CodeEntry is required.");
+                Fail("Hotfix manifest EntryTypeName is empty. IHotfixEntry is required.");
                 return false;
             }
 
@@ -448,7 +438,6 @@ namespace Framework.Assemblies
                 onProgress?.Invoke(GetProgress(loadedCount, totalCount));
             }
 
-            // InvokeEntryMethodIfConfigured();
             if (!string.IsNullOrEmpty(Error))
             {
                 yield break;
@@ -713,7 +702,6 @@ namespace Framework.Assemblies
                 ? HotfixUtility.DefaultEntrySceneAddress
                 : manifest.EntrySceneAddress.Trim();
             EntryTypeName = manifest.EntryTypeName ?? string.Empty;
-            EntryMethodName = manifest.EntryMethodName ?? string.Empty;
         }
 
         private void CacheHotUpdateAssembly(string dllName, Assembly assembly)

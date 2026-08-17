@@ -39,4 +39,4 @@ MonoBehaviour:
   EntrySceneAddress: 
   EntryPrefabAddress: 
   EntryTypeName: HotfixDemo.HotfixCodeEntry
-  EntryMethodName: Entrance
+  EntryMethodName:

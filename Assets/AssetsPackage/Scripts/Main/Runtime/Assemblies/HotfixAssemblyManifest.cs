@@ -31,8 +31,11 @@ namespace Framework.Assemblies
         [Tooltip("Deprecated. Prefab loading should be handled by CodeEntry.")]
         public string EntryPrefabAddress = string.Empty;
 
-        [Header("Code Entry")]
+        [Header("IHotfixEntry")]
+        [Tooltip("实现 Framework.IHotfixEntry 且带公共无参构造函数的热更入口类型。")]
         public string EntryTypeName = "HotfixDemo.HotfixCodeEntry";
-        public string EntryMethodName = "Entrance";
+
+        [HideInInspector]
+        public string EntryMethodName = string.Empty;
     }
 }

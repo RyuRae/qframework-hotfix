@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using Framework.Assemblies;
 using Framework.Events;
 using QFramework;
@@ -43,11 +44,11 @@ namespace Framework.Procedure
         private bool _useLocalManifestFallback;
         private string _expectedFallbackHotfixVersion = string.Empty;
         private string _expectedFallbackAotVersion = string.Empty;
+        private readonly CancellationTokenSource _startupCancellation = new CancellationTokenSource();
         private IUnRegister _downloadCancelRequestUnregister;
 
         // public string EntrySceneAddress { get; private set; } = HotfixUtility.DefaultEntrySceneAddress;
         public string EntryTypeName { get; private set; } = string.Empty;
-        public string EntryMethodName { get; private set; } = string.Empty;
         public HotfixAssemblyLoadContext AssemblyLoadContext { get; } = new HotfixAssemblyLoadContext();
         public bool IsDownloadCancelRequested => _downloadCancelRequested;
         public bool IsDownloadPaused => _downloadPaused;
@@ -58,6 +59,7 @@ namespace Framework.Procedure
         public FSM<ResPackageStates> _mFSM = new FSM<ResPackageStates>();
 
         public string MainPackageName => _packageName;
+        public CancellationToken StartupCancellationToken => _startupCancellation.Token;
 
         public ProcedureManager(
             string packageName,
@@ -96,6 +98,7 @@ namespace Framework.Procedure
 
         protected override void OnAbort()
         {
+            CancelStartup();
             ReleaseDownloadControlEvents();
         }
 
@@ -116,6 +119,11 @@ namespace Framework.Procedure
 
         public void SetFinish()
         {
+            if (IsDone)
+            {
+                return;
+            }
+
             Status = EOperationStatus.Succeed;
             ReleaseDownloadControlEvents();
         }
@@ -130,7 +138,27 @@ namespace Framework.Procedure
             Error = string.IsNullOrEmpty(error) ? "Hot update procedure failed." : error;
             Status = EOperationStatus.Failed;
             LogKit.E(Error);
+            CancelStartup();
             ReleaseDownloadControlEvents();
+        }
+
+        public HotfixContext CreateHotfixContext()
+        {
+            var mainPackage = YooAssets.GetPackage(_packageName);
+            var rawFilePackage = _isIncludeRawFile ? YooAssets.GetPackage(_rawfilwPkgName) : null;
+            return new HotfixContext(
+                mainPackage,
+                rawFilePackage,
+                _packageVersion,
+                _isIncludeRawFile ? _rawfilePkgVersion : string.Empty,
+                AssemblyLoadContext.HotfixManifest == null
+                    ? string.Empty
+                    : AssemblyLoadContext.HotfixManifest.HotfixVersion,
+                AssemblyLoadContext.AotManifest == null
+                    ? string.Empty
+                    : AssemblyLoadContext.AotManifest.AotVersion,
+                _useLocalManifestFallback,
+                StartupCancellationToken);
         }
 
         public void CancelDownload(string reason = null)
@@ -530,10 +558,9 @@ namespace Framework.Procedure
 
 
 
-        public void SetHotfixEntry(string typeName, string methodName)
+        public void SetHotfixEntryType(string typeName)
         {
             EntryTypeName = typeName ?? string.Empty;
-            EntryMethodName = methodName ?? string.Empty;
         }
 
         private void RegisterDownloadControlEvents()
@@ -548,6 +575,21 @@ namespace Framework.Procedure
         {
             _downloadCancelRequestUnregister?.UnRegister();
             _downloadCancelRequestUnregister = null;
+        }
+
+        private void CancelStartup()
+        {
+            try
+            {
+                if (!_startupCancellation.IsCancellationRequested)
+                {
+                    _startupCancellation.Cancel();
+                }
+            }
+            catch (Exception exception)
+            {
+                LogKit.W($"Cancel hotfix business startup failed. {exception}");
+            }
         }
 
         private static bool TryCancelDownloader(ResourceDownloaderOperation downloader)

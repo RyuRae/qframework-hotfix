@@ -70,7 +70,7 @@ namespace Framework.Procedure
                 yield break;
             }
 
-            mTarget.SetHotfixEntry(loader.EntryTypeName, loader.EntryMethodName);
+            mTarget.SetHotfixEntryType(loader.EntryTypeName);
             if (!mTarget.ValidateLoadedAssemblyCombination(out var combinationError))
             {
                 UIPanelRoot.Instance.ShowMessage(combinationError);

@@ -96,15 +96,11 @@ namespace HybridCLR.Editor
                 ? BuildAssetsCommand.DefaultEntrySceneAddress
                 : hotfixManifest.EntrySceneAddress.Trim();
             EntryPrefabAddress = hotfixManifest == null ? string.Empty : hotfixManifest.EntryPrefabAddress ?? string.Empty;
-            EntryMethod = releaseProfile != null &&
-                          !string.IsNullOrWhiteSpace(releaseProfile.EntryTypeName) &&
-                          !string.IsNullOrWhiteSpace(releaseProfile.EntryMethodName)
-                ? $"{releaseProfile.EntryTypeName.Trim()}.{releaseProfile.EntryMethodName.Trim()}"
-                : hotfixManifest == null ||
-                  string.IsNullOrWhiteSpace(hotfixManifest.EntryTypeName) ||
-                  string.IsNullOrWhiteSpace(hotfixManifest.EntryMethodName)
+            EntryMethod = releaseProfile != null && !string.IsNullOrWhiteSpace(releaseProfile.EntryTypeName)
+                ? $"{releaseProfile.EntryTypeName.Trim()}.StartAsync(HotfixContext)"
+                : hotfixManifest == null || string.IsNullOrWhiteSpace(hotfixManifest.EntryTypeName)
                     ? string.Empty
-                    : $"{hotfixManifest.EntryTypeName}.{hotfixManifest.EntryMethodName}";
+                    : $"{hotfixManifest.EntryTypeName}.StartAsync(HotfixContext)";
         }
 
         public bool ShouldCopyInitialPackageToStreamingAssets =>

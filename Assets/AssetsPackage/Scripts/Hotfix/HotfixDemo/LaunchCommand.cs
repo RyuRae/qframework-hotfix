@@ -6,42 +6,72 @@ using Framework;
 using Framework.UI;
 using Cysharp.Threading.Tasks;
 using System;
+using System.Threading.Tasks;
+using YooAsset;
 
 namespace HotfixDemo
 {
-    public class LaunchCommand : AbstractCommand
+    public class LaunchCommand : AbstractCommand<Task>
     {
-        // string mainPackageName;
-        public LaunchCommand()
+        private readonly HotfixContext context;
+
+        public LaunchCommand(HotfixContext context)
         {
-            // this.mainPackageName = mainPackageName;
+            this.context = context ?? throw new ArgumentNullException(nameof(context));
         }
 
-        protected override void OnExecute()
+        protected override Task OnExecute()
         {
-            Debug.Log("[LaunchGameCommand] Execute.");
+            return StartGameAsync();
+        }
+
+        private async Task StartGameAsync()
+        {
+            Debug.Log("[LaunchCommand] Start business scene.");
+            context.CancellationToken.ThrowIfCancellationRequested();
 
             // 开发者自己决定加载 Scene 还是 Prefab
             string location = "main";
-           YooAssetKit.LoadSceneAsync(location, LoadSceneMode.Single, LocalPhysicsMode.None, false, (progress) =>
+            SceneHandle sceneHandle = context.MainPackage.LoadSceneAsync(
+                location,
+                LoadSceneMode.Single,
+                LocalPhysicsMode.None,
+                false);
+            try
             {
-                //更新进度
+                while (!sceneHandle.IsDone)
+                {
+                    context.CancellationToken.ThrowIfCancellationRequested();
+                    TypeEventSystem.Global.Send(new OnSceneloadUpdateEvent
+                    {
+                        progress = sceneHandle.Progress,
+                        desc = HotfixText.Get(HotfixTextKey.SceneLoading)
+                    });
+                    await UniTask.NextFrame(context.CancellationToken);
+                }
+
+                if (sceneHandle.Status != EOperationStatus.Succeed)
+                {
+                    throw new InvalidOperationException(
+                        $"Business scene load failed: {location}. {sceneHandle.LastError}");
+                }
+
                 TypeEventSystem.Global.Send(new OnSceneloadUpdateEvent
                 {
-                    progress = progress,
+                    progress = 1f,
                     desc = HotfixText.Get(HotfixTextKey.SceneLoading)
                 });
-            }, 
-            (sceneHandle) =>
+
+                // 等待新场景对象完成一帧初始化后，才把业务视为真正启动成功。
+                await UniTask.NextFrame(context.CancellationToken);
+                UIPanelRoot.Instance.CloseLoadingPanel();
+                UIPanelRoot.Instance.ClearScreen();
+                LogKit.I("Business scene startup completed.");
+            }
+            finally
             {
-                LogKit.I("加载完成");
-                //加载完成
-                _ = UniTask.Delay(TimeSpan.FromSeconds(0.1f)).ContinueWith(() =>
-                {
-                    UIPanelRoot.Instance.CloseLoadingPanel();
-                    UIPanelRoot.Instance.ClearScreen();
-                });
-            });
+                sceneHandle.Release();
+            }
         }
     }
 }

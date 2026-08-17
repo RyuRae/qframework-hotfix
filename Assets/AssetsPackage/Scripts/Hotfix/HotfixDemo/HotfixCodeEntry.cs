@@ -1,16 +1,13 @@
-
+using System.Threading.Tasks;
 using Framework;
-using QFramework;
 
 namespace HotfixDemo
 {
-    public class HotfixCodeEntry
+    public sealed class HotfixCodeEntry : IHotfixEntry
     {
-
-        public static void Entrance()
+        public Task StartAsync(HotfixContext context)
         {
-            GameMainApp.Interface.SendCommand(new LaunchCommand());
+            return GameMainApp.Interface.SendCommand(new LaunchCommand(context));
         }
-
     }
 }

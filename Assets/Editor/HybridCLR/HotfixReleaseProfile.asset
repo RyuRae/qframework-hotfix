@@ -41,4 +41,4 @@ MonoBehaviour:
   StartupUpdatePolicy: 1
   StartupDownloadTags: []
   EntryTypeName: HotfixDemo.HotfixCodeEntry
-  EntryMethodName: Entrance
+  EntryMethodName:

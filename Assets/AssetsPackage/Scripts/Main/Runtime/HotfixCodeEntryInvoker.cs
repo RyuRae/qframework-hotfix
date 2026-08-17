@@ -1,69 +1,124 @@
-
-
 using System;
 using System.Linq;
-using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 using QFramework;
 
 namespace Framework
 {
-    public class HotfixCodeEntryInvoker
+    public static class HotfixCodeEntryInvoker
     {
-        public static bool InvokeEntryMethod(string EntryTypeName, string EntryMethodName, out string error)
+        public static bool TryCreateEntry(string entryTypeName, out IHotfixEntry entry, out string error)
         {
+            entry = null;
             error = string.Empty;
-
-            if (string.IsNullOrWhiteSpace(EntryTypeName) ||
-                string.IsNullOrWhiteSpace(EntryMethodName))
+            if (string.IsNullOrWhiteSpace(entryTypeName))
             {
-                error = "Hotfix entry type or method name is null.";
+                error = "Hotfix entry type name is empty.";
                 return false;
             }
 
             var entryType = AppDomain.CurrentDomain.GetAssemblies()
-                .Select(assembly => assembly.GetType(EntryTypeName))
-                .FirstOrDefault(type => type != null) ?? Type.GetType(EntryTypeName);
+                .Select(assembly => assembly.GetType(entryTypeName, false))
+                .FirstOrDefault(type => type != null) ?? Type.GetType(entryTypeName, false);
             if (entryType == null)
             {
-               
-                error = $"Hotfix entry type not found: {EntryTypeName}";
+                error = $"Hotfix entry type not found: {entryTypeName}";
                 return false;
             }
 
-            var entryMethod = entryType.GetMethod(
-                EntryMethodName,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
-                null,
-                Type.EmptyTypes,
-                null);
-            if (entryMethod == null)
+            if (!typeof(IHotfixEntry).IsAssignableFrom(entryType))
             {
-                error = $"Hotfix entry method not found: {EntryTypeName}.{EntryMethodName}()";
+                error = $"Hotfix entry type must implement {typeof(IHotfixEntry).FullName}: {entryType.FullName}";
                 return false;
             }
 
-            if (entryMethod.ReturnType != typeof(void))
+            if (entryType.IsAbstract || entryType.IsInterface)
             {
-                error = $"Hotfix entry method must return void: {EntryTypeName}.{EntryMethodName}()";
+                error = $"Hotfix entry type must be a concrete class: {entryType.FullName}";
+                return false;
+            }
+
+            if (entryType.GetConstructor(Type.EmptyTypes) == null)
+            {
+                error = $"Hotfix entry type requires a public parameterless constructor: {entryType.FullName}";
                 return false;
             }
 
             try
             {
-                entryMethod.Invoke(null, null);
-                LogKit.I($"[HotfixCodeEntryInvoker] Invoked {EntryTypeName}.{EntryMethodName}().");
+                entry = Activator.CreateInstance(entryType) as IHotfixEntry;
+                if (entry == null)
+                {
+                    error = $"Can not create hotfix entry instance: {entryType.FullName}";
+                    return false;
+                }
+
                 return true;
-            }
-            catch (TargetInvocationException exception)
-            {
-                error = $"Invoke Hotfix CodeEntry failed: {EntryTypeName}.{EntryMethodName}().\n{exception.InnerException ?? exception}";
-                return false;
             }
             catch (Exception exception)
             {
-                error = $"Invoke Hotfix CodeEntry failed: {EntryTypeName}.{EntryMethodName}().\n{exception}";
+                error = $"Create hotfix entry failed: {entryType.FullName}.\n{GetRootException(exception)}";
                 return false;
             }
+        }
+
+        public static async Task StartAsync(
+            IHotfixEntry entry,
+            HotfixContext context,
+            CancellationToken cancellationToken)
+        {
+            if (entry == null)
+            {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            if (context == null)
+            {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            Task startupTask = entry.StartAsync(context);
+            if (startupTask == null)
+            {
+                throw new InvalidOperationException($"{entry.GetType().FullName}.StartAsync returned null.");
+            }
+
+            await startupTask;
+            cancellationToken.ThrowIfCancellationRequested();
+            LogKit.I($"[HotfixCodeEntryInvoker] {entry.GetType().FullName}.StartAsync completed.");
+        }
+
+        public static Exception GetRootException(Exception exception)
+        {
+            while (exception is AggregateException aggregateException &&
+                   aggregateException.InnerExceptions.Count == 1)
+            {
+                exception = aggregateException.InnerExceptions[0];
+            }
+
+            return exception;
+        }
+
+        public static void ObserveFailure(Task task)
+        {
+            if (task == null || task.IsCompletedSuccessfully || task.IsCanceled)
+            {
+                return;
+            }
+
+            if (task.IsFaulted)
+            {
+                _ = task.Exception;
+                return;
+            }
+
+            _ = task.ContinueWith(
+                completedTask => { _ = completedTask.Exception; },
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
     }
 }
