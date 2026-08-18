@@ -128,6 +128,7 @@ namespace HybridCLR.Editor
         {
             Debug.Log("[HotfixBuild] 开始构建首包。");
             ReportProgress("同步 YooAsset Collector", 0.2f, string.Empty);
+            LocalizationContentSynchronizer.SyncOrThrow();
             var packageConfig = HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
             ReportProgress("生成 HybridCLR 文件", 0.28f, string.Empty);
             HybridCLRGenerateAllSafe.Run();
@@ -206,6 +207,7 @@ namespace HybridCLR.Editor
         {
             Debug.Log("[HotfixBuild] 开始构建热更包。");
             ReportProgress("同步 YooAsset Collector", 0.2f, string.Empty);
+            LocalizationContentSynchronizer.SyncOrThrow();
             var packageConfig = HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
             var aotManifest = AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(BuildAssetsCommand.AOTAssemblyManifestAssetPath);
             try
@@ -305,6 +307,7 @@ namespace HybridCLR.Editor
 
             Debug.Log("[HotfixBuild] 开始构建 AOT 元数据补丁。");
             ReportProgress("同步 YooAsset Collector", 0.2f, string.Empty);
+            LocalizationContentSynchronizer.SyncOrThrow();
             var packageConfig = HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
             ReportProgress("生成 HybridCLR 文件", 0.28f, string.Empty);
             HybridCLRGenerateAllSafe.Run();

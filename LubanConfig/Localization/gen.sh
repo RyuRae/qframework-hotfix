@@ -13,3 +13,6 @@ dotnet "$LUBAN_DLL" -t client -d bin -c cs-bin \
 mkdir -p "$PROJECT_ROOT/Assets/AssetsPackage/Resources/Localization"
 cp "$PROJECT_ROOT/Assets/AssetsPackage/AssetsHotFix/Datas/Localization/tbbootstraptext.bytes" \
    "$PROJECT_ROOT/Assets/AssetsPackage/Resources/Localization/bootstrap.bytes"
+
+# 业务文本由 Unity 同步器按 Locale 独立生成；主生成流程只保留其解析代码。
+rm -f "$PROJECT_ROOT/Assets/AssetsPackage/AssetsHotFix/Datas/Localization/tblocaletext.bytes"

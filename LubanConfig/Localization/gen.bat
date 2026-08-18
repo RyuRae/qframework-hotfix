@@ -10,3 +10,4 @@ if errorlevel 1 exit /b %errorlevel%
 
 if not exist "%PROJECT_ROOT%\Assets\AssetsPackage\Resources\Localization" mkdir "%PROJECT_ROOT%\Assets\AssetsPackage\Resources\Localization"
 copy /Y "%PROJECT_ROOT%\Assets\AssetsPackage\AssetsHotFix\Datas\Localization\tbbootstraptext.bytes" "%PROJECT_ROOT%\Assets\AssetsPackage\Resources\Localization\bootstrap.bytes"
+if exist "%PROJECT_ROOT%\Assets\AssetsPackage\AssetsHotFix\Datas\Localization\tblocaletext.bytes" del /Q "%PROJECT_ROOT%\Assets\AssetsPackage\AssetsHotFix\Datas\Localization\tblocaletext.bytes"

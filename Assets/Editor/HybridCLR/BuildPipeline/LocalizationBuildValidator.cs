@@ -49,9 +49,14 @@ namespace HybridCLR.Editor
             RequireFile(Path.Combine(projectRoot, "Assets/AssetsPackage/Resources/Localization/bootstrap.bytes"));
             RequireFile(Path.Combine(projectRoot, "Assets/AssetsPackage/AssetsHotFix/Datas/Localization/tblanguagecatalog.bytes"));
             RequireFile(Path.Combine(projectRoot, "Assets/AssetsPackage/AssetsHotFix/Datas/Localization/tblanguagealias.bytes"));
-            RequireFile(Path.Combine(projectRoot, "Assets/AssetsPackage/AssetsHotFix/Datas/Localization/tblocaletext.bytes"));
             RequireFile(Path.Combine(projectRoot, "Assets/AssetsPackage/AssetsHotFix/Datas/Localization/tbfontgroup.bytes"));
             RequireFile(Path.Combine(projectRoot, "Assets/AssetsPackage/AssetsHotFix/Datas/Localization/tblocalizedasset.bytes"));
+            foreach (var row in catalog)
+            {
+                string locale = Required(row, "locale", "LanguageCatalog");
+                string address = Required(row, "textTableAddress", "LanguageCatalog");
+                RequireFile(Path.Combine(projectRoot, $"Assets/AssetsPackage/AssetsHotFix/Localization/Locales/{locale}/{address}.bytes"));
+            }
         }
 
         private static void ValidateCatalog(List<Dictionary<string, string>> rows)

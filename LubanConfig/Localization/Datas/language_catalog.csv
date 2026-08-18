@@ -1,5 +1,5 @@
 ##var,locale,displayName,fallbackLocale,enabled,sortOrder,textTableAddress,downloadTag,fontGroup,rtl,minAppVersion
 ##type,string,string,string,bool,int,string,string,string,bool,string
 ##,语言ID,本语言名称,回退语言,启用,排序,文本表地址,下载标签,字体组,RTL,最低App版本
-,zh-CN,简体中文,en,true,10,tblocaletext,l10n.zh-CN,CJK_SC,false,
-,en,English,,true,20,tblocaletext,l10n.en,Latin,false,
+,zh-CN,简体中文,en,true,10,l10n_text_zh-CN,l10n.zh-CN,CJK_SC,false,
+,en,English,,true,20,l10n_text_en,l10n.en,Latin,false,

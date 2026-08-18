@@ -379,9 +379,9 @@ Luban 生成或发布前至少校验：
 - 旧 `HotfixText` 已兼容转发到新服务，尚未迁移的 Key 回落旧 ScriptableObject。
 - 新增 Player 构建前校验：默认语言、fallback 环、重复 ID、空字段、格式参数一致性和生成文件存在性。
 
-当前 P0 采用单个 `tblocaletext.bytes` 承载所有业务语言，以先建立可靠闭环。后续语言数量或表体积增长后，再扩展为每语言独立表和按 Tag 下载；外部 `L10n` API、字符串 Locale 与 Catalog 结构无需改变。
+P0 最初采用单个 `tblocaletext.bytes` 建立闭环；当前实现已经升级为每语言独立表和独立 Collector/Tag，外部 `L10n` API、字符串 Locale 与 Catalog 结构保持不变。
 
-尚未纳入本轮 P0：TMP 字体组、本地化图片/音频、Key-only UI 组件、语言包下载进度界面，以及完全删除旧 `HotfixLocalizationSettings`。
+后续仍待完成：本地化音频组件、面向玩家的语言包下载界面，以及完全删除旧 `HotfixLocalizationSettings`。
 
 ## 14. 第二阶段实施状态（2026-08-18）
 
@@ -396,4 +396,18 @@ Luban 生成或发布前至少校验：
 - 启动 Catalog 升级后复用同一事务激活当前请求语言。
 - 构建门禁增加字体组、本地化资源表和生成产物检查。
 
-当前语言文本仍由单个 `tblocaletext.bytes` 承载；现有 YooAsset Collector 也仍收集整个 `AssetsHotFix/Datas` 目录。因此本阶段使用 `CreateBundleDownloader(location)` 做地址级精确下载，尚未宣称完成真正的“每语言独立 Bundle/Tag”。要获得语言包级物理隔离，需要把每语言产物生成到独立目录，并为各目录配置独立 Collector、Pack Rule 和 `l10n.<locale>` Tag。
+第二阶段完成时语言文本仍由单个 `tblocaletext.bytes` 承载；该限制现已由下一节的独立语言包与 Collector 自动同步方案解除。
+
+## 15. 独立语言包与 Collector 自动同步（2026-08-18）
+
+已增加 `LocalizationContentSynchronizer`：
+
+- 读取 `language_catalog.csv` 和统一翻译源 `locale_text.csv`。
+- 为每个 Catalog Locale 生成 `AssetsHotFix/Localization/Locales/<locale>/l10n_text_<locale>.bytes`。
+- 为每个 Locale 自动创建独立 YooAsset Collector。
+- Collector 使用 `PackDirectory`，并设置 `l10n.<locale>` Tag。
+- 自动删除已经从 Catalog 移除的语言目录和 Collector。
+- 首包、普通热更包、AOT metadata 补丁和 Player Build 前都会自动同步。
+- 运行时不再加载合并 `tblocaletext`，而是根据 Catalog 的 `textTableAddress` 下载并解析目标语言表，与字体一起原子提交。
+
+手工同步入口：`Build/热更新/内部工具/同步 Luban 语言包与 Collector`。新增语言时只需增加 Catalog、Alias、文本和字体/资源配置，然后运行同步或直接通过构建中心出包。
