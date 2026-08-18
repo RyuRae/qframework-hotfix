@@ -686,6 +686,12 @@ namespace HybridCLR.Editor
             {
                 action();
                 ShowNotification(new GUIContent(notification));
+                if (isBuildAction &&
+                    mLastExecutionResult != null &&
+                    mLastExecutionResult.IsAOTMetadataPatch)
+                {
+                    ShowAOTMetadataPatchResult(mLastExecutionResult);
+                }
             }
             catch (Exception exception)
             {
@@ -793,6 +799,11 @@ namespace HybridCLR.Editor
                 DrawReadOnlyPath("RawFile 输出目录", result.RawFileOutputPackageDirectory);
                 DrawReadOnlyPath("RawFile CDN 上传目录", result.RawFileCdnUploadDirectory);
             }
+            if (!string.IsNullOrWhiteSpace(result.PlayerBaselinePath))
+            {
+                DrawReadOnlyPath("Player AOT 基线", result.PlayerBaselinePath);
+                DrawReadOnlyPath("Player AOT 基线指纹", result.PlayerBaselineFingerprint);
+            }
             DrawReadOnlyPath("构建报告", result.ReportPath);
 
             EditorGUILayout.BeginHorizontal();
@@ -838,6 +849,39 @@ namespace HybridCLR.Editor
                 return;
             }
             EditorUtility.OpenWithDefaultApp(path);
+        }
+
+        internal static void ShowAOTMetadataPatchResult(HotfixBuildExecutionResult result)
+        {
+            string message =
+                "Player AOT 基线校验：通过\n" +
+                $"基线路径：{result.PlayerBaselinePath}\n" +
+                $"基线指纹：{result.PlayerBaselineFingerprint}\n\n" +
+                $"AotVersion：{result.PreviousAotVersion} -> {result.AotVersion}\n" +
+                $"Manifest 指纹：{result.PreviousManifestBaselineFingerprint} -> " +
+                $"{result.CurrentManifestBaselineFingerprint}\n" +
+                $"新增 DLL：{result.FormatAOTChanges(result.AotAddedFiles)}\n" +
+                $"变化 DLL：{result.FormatAOTChanges(result.AotChangedFiles)}\n" +
+                $"移除 DLL：{result.FormatAOTChanges(result.AotRemovedFiles)}\n\n" +
+                $"PackageVersion：{result.PackageVersion}\n" +
+                $"输出目录：{result.OutputPackageDirectory}\n" +
+                $"构建报告：{result.ReportPath}\n\n" +
+                "该补丁不会复制到 StreamingAssets，只能部署给同一 Player AOT 基线的 App。";
+
+            int option = EditorUtility.DisplayDialogComplex(
+                "AOT 元数据补丁构建成功",
+                message,
+                "打开输出目录",
+                "关闭",
+                "查看报告");
+            if (option == 0)
+            {
+                RevealDirectory(result.OutputPackageDirectory);
+            }
+            else if (option == 2)
+            {
+                OpenReport(result.ReportPath);
+            }
         }
     }
 }

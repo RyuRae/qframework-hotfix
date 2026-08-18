@@ -10,19 +10,29 @@ namespace HybridCLR.Editor
         [MenuItem("Build/热更新/一键构建/构建首包", false, HotfixBuildMenuPriority.OneClickInitialPackage)]
         public static void BuildInitialPackage()
         {
-            HotfixBuildRunner.Build(HotfixBuildMode.InitialPackage);
+            BuildAndShowResult(HotfixBuildMode.InitialPackage);
         }
 
         [MenuItem("Build/热更新/一键构建/构建热更包", false, HotfixBuildMenuPriority.OneClickHotfixPackage)]
         public static void BuildHotfixPackage()
         {
-            HotfixBuildRunner.Build(HotfixBuildMode.HotfixPackage);
+            BuildAndShowResult(HotfixBuildMode.HotfixPackage);
         }
 
         [MenuItem("Build/热更新/高级/构建 AOT 元数据补丁", false, HotfixBuildMenuPriority.AdvancedAOTMetadataPatch)]
         public static void BuildAOTMetadataPatch()
         {
-            HotfixBuildRunner.Build(HotfixBuildMode.AOTMetadataPatch);
+            BuildAndShowResult(HotfixBuildMode.AOTMetadataPatch);
+        }
+
+        private static void BuildAndShowResult(HotfixBuildMode mode)
+        {
+            HotfixBuildRunner.Build(mode);
+            var result = HotfixBuildRunner.LastExecutionResult;
+            if (result != null && result.IsAOTMetadataPatch)
+            {
+                HotfixBuildCenterWindow.ShowAOTMetadataPatchResult(result);
+            }
         }
 
         [MenuItem("Build/热更新/内部工具/校验运行时设置", false, HotfixBuildMenuPriority.InternalValidateRuntimeSettings)]

@@ -780,9 +780,10 @@ AllowDevelopmentCdn = false
 3. 点击 `构建首包资源`。
 
 4. 构建会先生成 RawFile 包并计算其 YooAsset Manifest SHA-256，再写入并签名 `HotfixAssemblyManifest.asset`，最后构建包含签名清单的主包。
-5. `FirstPackage` 和 `OfflinePackage` 会先清空并复制主包，再追加 RawFile 包到 `StreamingAssets`；两个包不会互相清空。随后构建 Player。
-6. `EmptyPackage` 不会复制到 `StreamingAssets`；先上传首版远端资源，再构建 Player。
-7. 如果首包也需要远端更新能力，把输出目录上传到目标 CDN。
+5. 主包构建完整成功后会生成 Editor-only 的 `Assets/Editor/HybridCLR/PlayerAOTBaseline.asset`，作为后续 AOT 元数据补丁不可覆盖的 Player 身份基线。
+6. `FirstPackage` 和 `OfflinePackage` 会先清空并复制主包，再追加 RawFile 包到 `StreamingAssets`；两个包不会互相清空。随后构建 Player。
+7. `EmptyPackage` 不会复制到 `StreamingAssets`；先上传首版远端资源，再构建 Player。
+8. 如果首包也需要远端更新能力，把输出目录上传到目标 CDN。
 
 ### 热更包发布
 
@@ -846,6 +847,7 @@ AllowDevelopmentCdn = false
 - 校验首包必需资源。
 - 构建 YooAsset 包。
 - `FirstPackage` 和 `OfflinePackage` 会复制构建产物到 `StreamingAssets`。
+- YooAsset 主包完整成功后创建或更新 Editor-only 的 `PlayerAOTBaseline.asset`；失败构建不会覆盖已有基线。
 
 YooAsset 默认输出目录：
 
@@ -961,13 +963,27 @@ Build/热更新/高级/构建 AOT 元数据补丁
 该流程会：
 
 - 弹出风险确认。
-- 校验旧 `AOTAssemblyManifest.asset` 与当前 AppVersion、BuildTarget 一致。
+- 要求存在首包成功构建后生成的 Editor-only 独立基线：`Assets/Editor/HybridCLR/PlayerAOTBaseline.asset`。
+- 校验基线格式、AppVersion、BuildTarget、Unity 版本、Player/HybridCLR 构建身份和基线自身指纹。
 - 执行安全版 HybridCLR Generate All。
+- 对 Generate All 产出的全量裁剪 AOT DLL 逐个比对 fileName、size 和 sha256；任何新增、变化或移除都会在改写 Manifest 前阻断。
 - 复制 AOT metadata DLL 和 Hotfix DLL。
 - 重新生成 `AOTAssemblyManifest.asset` 和 `HotfixAssemblyManifest.asset`。
 - 构建远端 YooAsset 包。
 - 不复制到 `StreamingAssets`。
-- 在构建报告中标记这是 AOT 元数据补丁。
+- 在构建报告中记录 Player 基线指纹、旧/新 `AotVersion`、旧/新 Manifest 指纹，以及 AOT Metadata DLL 的新增/变化/移除列表。
+- 构建成功后弹出结果摘要，可直接打开输出目录或查看报告。
+
+独立 Player AOT 基线遵循以下规则：
+
+- 只有首包资源完整构建成功后才会创建或更新；构建失败不会污染已有可信基线。
+- AOT 元数据补丁只读取并验证它，不会覆盖它。
+- 基线位于 `Assets/Editor`，不会进入 Player 或 YooAsset 运行时资源。
+- 基线资产应和对应 App 的 ReleaseProfile、构建报告一起提交版本控制并归档；团队成员和 CI 必须使用同一份基线，不能在补丁发布前临时重建。
+- `patchAOTAssemblies` 不参与 Player 构建身份指纹，因为调整 metadata 选择正是该任务的用途；但选择出的 DLL 必须仍来自与首包完全一致的全量裁剪 AOT 输出。
+- Player 构建身份包含 Unity/平台/AppVersion、应用标识、ScriptingBackend、API Compatibility、Managed Stripping、IL2CPP 编译配置、CPU 架构、宏与编译参数、HybridCLR 配置、`Packages/packages-lock.json` 和原生插件/SDK 源文件及导入配置摘要。身份变化时必须发布新 App。
+
+旧项目迁移：如果构建中心提示缺少 `PlayerAOTBaseline.asset`，不能直接继续发布 AOT 补丁。请切换到“构建首包资源”，在与实际 Player 相同的平台、AppVersion 和构建设置下重新建立首包基线；随后需要以该首包构建新的 App。不能用新生成的基线冒充已经发布但没有基线记录的旧 App。
 
 如果修改了主工程 AOT 代码逻辑、公共接口、原生 SDK 或 PlayerSettings，应发布新 App，而不是发布 AOT 元数据补丁。
 

@@ -150,9 +150,14 @@ namespace HybridCLR.Editor
                     packageVersion,
                     rawFileBuildResult);
             }
+            ReportProgress("建立 Player AOT 基线", 0.88f, buildResult == null ? string.Empty : buildResult.OutputPackageDirectory);
+            var playerBaseline = HotfixPlayerAOTBaselineUtility.CaptureAfterInitialPackage(
+                context.BuildTarget,
+                context.AppVersion,
+                aotManifest);
             Debug.Log("[HotfixBuild] 首包构建完成。");
 
-            return HotfixBuildExecutionResult.Create(
+            var result = HotfixBuildExecutionResult.Create(
                 context,
                 packageConfig.MainPackageName,
                 buildResult,
@@ -162,6 +167,8 @@ namespace HybridCLR.Editor
                 aotManifest,
                 hotfixManifest,
                 false);
+            result.SetPlayerBaseline(playerBaseline, true);
+            return result;
         }
 
         public static HotfixBuildExecutionResult BuildHotfixPackage(HotfixBuildContext context)
@@ -242,6 +249,16 @@ namespace HybridCLR.Editor
                 throw new InvalidOperationException("构建 AOT 元数据补丁前必须存在旧的 AOT 清单。请先构建首包建立 App 基线。");
             }
 
+            var playerBaseline = HotfixPlayerAOTBaselineUtility.Load();
+            HotfixPlayerAOTBaselineUtility.ValidateIdentityOrThrow(
+                playerBaseline,
+                context.BuildTarget,
+                context.AppVersion);
+
+            string previousAotVersion = previousAotManifest.AotVersion ?? string.Empty;
+            string previousManifestFingerprint = previousAotManifest.BaselineFingerprint ?? string.Empty;
+            var previousAotFiles = CloneFileRecords(previousAotManifest.AotMetadataFiles);
+
             if (!string.Equals(previousAotManifest.AppVersion, context.AppVersion, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
@@ -261,6 +278,10 @@ namespace HybridCLR.Editor
             HybridCLRGenerateAllSafe.Run();
             ReportProgress("编译 AOT / 热更 DLL", 0.38f, string.Empty);
             CompileDllCommand.CompileDll(context.BuildTarget);
+            ReportProgress("验证 Player AOT 基线", 0.44f, string.Empty);
+            HotfixPlayerAOTBaselineUtility.ValidateGeneratedAssembliesOrThrow(
+                playerBaseline,
+                context.BuildTarget);
 
             string packageVersion = BuildAssetsCommand.CreatePackageVersion(context.BuildTarget);
 
@@ -300,7 +321,7 @@ namespace HybridCLR.Editor
             ReportProgress("主资源包构建完成", 0.84f, buildResult == null ? string.Empty : buildResult.OutputPackageDirectory);
             Debug.Log("[HotfixBuild] AOT 元数据补丁构建完成。");
 
-            return HotfixBuildExecutionResult.Create(
+            var result = HotfixBuildExecutionResult.Create(
                 context,
                 packageConfig.MainPackageName,
                 buildResult,
@@ -310,6 +331,13 @@ namespace HybridCLR.Editor
                 aotManifest,
                 hotfixManifest,
                 true);
+            result.SetPlayerBaseline(playerBaseline, true);
+            result.SetAOTMetadataPatchChanges(
+                previousAotVersion,
+                previousManifestFingerprint,
+                previousAotFiles,
+                aotManifest);
+            return result;
         }
 
         private static BuildResult BuildRawFilePackage(
@@ -395,6 +423,22 @@ namespace HybridCLR.Editor
                 builder.AppendLine($"RawFile CDN 上传目录: {result.RawFileCdnUploadDirectory}");
             }
             builder.AppendLine($"AotVersion: {result.AotVersion}");
+            if (!string.IsNullOrWhiteSpace(result.PlayerBaselineFingerprint))
+            {
+                builder.AppendLine($"Player AOT 基线路径: {result.PlayerBaselinePath}");
+                builder.AppendLine($"Player AOT 基线校验: {(result.PlayerBaselineVerified ? "通过" : "未校验")}");
+                builder.AppendLine($"Player AOT 基线指纹: {result.PlayerBaselineFingerprint}");
+            }
+            if (result.IsAOTMetadataPatch)
+            {
+                builder.AppendLine($"旧 AotVersion: {result.PreviousAotVersion}");
+                builder.AppendLine($"新 AotVersion: {result.AotVersion}");
+                builder.AppendLine($"旧 Manifest 基线指纹: {result.PreviousManifestBaselineFingerprint}");
+                builder.AppendLine($"新 Manifest 基线指纹: {result.CurrentManifestBaselineFingerprint}");
+                builder.AppendLine($"AOT Metadata 新增 DLL: {result.FormatAOTChanges(result.AotAddedFiles)}");
+                builder.AppendLine($"AOT Metadata 变化 DLL: {result.FormatAOTChanges(result.AotChangedFiles)}");
+                builder.AppendLine($"AOT Metadata 移除 DLL: {result.FormatAOTChanges(result.AotRemovedFiles)}");
+            }
             builder.AppendLine($"HotfixVersion: {result.HotfixVersion}");
             builder.AppendLine($"RequiredAotVersion: {result.RequiredAotVersion}");
             builder.AppendLine($"StreamingAssets: {(result.CopyToStreamingAssets ? "复制" : "不复制")}");
@@ -437,6 +481,20 @@ namespace HybridCLR.Editor
         {
             ProgressChanged?.Invoke(stage ?? string.Empty, Mathf.Clamp01(progress), outputDirectory ?? string.Empty);
         }
+
+        private static List<AssemblyFileRecord> CloneFileRecords(IEnumerable<AssemblyFileRecord> records)
+        {
+            return (records ?? Enumerable.Empty<AssemblyFileRecord>())
+                .Where(record => record != null)
+                .Select(record => new AssemblyFileRecord
+                {
+                    FileName = record.FileName ?? string.Empty,
+                    AssemblyName = record.AssemblyName ?? string.Empty,
+                    Size = record.Size,
+                    Sha256 = record.Sha256 ?? string.Empty
+                })
+                .ToList();
+        }
     }
 
     public sealed class HotfixBuildExecutionResult
@@ -458,6 +516,15 @@ namespace HybridCLR.Editor
         public string AotVersion;
         public string HotfixVersion;
         public string RequiredAotVersion;
+        public string PlayerBaselinePath;
+        public string PlayerBaselineFingerprint;
+        public bool PlayerBaselineVerified;
+        public string PreviousAotVersion;
+        public string PreviousManifestBaselineFingerprint;
+        public string CurrentManifestBaselineFingerprint;
+        public List<string> AotAddedFiles = new List<string>();
+        public List<string> AotChangedFiles = new List<string>();
+        public List<string> AotRemovedFiles = new List<string>();
         public List<AssemblyFileRecord> AotMetadataFiles = new List<AssemblyFileRecord>();
         public List<AssemblyFileRecord> HotUpdateFiles = new List<AssemblyFileRecord>();
         public List<AssemblyDependencyRecord> HotUpdateDependencies = new List<AssemblyDependencyRecord>();
@@ -508,6 +575,35 @@ namespace HybridCLR.Editor
             };
         }
 
+        public void SetPlayerBaseline(HotfixPlayerAOTBaseline baseline, bool verified)
+        {
+            PlayerBaselinePath = baseline == null ? string.Empty : HotfixPlayerAOTBaseline.AssetPath;
+            PlayerBaselineFingerprint = baseline == null ? string.Empty : baseline.BaselineFingerprint ?? string.Empty;
+            PlayerBaselineVerified = baseline != null && verified;
+        }
+
+        public void SetAOTMetadataPatchChanges(
+            string previousAotVersion,
+            string previousManifestFingerprint,
+            IEnumerable<AssemblyFileRecord> previousFiles,
+            AOTAssemblyManifest currentManifest)
+        {
+            PreviousAotVersion = previousAotVersion ?? string.Empty;
+            PreviousManifestBaselineFingerprint = previousManifestFingerprint ?? string.Empty;
+            CurrentManifestBaselineFingerprint = currentManifest == null
+                ? string.Empty
+                : currentManifest.BaselineFingerprint ?? string.Empty;
+            HotfixPlayerAOTBaselineUtility.BuildAssemblyDiff(
+                previousFiles,
+                currentManifest == null ? null : currentManifest.AotMetadataFiles,
+                out var added,
+                out var changed,
+                out var removed);
+            AotAddedFiles = added;
+            AotChangedFiles = changed;
+            AotRemovedFiles = removed;
+        }
+
         public void AppendTo(HotfixBuildReport report)
         {
             report.AddInfo("资源包名", PackageName);
@@ -518,6 +614,12 @@ namespace HybridCLR.Editor
 
             report.AddInfo("资源包版本", PackageVersion);
             report.AddInfo("AotVersion", AotVersion);
+            if (!string.IsNullOrWhiteSpace(PlayerBaselineFingerprint))
+            {
+                report.AddInfo("Player AOT 基线路径", PlayerBaselinePath);
+                report.AddInfo("Player AOT 基线校验", PlayerBaselineVerified ? "通过" : "未校验");
+                report.AddInfo("Player AOT 基线指纹", PlayerBaselineFingerprint);
+            }
             report.AddInfo("HotfixVersion", HotfixVersion);
             report.AddInfo("RequiredAotVersion", RequiredAotVersion);
             report.AddInfo("YooAsset 输出目录", OutputPackageDirectory);
@@ -538,7 +640,20 @@ namespace HybridCLR.Editor
             if (IsAOTMetadataPatch)
             {
                 report.AddWarning("高级构建模式", "AOT 元数据补丁", "该产物只能用于同一 App 基线下的元数据补充。");
+                report.AddInfo("AotVersion 变化", $"{PreviousAotVersion} -> {AotVersion}");
+                report.AddInfo(
+                    "Manifest 基线指纹变化",
+                    $"{PreviousManifestBaselineFingerprint} -> {CurrentManifestBaselineFingerprint}");
+                report.AddInfo("AOT Metadata 新增 DLL", FormatAOTChanges(AotAddedFiles));
+                report.AddInfo("AOT Metadata 变化 DLL", FormatAOTChanges(AotChangedFiles));
+                report.AddInfo("AOT Metadata 移除 DLL", FormatAOTChanges(AotRemovedFiles));
             }
+        }
+
+        public string FormatAOTChanges(IEnumerable<string> files)
+        {
+            var values = (files ?? Enumerable.Empty<string>()).ToList();
+            return values.Count == 0 ? "无" : string.Join(", ", values);
         }
 
         public static void AppendAssemblyFileRecords(

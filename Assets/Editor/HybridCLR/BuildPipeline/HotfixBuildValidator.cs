@@ -275,21 +275,42 @@ namespace HybridCLR.Editor
 
         private static void AddAOTManifestStatus(HotfixBuildContext context, HotfixBuildReport report)
         {
+            if (context.Mode == HotfixBuildMode.AOTMetadataPatch)
+            {
+                var playerBaseline = HotfixPlayerAOTBaselineUtility.Load();
+                if (HotfixPlayerAOTBaselineUtility.TryValidateIdentity(
+                        playerBaseline,
+                        context.BuildTarget,
+                        context.AppVersion,
+                        out string baselineMessage))
+                {
+                    report.AddInfo(
+                        "Player AOT 基线",
+                        playerBaseline.BaselineFingerprint,
+                        $"身份校验通过；构建后还会严格比对 {playerBaseline.StrippedAOTAssemblies.Count} 个裁剪 AOT DLL。");
+                }
+                else
+                {
+                    report.AddError("Player AOT 基线", "无效", baselineMessage);
+                }
+            }
+
             if (context.AOTManifest == null)
             {
-                if (context.Mode == HotfixBuildMode.HotfixPackage)
+                if (context.Mode == HotfixBuildMode.HotfixPackage ||
+                    context.Mode == HotfixBuildMode.AOTMetadataPatch)
                 {
                     report.AddError(
                         "AOT 清单",
                         "缺失",
-                        $"热更包构建需要已有 AOT 清单：{BuildAssetsCommand.AOTAssemblyManifestAssetPath}。");
+                        $"当前任务需要已有 AOT 清单：{BuildAssetsCommand.AOTAssemblyManifestAssetPath}。");
                 }
                 else
                 {
                     report.AddWarning(
                         "AOT 清单",
                         "缺失",
-                        "首包构建或 AOT 元数据补丁会重新生成它。");
+                        "首包构建会重新生成它，并在完整成功后建立独立 Player AOT 基线。");
                 }
 
                 return;
@@ -298,7 +319,8 @@ namespace HybridCLR.Editor
             string status = $"{context.AOTManifest.AotVersion} / {context.AOTManifest.BuildTarget}";
             if (!string.Equals(context.AOTManifest.BuildTarget, context.BuildTargetName, StringComparison.OrdinalIgnoreCase))
             {
-                if (context.Mode == HotfixBuildMode.HotfixPackage)
+                if (context.Mode == HotfixBuildMode.HotfixPackage ||
+                    context.Mode == HotfixBuildMode.AOTMetadataPatch)
                 {
                     report.AddError("AOT 清单", status, "构建目标不匹配。");
                 }
@@ -310,6 +332,15 @@ namespace HybridCLR.Editor
             else
             {
                 report.AddInfo("AOT 清单", status);
+            }
+
+            if (context.Mode == HotfixBuildMode.AOTMetadataPatch &&
+                !string.Equals(context.AOTManifest.AppVersion, context.AppVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                report.AddError(
+                    "AOT 清单 AppVersion",
+                    context.AOTManifest.AppVersion,
+                    $"AOT 元数据补丁必须与当前 AppVersion={context.AppVersion} 一致。");
             }
         }
 
