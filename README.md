@@ -13,13 +13,34 @@
 
 ## 环境要求
 
-- Unity：`2022.3.62f2`
+- Unity：`2022.3.62f3`
 - YooAsset：`2.3.0-preview`
 - HybridCLR：项目 `Packages/manifest.json` 中的 `com.code-philosophy.hybridclr`
 - Luban：项目 `Packages/manifest.json` 中的 `com.code-philosophy.luban`
 - 目标平台需先在 Unity Hub 安装对应 Build Support，例如 Android、iOS、WebGL、Windows、macOS。
 
 首次打开工程后，建议先等待 Unity 完成 Package 导入和脚本编译。
+
+## 推荐阅读与操作顺序
+
+README 按下面的依赖顺序使用。首次接手不建议从后面的单项命令章节跳着执行：
+
+1. **环境与快速开始**：安装 Unity Build Support、HybridCLR，并确认热更程序集。
+2. **Luban 数据构建中心**：先生成普通配置和多语言配置产物。
+3. **多语言使用**：在已有 Luban 产物基础上配置 Locale、字体和本地化资源。
+4. **YooAsset Collector 与目录结构**：确认生成数据、DLL、场景和入口资源被正确收集。
+5. **热更新构建中心与 ReleaseProfile**：选择首包/热更任务、环境、版本、CDN 和启动策略。
+6. **发布 SOP**：构建首包或热更包、上传 CDN、构建 Player 并验收。
+7. **运行时、协议和维护章节**：用于排障、扩展和框架维护。
+
+核心入口：
+
+| 顺序 | 菜单 | 用途 |
+| ---: | --- | --- |
+| 1 | `Build/Luban/数据构建中心...` | 生成配置代码、数据和独立语言包 |
+| 2 | `YooAsset/AssetBundle Collector` | 检查生成产物与启动资源收集 |
+| 3 | `Build/热更新/构建中心...` | 校验并构建首包或热更资源 |
+| 4 | Unity `Build Settings` | 构建最终 Player |
 
 ## 快速开始
 
@@ -50,7 +71,15 @@
    HotfixDemo
    ```
 
-5. 检查 YooAsset 收集器。
+5. 生成 Luban 配置和多语言数据。
+
+   ```text
+   Build/Luban/数据构建中心...
+   ```
+
+   默认先执行 `Client` 和 `Localization` 任务。生成成功后再检查 YooAsset Collector；详细操作见后文“Luban 数据构建中心”。
+
+6. 检查 YooAsset 收集器。
 
    打开 `YooAsset/AssetBundle Collector`，确认 `DefaultPackage` 至少收集以下路径：
 
@@ -64,24 +93,24 @@
 
    如果使用 `StartupDownloadMode = DownloadByTags`，启动必需资源所在 Collector 必须配置 `AssetTags = startup`，至少包括 `AOTCodes`、`HotfixCodes`、`Configs`、`Datas`，以及 CodeEntry 启动阶段会立即加载的场景 / Prefab / 配置等资源。
 
-6. 打开构建中心。
+7. 打开热更新构建中心。
 
    ```text
    Build/热更新/构建中心...
    ```
 
-   构建中心按任务向导展示日常发布需要的核心配置：
+   构建中心按首包/热更选项卡展示当前任务需要的配置：
 
    ```text
-   ① 选择构建首包资源 / 构建热更资源
-   ② 选择开发 / 测试 / 预发 / 正式环境预设
-   ③ 确认平台、版本、CDN、启动策略和热更入口
-   ④ 只读检查 → 应用并自动修复 → 构建资源
+   构建类型：首包资源 / 热更资源
+   ① 选择开发 / 测试 / 预发 / 正式环境预设
+   ② 确认当前任务的平台、版本、CDN 和专属配置
+   ③ 只读检查 → 应用并自动修复 → 构建资源
    ```
 
    `只读检查` 不会改写 PlayerSettings、RuntimeSettings、RemoteSettings 或 Manifest；只有“应用并自动修复”和实际构建才会同步 Profile。AOT 元数据补丁、复制 Profile 和导出 JSON 位于高级工具折叠区。
 
-7. 选择或保存 ReleaseProfile。
+8. 选择或保存 ReleaseProfile。
 
    默认发布配置位于：
 
@@ -92,7 +121,7 @@
    ReleaseProfile 统一管理 BuildTarget、AppVersion、兼容版本区间、ResourceVersion、HotfixVersion、远端环境、渠道、地区、CDN、PlayerPlayMode、启动策略、启动下载 Tag 和 CodeEntry。构建会先应用 ReleaseProfile，再生成 manifest 和资源包。
    选中 `HotfixReleaseProfile.asset` 后，Inspector 中带 `*` 的字段是发布前需要确认的配置；灰色字段是自动生成或由底层 asset 派生的只读状态。
 
-8. 在 ReleaseProfile 中选择启动包策略。
+9. 首包任务中选择启动包策略。
 
    优先在 `HotfixReleaseProfile.asset` 中设置：
 
@@ -102,7 +131,7 @@
 
    构建会把 ReleaseProfile 的启动策略、PlayerPlayMode 和 CDN 选择同步到底层 asset。`HotfixRuntimeSettings.asset`、`HotfixRemoteSettings.asset`、`HotfixBuildProfile.asset` 仍保留给运行时和构建预处理器读取，不再作为发布策略的首选编辑入口。
 
-9. 构建热更资源包。
+10. 构建资源包。
 
    首包或首次远端资源：
 
@@ -116,7 +145,7 @@
    Build/热更新/一键构建/构建热更包
    ```
 
-10. 构建 Player。
+11. 构建 Player。
 
    Windows 示例内部菜单：
 
@@ -125,6 +154,37 @@
    ```
 
    其他平台可以使用 Unity `Build Settings`，构建前预处理器会校验 Player PlayMode、远端配置和启动包策略。
+
+## 数据生产：Luban 数据构建中心
+
+普通业务配置和多语言配置都是 YooAsset/热更新构建的输入，应在检查 Collector 和构建首包/热更包之前生成。
+
+统一入口：
+
+```text
+Build/Luban/数据构建中心...
+```
+
+首次使用的最短流程：
+
+1. 打开数据构建中心，使用默认 `LubanBuildProfile.asset`。
+2. `Client` 任务生成普通配置的 `cs-bin + bin`。
+3. `Localization` 任务生成 Catalog、Bootstrap、字体/资源映射和独立语言包。
+4. 点击“一键生成全部”，确认两个任务均成功。
+5. 打开 YooAsset Collector，确认生成目录被收集。
+6. 再进入 `Build/热更新/构建中心...` 构建首包或热更包。
+
+默认数据流：
+
+```text
+LubanConfig/DataTables              → 普通配置代码与 bytes
+LubanConfig/Localization            → 本地化核心表
+locale_text.csv                     → 按 Locale 拆分语言 bytes
+生成产物                            → 自动同步 YooAsset Collector/Tag
+YooAsset Collector                  → 热更新构建中心构建资源包
+```
+
+只需要 JSON 供策划或外部工具查看时，使用“设为 JSON 数据导出”，不要让 `cs-bin` 与 JSON C# 代码同时存在。日常开发按本节短流程即可；需要修改任务、格式、表选择、路径或排查生成日志时，再查后文“Luban 数据构建中心详细参考”。
 
 ## 多语言使用
 
@@ -288,7 +348,7 @@ Prefab 不再内嵌每种语言译文，只保存 Key：
 
 不要删除 Bootstrap。网络、CDN 或 Manifest 失败时，启动 UI 不能依赖尚未可用的远端语言资源。
 
-## Luban 数据构建中心
+## Luban 数据构建中心详细参考
 
 工程提供统一的可视化 Luban 数据生产入口：
 
@@ -537,7 +597,7 @@ Assets/AssetsPackage
 | `Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset` | Hotfix 版本、兼容 App 版本、RequiredAotVersion、热更 DLL、size / sha256、依赖顺序、CodeEntry |
 | `Assets/AssetsPackage/AssetsHotFix/Configs/AssemblyManifest.asset` | 旧清单，保留用于兼容和迁移 |
 
-## 首包构建流程
+## 构建流程概览：首包
 
 ```mermaid
 flowchart TD
@@ -563,7 +623,7 @@ flowchart TD
     Q --> S[完成]
 ```
 
-## 热更包构建流程
+## 构建流程概览：热更包
 
 ```mermaid
 flowchart TD
@@ -584,7 +644,7 @@ flowchart TD
     style G fill:#bbf,stroke:#333
 ```
 
-## 运行时启动流程
+## 运行时启动流程概览
 
 ```mermaid
 flowchart TD
@@ -602,14 +662,15 @@ flowchart TD
     POLICY1 -->|AllowCached / WifiOnly / BackgroundDownload| LOCAL2[使用本地缓存降级]
 
     MANIFEST --> MAN_OK{更新成功?}
-    MAN_OK -->|成功| CREATE[ProcedureCreateDownloader\n创建资源下载器]
+    MAN_OK -->|成功| L10N[ProcedureLoadLocalization\n加载 Catalog / 当前语言表与字体]
     MAN_OK -->|失败| POLICY2{StartupUpdatePolicy?}
     POLICY2 -->|MustUpdate| RETRY2[重试 / 退出]
     POLICY2 -->|AllowCached 等| LOCAL3[使用本地缓存降级]
 
-    LOCAL1 --> CREATE
-    LOCAL2 --> CREATE
-    LOCAL3 --> CREATE
+    LOCAL1 --> L10N
+    LOCAL2 --> L10N
+    LOCAL3 --> L10N
+    L10N --> CREATE[ProcedureCreateDownloader\n创建资源下载器]
 
     CREATE --> DL_MODE{StartupDownloadMode?}
     DL_MODE -->|DownloadAll| DA[创建全量下载器\npackage.CreateResourceDownloader]
@@ -668,7 +729,7 @@ flowchart LR
         B3[构建 Player\nUnity Build Settings / 内部工具 Win64]
         B4[配置发布 Profile\nHotfixReleaseProfile]
         B5[同步运行时/远端设置\nRuntimeSettings/RemoteSettings]
-        B6[配置多语言\nHotfixLocalizationSettings]
+        B6[生成配置与多语言\nLuban 数据构建中心]
         B7[同步包名\nSync Package Names]
     end
 
@@ -676,6 +737,7 @@ flowchart LR
         R1[初始化资源包\nInitializePackage]
         R2[请求版本号\nRequestPackageVersion]
         R3[更新清单\nUpdatePackageManifest]
+        R3A[加载多语言\nLoadLocalization]
         R4[创建下载器\nCreateDownloader]
         R5[下载资源\nDownloadPackageFiles]
         R6[加载 AOT 元数据\nLoadAOTMetadata]
@@ -704,7 +766,8 @@ flowchart LR
     PLAYER --> R1
     R1 --> R2
     R2 --> R3
-    R3 --> R4
+    R3 --> R3A
+    R3A --> R4
     R4 --> R5
     R5 --> R6
     R6 --> R7
@@ -806,14 +869,15 @@ Assets/AssetsPackage/Scripts/Main/Runtime/Boot.cs
 4. `ProcedureInitializePackage` 初始化主资源包和可选 RawFile 包。
 5. `ProcedureRequestPackageVersion` 请求远端 package version。
 6. `ProcedureUpdatePackageManifest` 更新 package manifest。
-7. `ProcedureCreateDownloader` 根据启动下载策略创建 downloader。
-8. `ProcedureDownloadPackageFiles` 下载缺失或 hash 变化的 bundle。
-9. `ProcedureLoadAOTMetadata` 先加载 `HotfixAssemblyManifest`，再加载匹配的 `AOTAssemblyManifest` 和 AOT metadata。
-10. `ProcedureLoadAssembly` 按 `HotfixAssemblyManifest.HotUpdateAssemblies` 顺序校验并加载热更 DLL，并记录本次可用的 `HotfixVersion + AotVersion` 组合。
-11. `ProcedureLoadAssembly` 创建一次 `IHotfixEntry` 入口实例和 `HotfixContext`。
-12. `ProcedurePreloadHotfixResources` 检查同一入口是否实现可选的 `IHotfixResourcePreloader`；实现时等待预加载完成，未实现时直接通过。
-13. `ProcedureStartGame` 复用同一入口实例和上下文，等待 `IHotfixEntry.StartAsync` 真正完成。
-14. 业务启动成功后提交 LastGood，再由 `ProcedureClearCacheBundle` 清理未使用缓存。
+7. `ProcedureLoadLocalization` 在当前 manifest 上加载 Language Catalog、Alias、当前语言文本与字体；失败时保留 Resources Bootstrap 兜底。
+8. `ProcedureCreateDownloader` 根据启动下载策略创建 downloader。
+9. `ProcedureDownloadPackageFiles` 下载缺失或 hash 变化的 bundle。
+10. `ProcedureLoadAOTMetadata` 先加载 `HotfixAssemblyManifest`，再加载匹配的 `AOTAssemblyManifest` 和 AOT metadata。
+11. `ProcedureLoadAssembly` 按 `HotfixAssemblyManifest.HotUpdateAssemblies` 顺序校验并加载热更 DLL，并记录本次可用的 `HotfixVersion + AotVersion` 组合。
+12. `ProcedureLoadAssembly` 创建一次 `IHotfixEntry` 入口实例和 `HotfixContext`。
+13. `ProcedurePreloadHotfixResources` 检查同一入口是否实现可选的 `IHotfixResourcePreloader`；实现时等待预加载完成，未实现时直接通过。
+14. `ProcedureStartGame` 复用同一入口实例和上下文，等待 `IHotfixEntry.StartAsync` 真正完成。
+15. 业务启动成功后提交 LastGood，再由 `ProcedureClearCacheBundle` 清理未使用缓存。
 
 预加载失败或取消会直接阻断 `StartGame`，也不会提交 LastGood。Procedure 只负责生命周期、进度、取消和错误处理；Luban、JSON、本地化等具体业务资源仍由热更入口实现。
 
@@ -1099,7 +1163,7 @@ HybridCLR.Editor.HotfixCIBuildCommand.Run
 基础命令：
 
 ```bash
-UNITY="/Applications/Unity/Hub/Editor/2022.3.62f2/Unity.app/Contents/MacOS/Unity"
+UNITY="/Applications/Unity/Hub/Editor/2022.3.62f3/Unity.app/Contents/MacOS/Unity"
 
 "$UNITY" \
   -batchmode \
@@ -1277,7 +1341,7 @@ AllowDevelopmentCdn = false
 - 测试包启动后能完成版本请求、manifest 更新、资源下载和 CodeEntry 执行。
 - 正式包没有连接 Development 环境或本地回环 CDN。
 
-## 构建首包
+## 构建首包详细参考
 
 常规首包推荐使用 `FirstPackage`。
 
@@ -1335,7 +1399,7 @@ Bundles/StandaloneWindows64/DefaultPackage/2026-04-30-153012
 [BuildYooAssetPackage] Output: ...
 ```
 
-## 构建空包首版远端资源
+## 构建空包首版远端资源详细参考
 
 空包不是不需要资源，而是不把资源内置进安装包。
 
@@ -1360,7 +1424,7 @@ Bundles/StandaloneWindows64/DefaultPackage/2026-04-30-153012
 
 空包构建会生成完整 YooAsset 远端资源，但不会复制到 `StreamingAssets`。首次启动必须能请求远端 package version 和 package manifest。
 
-## 构建离线包
+## 构建离线包详细参考
 
 步骤：
 
@@ -1381,7 +1445,7 @@ Bundles/StandaloneWindows64/DefaultPackage/2026-04-30-153012
 
 离线包不会依赖 CDN，适合固定内容交付。后续如果要切回热更模式，需要重新设置 `StartupPackageMode` 和 `PlayerPlayMode`。
 
-## 构建热更包
+## 构建热更包详细参考
 
 当修改热更代码、资源、场景或配置后，执行：
 
@@ -1412,7 +1476,7 @@ Build/热更新/一键构建/构建热更包
 - `构建 AOT 元数据补丁`：只在同一 App 基线下补充元数据。
 - `取消`：停止本次构建。
 
-## 构建 AOT 元数据补丁
+## 构建 AOT 元数据补丁详细参考
 
 AOT 元数据补丁是高级模式，只适用于：
 
@@ -1874,31 +1938,20 @@ UIPanelRoot.Instance.RequestCancelDownloadWithReason("用户在下载中取消�
 
 下载失败后会提供重试或退出/使用本地缓存路径。`AllowCached`、`WifiOnly`、`BackgroundDownload` 会优先尝试上次可用缓存；`MustUpdate` 不使用缓存兜底。
 
-## 多语言提示
+## 启动多语言兼容层
 
-启动阶段文案由：
+当前多语言权威数据源是 Luban。`HotfixLocalizationSettings.asset` 仅保留旧启动文案兼容和迁移期回退，不应继续作为新增语言或业务文案的编辑入口。
 
-```text
-Assets/AssetsPackage/Resources/HotfixLocalizationSettings.asset
-```
-
-管理。
-
-默认跟随系统语言。也可以覆盖：
-
-```csharp
-PlayerPrefs.SetString("Hotfix.Language", "English");
-PlayerPrefs.Save();
-```
-
-命令行：
+启动顺序为：
 
 ```text
---hotfix-language=ChineseSimplified
---hotfix-language=English
+Resources/Localization/bootstrap.bytes
+→ 初始化 YooAsset / 更新 Manifest
+→ ProcedureLoadLocalization
+→ Luban Catalog + 独立语言表 + 字体
 ```
 
-新增用户可见文案时，优先在 `HotfixTextKey` 中添加 key，并在 `HotfixLocalizationSettings.asset` 中补齐文本，再通过 `HotfixText.Get(...)` 使用。
+新增或修改文案应维护 `LubanConfig/Localization/Datas`，然后通过 Luban 数据构建中心生成。运行时统一使用 `L10n.Get(...)` 和事务式 `L10n.ChangeLocale(...)`；详细说明见前面的“多语言使用”。
 
 ## 常用菜单
 
