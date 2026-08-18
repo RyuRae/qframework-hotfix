@@ -31,6 +31,8 @@ namespace Framework.Luban.Editor
         public string DataOutputDirectory = "Assets/AssetsPackage/AssetsHotFix/Datas/bin";
         public bool GenerateCode = true;
         public bool GenerateData = true;
+        [Tooltip("切换代码 Target 时，在生成前删除当前代码输出目录。避免 cs-bin 与 JSON C# 类型同时存在。")]
+        public bool CleanCodeOutputBeforeGenerate;
         public bool ValidationFailAsError = true;
         public List<LubanTableSelection> Tables = new List<LubanTableSelection>();
     }

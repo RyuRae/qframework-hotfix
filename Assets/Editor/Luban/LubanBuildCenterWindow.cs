@@ -101,6 +101,7 @@ namespace Framework.Luban.Editor
             {
                 task.CodeTarget = DrawPopupOrCustom("代码格式", task.CodeTarget, CodeTargets);
                 task.CodeOutputDirectory = DrawPath("代码输出目录", task.CodeOutputDirectory, true);
+                task.CleanCodeOutputBeforeGenerate = EditorGUILayout.Toggle("生成前清理旧代码", task.CleanCodeOutputBeforeGenerate);
             }
             task.GenerateData = EditorGUILayout.Toggle("生成数据", task.GenerateData);
             using (new EditorGUI.DisabledScope(!task.GenerateData))
@@ -109,6 +110,32 @@ namespace Framework.Luban.Editor
                 task.DataOutputDirectory = DrawPath("数据输出目录", task.DataOutputDirectory, true);
             }
             task.ValidationFailAsError = EditorGUILayout.Toggle("校验失败即停止", task.ValidationFailAsError);
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("设为运行时 Bin", GUILayout.Width(110)))
+            {
+                task.GenerateCode = true;
+                task.GenerateData = true;
+                task.CodeTarget = "cs-bin";
+                task.DataTarget = "bin";
+                task.CleanCodeOutputBeforeGenerate = false;
+            }
+            if (GUILayout.Button("设为 JSON 数据导出", GUILayout.Width(140)))
+            {
+                task.GenerateCode = false;
+                task.GenerateData = true;
+                task.DataTarget = "json";
+                task.DataOutputDirectory = "Assets/AssetsPackage/AssetsHotFix/Datas/json";
+                task.CleanCodeOutputBeforeGenerate = false;
+            }
+            EditorGUILayout.EndHorizontal();
+            if (task.GenerateCode && !string.Equals(task.CodeTarget, "cs-bin", StringComparison.OrdinalIgnoreCase))
+            {
+                EditorGUILayout.HelpBox(
+                    "注意：不同 C# Target 默认生成相同命名空间和类型名。若工程中已存在 cs-bin 代码，" +
+                    "请启用“生成前清理旧代码”并输出到同一运行时代码目录；如果只是需要查看 JSON，请关闭“生成代码”，仅生成 JSON 数据。",
+                    MessageType.Warning);
+            }
             DrawTables(task);
             if (task.Category == LubanTaskCategory.Localization) DrawLocalizationSummary(task);
             DrawCommandPreview(task);

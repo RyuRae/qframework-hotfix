@@ -47,6 +47,33 @@ namespace Framework.Luban.Editor
                 if (task.GenerateCode) ValidateOutput(root, task.CodeOutputDirectory);
                 if (task.GenerateData) ValidateOutput(root, task.DataOutputDirectory);
                 if (!task.GenerateCode && !task.GenerateData) throw new BuildFailedException($"Task '{task.Name}' generates neither code nor data.");
+                ValidateGeneratedCodeIsolation(root, task);
+            }
+        }
+
+        private static void ValidateGeneratedCodeIsolation(string root, LubanBuildTask task)
+        {
+            if (!task.GenerateCode || string.Equals(task.CodeTarget, "cs-bin", StringComparison.OrdinalIgnoreCase)) return;
+            string output = LubanTableScanner.Resolve(root, task.CodeOutputDirectory);
+            if (!task.CleanCodeOutputBeforeGenerate && Directory.Exists(output) && Directory.GetFiles(output, "*.cs", SearchOption.AllDirectories).Length > 0)
+            {
+                throw new BuildFailedException(
+                    $"Task '{task.Name}' is switching to code target '{task.CodeTarget}', but the output directory already contains generated C# files. " +
+                    "Enable 'Clean Code Output Before Generate' and use the same runtime code directory, or disable code generation when exporting JSON data.");
+            }
+
+            string parent = Directory.GetParent(output)?.FullName;
+            if (string.IsNullOrWhiteSpace(parent) || !Directory.Exists(parent)) return;
+            foreach (string sibling in Directory.GetDirectories(parent))
+            {
+                if (string.Equals(Path.GetFullPath(sibling), Path.GetFullPath(output), StringComparison.OrdinalIgnoreCase)) continue;
+                if (Directory.GetFiles(sibling, "*.cs", SearchOption.AllDirectories).Length > 0)
+                {
+                    throw new BuildFailedException(
+                        $"Another generated C# directory exists beside the selected output: {sibling}. " +
+                        "Bin and JSON generated C# types use the same namespace/type names and cannot coexist in one Unity assembly. " +
+                        "Remove the old directory, generate data only, or isolate it with a separate asmdef and namespace.");
+                }
             }
         }
 

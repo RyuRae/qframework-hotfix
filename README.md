@@ -366,6 +366,45 @@ Profile 是 ScriptableObject，可以提交 Git、复制成不同项目/环境�
 
 因此多个勾选表会在同一次进程中生成，避免分表执行时反复覆盖 `Tables.cs`。如果表列表为空，则当前任务按 `luban.conf` 全量生成；如果已有表列表但没有勾选有效 `OutputTable`，工具会阻止执行。
 
+### Bin 与 JSON 代码不能同时存在
+
+`cs-bin`、`cs-simple-json`、`cs-newtonsoft-json` 默认会生成相同命名空间和类型名，例如：
+
+```text
+cfg.Tables
+cfg.Person
+cfg.TbPerson
+```
+
+因此下面两个目录同时位于同一个 Unity 程序集时，会出现大量重复定义错误：
+
+```text
+GenCodes/Bin/Person.cs
+GenCodes/Json/Person.cs
+```
+
+如果运行时继续使用 Binary，只是希望导出 JSON 查看或交给外部工具，请在数据构建中心点击：
+
+```text
+设为 JSON 数据导出
+```
+
+该预设会：
+
+- 关闭“生成代码”；
+- 只生成 JSON 数据；
+- 保留现有 `cs-bin` 运行时代码；
+- 默认输出到 `Assets/AssetsPackage/AssetsHotFix/Datas/json`。
+
+如果确实要把运行时序列化方案从 Binary 切换为 JSON：
+
+1. 选择对应 JSON C# Target；
+2. 代码输出仍使用原运行时代码目录，不要新建并存的 `GenCodes/Json`；
+3. 启用“生成前清理旧代码”；
+4. 确认运行时加载器也从 `ByteBuf` 切换为对应 JSON 加载方式。
+
+构建中心会在生成前检测同级目录中的其他生成代码，并阻止 Bin/JSON 同名类型同时进入一个 Unity 程序集。
+
 ### 多语言任务操作
 
 选择 `Localization` 任务后，窗口会额外显示 Locale 数量和翻译记录数。

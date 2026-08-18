@@ -31,6 +31,11 @@ namespace Framework.Luban.Editor
             profile = selectedProfile ?? throw new ArgumentNullException(nameof(selectedProfile));
             string root = Directory.GetParent(Application.dataPath).FullName;
             if (profile.ValidateBeforeGenerate) LubanProfileUtility.ValidateOrThrow(root, profile);
+            foreach (var task in tasks)
+            {
+                if (task.GenerateCode && task.CleanCodeOutputBeforeGenerate)
+                    CleanCodeOutput(root, task);
+            }
             Pending.Clear();
             foreach (var task in tasks)
                 foreach (var command in LubanCommandBuilder.Build(root, profile, task))
@@ -47,6 +52,16 @@ namespace Framework.Luban.Editor
             report.Canceled = true;
             try { process.Kill(); } catch { }
             Finish(false);
+        }
+
+        private static void CleanCodeOutput(string root, LubanBuildTask task)
+        {
+            string output = LubanTableScanner.Resolve(root, task.CodeOutputDirectory);
+            if (!Directory.Exists(output)) return;
+            FileUtil.DeleteFileOrDirectory(output.Replace('\\', '/'));
+            string meta = output + ".meta";
+            if (File.Exists(meta)) FileUtil.DeleteFileOrDirectory(meta.Replace('\\', '/'));
+            Directory.CreateDirectory(output);
         }
 
         private static void StartNext()
