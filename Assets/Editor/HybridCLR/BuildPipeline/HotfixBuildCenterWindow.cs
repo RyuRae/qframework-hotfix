@@ -328,7 +328,9 @@ namespace HybridCLR.Editor
                 SaveProfileEdits();
                 if (ConfirmApplySettings())
                 {
-                    RunAction(() => mReport = HotfixBuildRunner.FixAll(mMode), "配置已应用并完成自动修复。");
+                    ScheduleAction(
+                        () => mReport = HotfixBuildRunner.FixAll(mMode),
+                        "配置已应用并完成自动修复。");
                 }
             }
 
@@ -340,7 +342,7 @@ namespace HybridCLR.Editor
                     SaveProfileEdits();
                     if (ConfirmBuild())
                     {
-                        RunAction(
+                        ScheduleAction(
                             () =>
                             {
                                 mReport = HotfixBuildRunner.Build(mMode);
@@ -712,6 +714,28 @@ namespace HybridCLR.Editor
                     Repaint();
                 }
             }
+        }
+
+        /// <summary>
+        /// 将可能触发 AssetDatabase 刷新、Domain Reload 或长耗时处理的动作延迟到当前 IMGUI 事件结束后，
+        /// 避免 BeginScrollView/EndScrollView 的布局栈在构建期间被重置。
+        /// </summary>
+        private void ScheduleAction(Action action, string notification)
+        {
+            if (action == null)
+            {
+                return;
+            }
+
+            EditorApplication.delayCall += () =>
+            {
+                if (this == null)
+                {
+                    return;
+                }
+
+                RunAction(action, notification);
+            };
         }
 
         private void OnBuildProgressChanged(string stage, float progress, string outputDirectory)
