@@ -707,6 +707,94 @@ Assets/Editor/HybridCLR/HotfixReleaseProfile.asset
 
 `HotfixReleaseProfile` 的 Inspector 仅作为高级编辑、底层设置同步、诊断和 Profile 复制入口。日常发布统一使用 `Build/热更新/构建中心...`，以确保经过统一校验、正式发布二次确认和构建产物交付操作。
 
+## CI 资源构建入口
+
+无人值守流水线统一调用：
+
+```text
+HybridCLR.Editor.HotfixCIBuildCommand.Run
+```
+
+该入口只能在 Unity `-batchmode` 下执行，并复用构建中心相同的 Profile 应用、校验、HybridCLR、Manifest 签名、YooAsset 和 AOT 基线流程。它不会读取 CI 机器的 `EditorPrefs` 选择结果，而是要求通过 `-hotfixProfile` 明确指定仓库内的 ReleaseProfile。
+
+基础命令：
+
+```bash
+UNITY="/Applications/Unity/Hub/Editor/2022.3.62f2/Unity.app/Contents/MacOS/Unity"
+
+"$UNITY" \
+  -batchmode \
+  -nographics \
+  -quit \
+  -projectPath "$PWD" \
+  -buildTarget Android \
+  -executeMethod HybridCLR.Editor.HotfixCIBuildCommand.Run \
+  -hotfixTask HotfixPackage \
+  -hotfixProfile Assets/Editor/HybridCLR/Profiles/ProductionAndroid.asset \
+  -hotfixBuildTarget Android \
+  -hotfixResourceVersion 2026.08.18.1 \
+  -hotfixReleaseSequence 108 \
+  -hotfixConfirmProduction true \
+  -hotfixResult BuildReports/Hotfix/ci-result.json \
+  -logFile BuildReports/Hotfix/unity-ci.log
+```
+
+`-hotfixTask` 支持：
+
+```text
+InitialPackage
+HotfixPackage
+AOTMetadataPatch
+```
+
+可用参数：
+
+| 参数 | 必填 | 说明 |
+|---|---:|---|
+| `-hotfixTask` | 是 | 构建首包资源、普通热更资源或 AOT 元数据补丁 |
+| `-hotfixProfile` | 是 | `Assets` 下的 ReleaseProfile `.asset` 路径 |
+| `-hotfixBuildTarget` | 否 | 覆盖 Profile 平台；仍必须和 Unity `-buildTarget` 后的活动平台一致 |
+| `-hotfixAppVersion` | 否 | 在内存 Profile 上覆盖 AppVersion |
+| `-hotfixAppVersionMin` / `-hotfixAppVersionMax` | 否 | 覆盖热更兼容范围 |
+| `-hotfixResourceVersion` | 否 | 覆盖 YooAsset PackageVersion；正式发布建议由流水线固定传入 |
+| `-hotfixReleaseSequence` | 否 | 覆盖正式发布序号；正式环境必须大于 0 |
+| `-hotfixConfirmProduction true` | 正式必填 | 表示流水线已经审核环境、版本、CDN、签名和 ReleaseSequence |
+| `-hotfixConfirmAotPatch true` | AOT 补丁必填 | 显式承担同一 Player AOT 基线下补充元数据的发布风险 |
+| `-hotfixResult` | 否 | JSON 结果路径，默认 `BuildReports/Hotfix/ci-result.json` |
+
+参数覆盖仅作用于运行中的内存 Profile，不会把 AppVersion、ResourceVersion 或 ReleaseSequence 写回 ReleaseProfile 资产。构建仍会按统一流程生成 Manifest、RuntimeSettings 同步产物、YooAsset 目录和构建报告，因此 CI 应使用一次性工作区，并在结束后归档所需资产或丢弃工作区。
+
+流水线约束：
+
+- 正式环境未传 `-hotfixConfirmProduction true` 时直接失败。
+- AOT 补丁未传 `-hotfixConfirmAotPatch true` 时直接失败，不会弹窗或自动确认。
+- 普通热更检测到 AOT 基线变化时直接失败，不会自动改成首包或 AOT 补丁。
+- Profile、`-hotfixBuildTarget` 与 Unity 当前活动平台不一致时直接失败。
+- 未知参数、重复参数或非法布尔值直接失败，避免拼写错误静默回退。
+- 成功以退出码 `0` 结束；失败以退出码 `1` 结束。
+- 无论成功或失败都会尽力生成 JSON，包含输出/CDN 目录、版本、基线指纹、报告路径、警告数和错误信息；JSON 无法写入时同样返回失败。
+
+AOT 补丁示例：
+
+```bash
+"$UNITY" \
+  -batchmode -nographics -quit \
+  -projectPath "$PWD" \
+  -buildTarget Android \
+  -executeMethod HybridCLR.Editor.HotfixCIBuildCommand.Run \
+  -hotfixTask AOTMetadataPatch \
+  -hotfixProfile Assets/Editor/HybridCLR/Profiles/ProductionAndroid.asset \
+  -hotfixResourceVersion 2026.08.18.2 \
+  -hotfixReleaseSequence 109 \
+  -hotfixConfirmProduction true \
+  -hotfixConfirmAotPatch true \
+  -hotfixResult BuildReports/Hotfix/aot-patch-result.json
+```
+
+Manifest 私钥仍通过 ReleaseProfile 的 `ManifestPrivateKeyEnvironmentVariable` 指定的 CI Secret 注入，例如 `HOTFIX_MANIFEST_PRIVATE_KEY`。参数和 JSON 结果只记录 KeyId，不会输出私钥内容。
+
+当前专用入口负责首包资源、普通热更资源和 AOT 元数据补丁的自动化，不会调用 `BuildPipeline.BuildPlayer`。Android APK/AAB、iOS Xcode 工程及 Standalone Player 的统一构建、签名和产物摘要仍应作为后续 Player CI 阶段接入，不能把资源构建成功等同于 Player 构建成功。
+
 一键构建会先应用 ReleaseProfile：
 
 - 写入 `PlayerSettings.bundleVersion`。

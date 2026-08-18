@@ -15,6 +15,7 @@ namespace HybridCLR.Editor
     {
         public static Action<string, float, string> ProgressChanged;
         public static HotfixBuildExecutionResult LastExecutionResult { get; private set; }
+        private static HotfixBuildExecutionOptions sExecutionOptions;
 
         public static HotfixBuildReport ValidateOnly(HotfixBuildMode mode)
         {
@@ -36,6 +37,27 @@ namespace HybridCLR.Editor
         }
 
         public static HotfixBuildReport Build(HotfixBuildMode mode)
+        {
+            return Build(mode, HotfixBuildExecutionOptions.Interactive);
+        }
+
+        public static HotfixBuildReport Build(
+            HotfixBuildMode mode,
+            HotfixBuildExecutionOptions executionOptions)
+        {
+            var previousOptions = sExecutionOptions;
+            sExecutionOptions = executionOptions ?? HotfixBuildExecutionOptions.Interactive;
+            try
+            {
+                return BuildInternal(mode);
+            }
+            finally
+            {
+                sExecutionOptions = previousOptions;
+            }
+        }
+
+        private static HotfixBuildReport BuildInternal(HotfixBuildMode mode)
         {
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             LastExecutionResult = null;
@@ -238,7 +260,7 @@ namespace HybridCLR.Editor
                 "AOT 元数据补丁只能补充同一 App 基线下的泛型元数据。\n\n" +
                 "如果修改了主工程 AOT 代码逻辑、公共接口、原生 SDK 或 PlayerSettings，应发布新 App，而不是发布 AOT 元数据补丁。";
 
-            if (!EditorUtility.DisplayDialog("AOT 元数据补丁", message, "继续构建", "取消"))
+            if (!IsAOTMetadataPatchConfirmed(message))
             {
                 throw new OperationCanceledException("已取消 AOT 元数据补丁构建。");
             }
@@ -380,6 +402,14 @@ namespace HybridCLR.Editor
             HotfixBuildContext context,
             Exception exception)
         {
+            if (IsNonInteractiveBuild)
+            {
+                throw new InvalidOperationException(
+                    "非交互构建检测到 AOT 基线变化，已停止普通热更构建。" +
+                    "CI 不会自动切换为首包或 AOT 元数据补丁；请显式选择正确任务后重试。",
+                    exception);
+            }
+
             int option = EditorUtility.DisplayDialogComplex(
                 "AOT 基线变化",
                 exception.Message + "\n\n普通热更包已阻断。请选择下一步：",
@@ -482,6 +512,26 @@ namespace HybridCLR.Editor
             ProgressChanged?.Invoke(stage ?? string.Empty, Mathf.Clamp01(progress), outputDirectory ?? string.Empty);
         }
 
+        private static bool IsNonInteractiveBuild =>
+            Application.isBatchMode || (sExecutionOptions != null && sExecutionOptions.NonInteractive);
+
+        private static bool IsAOTMetadataPatchConfirmed(string message)
+        {
+            if (sExecutionOptions != null && sExecutionOptions.ConfirmAOTMetadataPatch)
+            {
+                return true;
+            }
+
+            if (IsNonInteractiveBuild)
+            {
+                throw new InvalidOperationException(
+                    "非交互 AOT 元数据补丁必须显式确认。" +
+                    "使用专用 CI 入口时请传入 -hotfixConfirmAotPatch true。");
+            }
+
+            return EditorUtility.DisplayDialog("AOT 元数据补丁", message, "继续构建", "取消");
+        }
+
         private static List<AssemblyFileRecord> CloneFileRecords(IEnumerable<AssemblyFileRecord> records)
         {
             return (records ?? Enumerable.Empty<AssemblyFileRecord>())
@@ -495,6 +545,14 @@ namespace HybridCLR.Editor
                 })
                 .ToList();
         }
+    }
+
+    public sealed class HotfixBuildExecutionOptions
+    {
+        public static readonly HotfixBuildExecutionOptions Interactive = new HotfixBuildExecutionOptions();
+
+        public bool NonInteractive;
+        public bool ConfirmAOTMetadataPatch;
     }
 
     public sealed class HotfixBuildExecutionResult

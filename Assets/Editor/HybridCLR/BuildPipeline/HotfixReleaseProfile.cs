@@ -22,6 +22,7 @@ namespace HybridCLR.Editor
     {
         public const string DefaultAssetPath = "Assets/Editor/HybridCLR/HotfixReleaseProfile.asset";
         private const string SelectedProfileKeySuffix = ".HotfixBuildCenter.ReleaseProfile";
+        private static HotfixReleaseProfile sBuildProfileOverride;
 
         [Header("发布标识")]
         [Tooltip("本次发布目标平台，需要和 Unity 当前切换的 BuildTarget 一致。不同平台的 DLL、AOT metadata 和 AssetBundle 不能混用。")]
@@ -555,6 +556,11 @@ namespace HybridCLR.Editor
 
         public static HotfixReleaseProfile LoadSelectedOrDefault()
         {
+            if (sBuildProfileOverride != null)
+            {
+                return sBuildProfileOverride;
+            }
+
             string path = EditorPrefs.GetString(GetSelectedProfilePrefsKey(), DefaultAssetPath);
             var profile = AssetDatabase.LoadAssetAtPath<HotfixReleaseProfile>(path);
             if (profile != null)
@@ -563,6 +569,18 @@ namespace HybridCLR.Editor
             }
 
             return AssetDatabase.LoadAssetAtPath<HotfixReleaseProfile>(DefaultAssetPath);
+        }
+
+        internal static IDisposable PushBuildProfileOverride(HotfixReleaseProfile profile)
+        {
+            if (profile == null)
+            {
+                throw new ArgumentNullException(nameof(profile));
+            }
+
+            var previous = sBuildProfileOverride;
+            sBuildProfileOverride = profile;
+            return new BuildProfileOverrideScope(previous);
         }
 
         public static void SaveSelectedProfile(HotfixReleaseProfile profile)
@@ -577,6 +595,28 @@ namespace HybridCLR.Editor
         private static string GetSelectedProfilePrefsKey()
         {
             return Application.dataPath + SelectedProfileKeySuffix;
+        }
+
+        private sealed class BuildProfileOverrideScope : IDisposable
+        {
+            private readonly HotfixReleaseProfile mPrevious;
+            private bool mDisposed;
+
+            public BuildProfileOverrideScope(HotfixReleaseProfile previous)
+            {
+                mPrevious = previous;
+            }
+
+            public void Dispose()
+            {
+                if (mDisposed)
+                {
+                    return;
+                }
+
+                mDisposed = true;
+                sBuildProfileOverride = mPrevious;
+            }
         }
 
         private void OnValidate()
