@@ -181,6 +181,26 @@ namespace HybridCLR.Editor
                     packageVersion,
                     rawFileBuildResult);
             }
+
+            // YooAsset 构建和 StreamingAssets 同步期间会触发 AssetDatabase.Refresh，
+            // 之前缓存的 ScriptableObject 引用可能变成 Unity 的“假 null”。
+            // 首包完整成功后必须从 AssetDatabase 重新取得当前 Manifest，再建立 Player 基线和结果快照。
+            aotManifest = AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(
+                BuildAssetsCommand.AOTAssemblyManifestAssetPath);
+            hotfixManifest = AssetDatabase.LoadAssetAtPath<HotfixAssemblyManifest>(
+                BuildAssetsCommand.HotfixAssemblyManifestAssetPath);
+            if (aotManifest == null)
+            {
+                throw new InvalidOperationException(
+                    $"AOT manifest became unavailable after YooAsset build: {BuildAssetsCommand.AOTAssemblyManifestAssetPath}");
+            }
+
+            if (hotfixManifest == null)
+            {
+                throw new InvalidOperationException(
+                    $"Hotfix manifest became unavailable after YooAsset build: {BuildAssetsCommand.HotfixAssemblyManifestAssetPath}");
+            }
+
             ReportProgress("建立 Player AOT 基线", 0.88f, buildResult == null ? string.Empty : buildResult.OutputPackageDirectory);
             var playerBaseline = HotfixPlayerAOTBaselineUtility.CaptureAfterInitialPackage(
                 context.BuildTarget,
