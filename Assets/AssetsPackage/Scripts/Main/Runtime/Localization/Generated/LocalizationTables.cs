@@ -17,6 +17,8 @@ public partial class LocalizationTables
     public TbLanguageAlias TbLanguageAlias {get; }
     public TbBootstrapText TbBootstrapText {get; }
     public TbLocaleText TbLocaleText {get; }
+    public TbFontGroup TbFontGroup {get; }
+    public TbLocalizedAsset TbLocalizedAsset {get; }
 
     public LocalizationTables(System.Func<string, ByteBuf> loader)
     {
@@ -24,6 +26,8 @@ public partial class LocalizationTables
         TbLanguageAlias = new TbLanguageAlias(loader("tblanguagealias"));
         TbBootstrapText = new TbBootstrapText(loader("tbbootstraptext"));
         TbLocaleText = new TbLocaleText(loader("tblocaletext"));
+        TbFontGroup = new TbFontGroup(loader("tbfontgroup"));
+        TbLocalizedAsset = new TbLocalizedAsset(loader("tblocalizedasset"));
         ResolveRef();
     }
     
@@ -33,6 +37,8 @@ public partial class LocalizationTables
         TbLanguageAlias.ResolveRef(this);
         TbBootstrapText.ResolveRef(this);
         TbLocaleText.ResolveRef(this);
+        TbFontGroup.ResolveRef(this);
+        TbLocalizedAsset.ResolveRef(this);
     }
 }
 

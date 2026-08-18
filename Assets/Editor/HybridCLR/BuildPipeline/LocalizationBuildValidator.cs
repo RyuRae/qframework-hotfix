@@ -37,15 +37,21 @@ namespace HybridCLR.Editor
             var catalog = ReadCsv(Path.Combine(dataRoot, "language_catalog.csv"));
             var bootstrap = ReadCsv(Path.Combine(dataRoot, "bootstrap_text.csv"));
             var localeText = ReadCsv(Path.Combine(dataRoot, "locale_text.csv"));
+            var fontGroups = ReadCsv(Path.Combine(dataRoot, "font_group.csv"));
+            var localizedAssets = ReadCsv(Path.Combine(dataRoot, "localized_asset.csv"), true);
 
             ValidateCatalog(catalog);
             ValidateTexts("BootstrapText", bootstrap);
             ValidateTexts("LocaleText", localeText);
+            ValidateUnique("FontGroup", fontGroups, "id");
+            ValidateUnique("LocalizedAsset", localizedAssets, "id");
 
             RequireFile(Path.Combine(projectRoot, "Assets/AssetsPackage/Resources/Localization/bootstrap.bytes"));
             RequireFile(Path.Combine(projectRoot, "Assets/AssetsPackage/AssetsHotFix/Datas/Localization/tblanguagecatalog.bytes"));
             RequireFile(Path.Combine(projectRoot, "Assets/AssetsPackage/AssetsHotFix/Datas/Localization/tblanguagealias.bytes"));
             RequireFile(Path.Combine(projectRoot, "Assets/AssetsPackage/AssetsHotFix/Datas/Localization/tblocaletext.bytes"));
+            RequireFile(Path.Combine(projectRoot, "Assets/AssetsPackage/AssetsHotFix/Datas/Localization/tbfontgroup.bytes"));
+            RequireFile(Path.Combine(projectRoot, "Assets/AssetsPackage/AssetsHotFix/Datas/Localization/tblocalizedasset.bytes"));
         }
 
         private static void ValidateCatalog(List<Dictionary<string, string>> rows)
@@ -99,11 +105,22 @@ namespace HybridCLR.Editor
             return end < 0 ? value : value.Substring(0, end) + "}";
         }
 
-        private static List<Dictionary<string, string>> ReadCsv(string path)
+        private static void ValidateUnique(string label, List<Dictionary<string, string>> rows, string key)
+        {
+            var values = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var row in rows)
+            {
+                string value = Required(row, key, label);
+                if (!values.Add(value)) throw new BuildFailedException($"Duplicate {label}.{key}: {value}");
+            }
+        }
+
+        private static List<Dictionary<string, string>> ReadCsv(string path, bool allowEmpty = false)
         {
             RequireFile(path);
             string[] lines = File.ReadAllLines(path, Encoding.UTF8);
-            if (lines.Length < 4) throw new BuildFailedException($"Localization CSV has no data: {path}");
+            if (lines.Length < 3 || (!allowEmpty && lines.Length < 4))
+                throw new BuildFailedException($"Localization CSV has no data: {path}");
             string[] headers = ParseLine(lines[0]).Select(value => value == "##var" ? string.Empty : value).ToArray();
             var result = new List<Dictionary<string, string>>();
             for (int line = 3; line < lines.Length; line++)
@@ -114,6 +131,7 @@ namespace HybridCLR.Editor
                 for (int i = 1; i < headers.Length; i++) row[headers[i]] = i < values.Length ? values[i] : string.Empty;
                 result.Add(row);
             }
+            if (!allowEmpty && result.Count == 0) throw new BuildFailedException($"Localization CSV has no data: {path}");
             return result;
         }
 

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using Framework.Localization.Generated;
 using Luban;
+using TMPro;
 using UnityEngine;
 using YooAsset;
 
@@ -18,11 +19,18 @@ namespace Framework.Localization
         public const string CatalogAddress = "tblanguagecatalog";
         public const string AliasAddress = "tblanguagealias";
         public const string LocaleTextAddress = "tblocaletext";
+        public const string FontGroupAddress = "tbfontgroup";
+        public const string LocalizedAssetAddress = "tblocalizedasset";
 
         private Dictionary<string, string> bootstrapTexts = new Dictionary<string, string>(StringComparer.Ordinal);
         private Dictionary<string, string> runtimeTexts = new Dictionary<string, string>(StringComparer.Ordinal);
         private Dictionary<string, LanguageCatalogRow> catalog = new Dictionary<string, LanguageCatalogRow>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, string> aliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, FontGroupRow> fontGroups = new Dictionary<string, FontGroupRow>(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, string> localizedAssets = new Dictionary<string, string>(StringComparer.Ordinal);
+        private ResourcePackage runtimePackage;
+        private AssetHandle activeFontHandle;
+        private int localeRequestVersion;
 
         public static LocalizationService Instance { get; } = new LocalizationService();
 
@@ -30,7 +38,11 @@ namespace Framework.Localization
         public string ActiveLocale { get; private set; } = DefaultLocale;
         public bool IsBootstrapInitialized { get; private set; }
         public bool HasRuntimeCatalog { get; private set; }
+        public TMP_FontAsset ActiveFont { get; private set; }
+        public bool IsChangingLocale { get; private set; }
+        public string LastChangeError { get; private set; } = string.Empty;
         public event Action<string> LocaleChanged;
+        public event Action<float> LocaleDownloadProgress;
 
         private LocalizationService() { }
 
@@ -67,51 +79,80 @@ namespace Framework.Localization
             AssetHandle catalogHandle = null;
             AssetHandle aliasHandle = null;
             AssetHandle textHandle = null;
+            AssetHandle fontGroupHandle = null;
+            AssetHandle localizedAssetHandle = null;
             try
             {
                 catalogHandle = package.LoadAssetAsync<TextAsset>(CatalogAddress);
                 aliasHandle = package.LoadAssetAsync<TextAsset>(AliasAddress);
                 textHandle = package.LoadAssetAsync<TextAsset>(LocaleTextAddress);
+                fontGroupHandle = package.LoadAssetAsync<TextAsset>(FontGroupAddress);
+                localizedAssetHandle = package.LoadAssetAsync<TextAsset>(LocalizedAssetAddress);
                 yield return catalogHandle;
                 yield return aliasHandle;
                 yield return textHandle;
+                yield return fontGroupHandle;
+                yield return localizedAssetHandle;
 
                 if (catalogHandle.Status != EOperationStatus.Succeed ||
                     aliasHandle.Status != EOperationStatus.Succeed ||
-                    textHandle.Status != EOperationStatus.Succeed)
+                    textHandle.Status != EOperationStatus.Succeed ||
+                    fontGroupHandle.Status != EOperationStatus.Succeed ||
+                    localizedAssetHandle.Status != EOperationStatus.Succeed)
                 {
-                    completed?.Invoke(false, $"Catalog={catalogHandle.LastError}; Alias={aliasHandle.LastError}; Text={textHandle.LastError}");
+                    completed?.Invoke(false, $"Catalog={catalogHandle.LastError}; Alias={aliasHandle.LastError}; Text={textHandle.LastError}; Font={fontGroupHandle.LastError}; Asset={localizedAssetHandle.LastError}");
                     yield break;
                 }
 
+                bool parsed = false;
+                string parseError = string.Empty;
                 try
                 {
                     var nextCatalogTable = new TbLanguageCatalog(new ByteBuf(((TextAsset)catalogHandle.AssetObject).bytes));
                     var nextAliasTable = new TbLanguageAlias(new ByteBuf(((TextAsset)aliasHandle.AssetObject).bytes));
                     var nextTextTable = new TbLocaleText(new ByteBuf(((TextAsset)textHandle.AssetObject).bytes));
+                    var nextFontTable = new TbFontGroup(new ByteBuf(((TextAsset)fontGroupHandle.AssetObject).bytes));
+                    var nextAssetTable = new TbLocalizedAsset(new ByteBuf(((TextAsset)localizedAssetHandle.AssetObject).bytes));
                     var nextCatalog = BuildCatalog(nextCatalogTable.DataList);
                     var nextAliases = BuildAliases(nextAliasTable.DataList);
                     ValidateCatalog(nextCatalog);
                     var nextTexts = BuildTextLookup(nextTextTable.DataList);
+                    var nextFonts = BuildFontGroups(nextFontTable.DataList);
+                    var nextAssets = BuildLocalizedAssets(nextAssetTable.DataList);
                     string nextLocale = ResolveRuntimeLocale(RequestedLocale, nextCatalog, nextAliases);
 
                     catalog = nextCatalog;
                     aliases = nextAliases;
                     runtimeTexts = nextTexts;
+                    fontGroups = nextFonts;
+                    localizedAssets = nextAssets;
+                    runtimePackage = package;
                     HasRuntimeCatalog = true;
-                    CommitActiveLocale(nextLocale);
-                    completed?.Invoke(true, string.Empty);
+                    parsed = true;
                 }
                 catch (Exception exception)
                 {
-                    completed?.Invoke(false, exception.Message);
+                    parseError = exception.Message;
                 }
+
+                if (!parsed)
+                {
+                    completed?.Invoke(false, parseError);
+                    yield break;
+                }
+
+                bool activated = false;
+                string activationError = string.Empty;
+                yield return ChangeLocale(RequestedLocale, (result, error) => { activated = result; activationError = error; });
+                completed?.Invoke(activated, activationError);
             }
             finally
             {
                 catalogHandle?.Release();
                 aliasHandle?.Release();
                 textHandle?.Release();
+                fontGroupHandle?.Release();
+                localizedAssetHandle?.Release();
             }
         }
 
@@ -137,6 +178,107 @@ namespace Framework.Localization
             return true;
         }
 
+        /// <summary>下载并准备目标语言快照，全部成功后才提交语言和字体。</summary>
+        public IEnumerator ChangeLocale(string locale, Action<bool, string> completed = null)
+        {
+            int requestVersion = ++localeRequestVersion;
+            string normalized = NormalizeLocale(locale);
+            if (!HasRuntimeCatalog || runtimePackage == null)
+            {
+                bool accepted = TryRequestLocale(normalized);
+                completed?.Invoke(accepted, accepted ? string.Empty : $"Unsupported locale: {normalized}");
+                yield break;
+            }
+
+            string targetLocale = ResolveRuntimeLocale(normalized, catalog, aliases);
+            if (!catalog.TryGetValue(targetLocale, out var language) || !language.Enabled)
+            {
+                completed?.Invoke(false, $"Unsupported locale: {normalized}");
+                yield break;
+            }
+
+            IsChangingLocale = true;
+            LastChangeError = string.Empty;
+            AssetHandle nextFontHandle = null;
+            try
+            {
+                var locations = new List<string>();
+                if (!string.IsNullOrWhiteSpace(language.TextTableAddress)) locations.Add(language.TextTableAddress);
+                if (fontGroups.TryGetValue(language.FontGroup, out var fontInfo) && !string.IsNullOrWhiteSpace(fontInfo.PrimaryFontAddress))
+                    locations.Add(fontInfo.PrimaryFontAddress);
+
+                if (locations.Count > 0)
+                {
+                    var downloader = runtimePackage.CreateBundleDownloader(locations.ToArray(), 4, 2);
+                    if (downloader.TotalDownloadCount > 0)
+                    {
+                        downloader.DownloadUpdateCallback = data => LocaleDownloadProgress?.Invoke(data.Progress);
+                        downloader.BeginDownload();
+                        yield return downloader;
+                        if (downloader.Status != EOperationStatus.Succeed)
+                        {
+                            LastChangeError = downloader.Error;
+                            completed?.Invoke(false, LastChangeError);
+                            yield break;
+                        }
+                    }
+                }
+
+                TMP_FontAsset nextFont = null;
+                if (fontInfo != null && !string.IsNullOrWhiteSpace(fontInfo.PrimaryFontAddress))
+                {
+                    nextFontHandle = runtimePackage.LoadAssetAsync<TMP_FontAsset>(fontInfo.PrimaryFontAddress);
+                    yield return nextFontHandle;
+                    if (nextFontHandle.Status != EOperationStatus.Succeed)
+                    {
+                        LastChangeError = nextFontHandle.LastError;
+                        completed?.Invoke(false, LastChangeError);
+                        yield break;
+                    }
+                    nextFont = nextFontHandle.AssetObject as TMP_FontAsset;
+                }
+
+                if (requestVersion != localeRequestVersion)
+                {
+                    completed?.Invoke(false, "Locale request was superseded.");
+                    yield break;
+                }
+
+                var previousFontHandle = activeFontHandle;
+                activeFontHandle = nextFontHandle;
+                nextFontHandle = null;
+                ActiveFont = nextFont;
+                RequestedLocale = normalized;
+                PlayerPrefs.SetString(PreferenceKey, normalized);
+                CommitActiveLocale(targetLocale, true);
+                previousFontHandle?.Release();
+                LocaleDownloadProgress?.Invoke(1f);
+                completed?.Invoke(true, string.Empty);
+            }
+            finally
+            {
+                nextFontHandle?.Release();
+                if (requestVersion == localeRequestVersion) IsChangingLocale = false;
+            }
+        }
+
+        public bool TryGetLocalizedAssetAddress(string key, string assetType, out string address)
+        {
+            address = null;
+            if (string.IsNullOrWhiteSpace(key)) return false;
+            string locale = ActiveLocale;
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            while (visited.Add(locale))
+            {
+                if (localizedAssets.TryGetValue(ComposeAssetId(key, locale, assetType), out address) && !string.IsNullOrWhiteSpace(address)) return true;
+                if (!catalog.TryGetValue(locale, out var info) || string.IsNullOrWhiteSpace(info.FallbackLocale)) break;
+                locale = NormalizeLocale(info.FallbackLocale);
+            }
+            return localizedAssets.TryGetValue(ComposeAssetId(key, DefaultLocale, assetType), out address) && !string.IsNullOrWhiteSpace(address);
+        }
+
+        public ResourcePackage RuntimePackage => runtimePackage;
+
         private string FindFallbackText(string key)
         {
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -150,12 +292,12 @@ namespace Framework.Localization
             return FindText(runtimeTexts, key, DefaultLocale) ?? FindText(bootstrapTexts, key, DefaultLocale);
         }
 
-        private void CommitActiveLocale(string locale)
+        private void CommitActiveLocale(string locale, bool forceNotify = false)
         {
             locale = NormalizeLocale(locale);
-            if (string.Equals(ActiveLocale, locale, StringComparison.OrdinalIgnoreCase)) return;
+            bool changed = !string.Equals(ActiveLocale, locale, StringComparison.OrdinalIgnoreCase);
             ActiveLocale = locale;
-            LocaleChanged?.Invoke(locale);
+            if (changed || forceNotify) LocaleChanged?.Invoke(locale);
         }
 
         private string ResolveBootstrapLocale(string requested)
@@ -200,6 +342,21 @@ namespace Framework.Localization
             return result;
         }
 
+        private static Dictionary<string, FontGroupRow> BuildFontGroups(IEnumerable<FontGroupRow> rows)
+        {
+            var result = new Dictionary<string, FontGroupRow>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in rows) result.Add(row.Id, row);
+            return result;
+        }
+
+        private static Dictionary<string, string> BuildLocalizedAssets(IEnumerable<LocalizedAssetRow> rows)
+        {
+            var result = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var row in rows)
+                result[ComposeAssetId(row.Key, row.Locale, row.AssetType)] = row.AssetAddress;
+            return result;
+        }
+
         private static void ValidateCatalog(Dictionary<string, LanguageCatalogRow> rows)
         {
             if (!rows.ContainsKey(DefaultLocale)) throw new InvalidOperationException("Language catalog must contain enabled fallback locale 'en'.");
@@ -225,6 +382,7 @@ namespace Framework.Localization
             return false;
         }
         private static string ComposeTextId(string key, string locale) => key.Trim() + "|" + NormalizeLocale(locale);
+        private static string ComposeAssetId(string key, string locale, string type) => key.Trim() + "|" + NormalizeLocale(locale) + "|" + (type ?? string.Empty).Trim();
         private static string GetNeutralLocale(string locale) { int index = locale.IndexOf('-'); return index > 0 ? locale.Substring(0, index) : locale; }
         private static string NormalizeLocale(string locale) => string.IsNullOrWhiteSpace(locale) ? DefaultLocale : locale.Trim().Replace('_', '-');
         private static string ResolveSystemLocale()
@@ -247,5 +405,6 @@ namespace Framework.Localization
         public static string Get(string key, params object[] args) => LocalizationService.Instance.Get(key, args);
         public static string RequestedLocale => LocalizationService.Instance.RequestedLocale;
         public static string ActiveLocale => LocalizationService.Instance.ActiveLocale;
+        public static IEnumerator ChangeLocale(string locale, Action<bool, string> completed = null) => LocalizationService.Instance.ChangeLocale(locale, completed);
     }
 }

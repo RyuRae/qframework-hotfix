@@ -382,3 +382,18 @@ Luban 生成或发布前至少校验：
 当前 P0 采用单个 `tblocaletext.bytes` 承载所有业务语言，以先建立可靠闭环。后续语言数量或表体积增长后，再扩展为每语言独立表和按 Tag 下载；外部 `L10n` API、字符串 Locale 与 Catalog 结构无需改变。
 
 尚未纳入本轮 P0：TMP 字体组、本地化图片/音频、Key-only UI 组件、语言包下载进度界面，以及完全删除旧 `HotfixLocalizationSettings`。
+
+## 14. 第二阶段实施状态（2026-08-18）
+
+本轮已经增加：
+
+- `TbFontGroup` 与 `TbLocalizedAsset` Luban 表。
+- 事务式 `ChangeLocale`：精确计算目标语言文本/字体地址、创建 YooAsset Bundle Downloader、加载字体，全部成功后才提交。
+- 连续切换通过请求版本号废弃旧请求；失败保持旧语言、旧字体和旧 UI。
+- `LocaleDownloadProgress`、`IsChangingLocale`、`LastChangeError` 状态。
+- `LocalizedText`、`LocalizedTMPText`、`LocalizedImage` Key-only 组件。
+- TMP 字体 Handle 随语言快照交接，本地化 Sprite Handle 随组件生命周期释放。
+- 启动 Catalog 升级后复用同一事务激活当前请求语言。
+- 构建门禁增加字体组、本地化资源表和生成产物检查。
+
+当前语言文本仍由单个 `tblocaletext.bytes` 承载；现有 YooAsset Collector 也仍收集整个 `AssetsHotFix/Datas` 目录。因此本阶段使用 `CreateBundleDownloader(location)` 做地址级精确下载，尚未宣称完成真正的“每语言独立 Bundle/Tag”。要获得语言包级物理隔离，需要把每语言产物生成到独立目录，并为各目录配置独立 Collector、Pack Rule 和 `l10n.<locale>` Tag。

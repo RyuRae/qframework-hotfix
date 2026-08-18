@@ -1,0 +1,3 @@
+##var,id,key,locale,assetType,assetAddress
+##type,string,string,string,string,string
+##,联合ID,资源Key,语言,资源类型,YooAsset地址

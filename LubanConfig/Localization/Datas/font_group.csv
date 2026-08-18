@@ -1,0 +1,5 @@
+##var,id,primaryFontAddress,downloadTag
+##type,string,string,string
+##,字体组ID,TMP字体地址,下载标签
+,Latin,,l10n.en
+,CJK_SC,,l10n.zh-CN

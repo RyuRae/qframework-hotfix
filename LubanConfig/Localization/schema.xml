@@ -22,8 +22,22 @@
     <var name="locale" type="string"/>
     <var name="text" type="string"/>
   </bean>
+  <bean name="FontGroupRow">
+    <var name="id" type="string"/>
+    <var name="primaryFontAddress" type="string"/>
+    <var name="downloadTag" type="string"/>
+  </bean>
+  <bean name="LocalizedAssetRow">
+    <var name="id" type="string"/>
+    <var name="key" type="string"/>
+    <var name="locale" type="string"/>
+    <var name="assetType" type="string"/>
+    <var name="assetAddress" type="string"/>
+  </bean>
   <table name="TbLanguageCatalog" value="LanguageCatalogRow" input="language_catalog.csv" index="locale" mode="map" group="c"/>
   <table name="TbLanguageAlias" value="LanguageAliasRow" input="language_alias.csv" index="sourceCode" mode="map" group="c"/>
   <table name="TbBootstrapText" value="LocalizedTextRow" input="bootstrap_text.csv" index="id" mode="map" group="c"/>
   <table name="TbLocaleText" value="LocalizedTextRow" input="locale_text.csv" index="id" mode="map" group="c"/>
+  <table name="TbFontGroup" value="FontGroupRow" input="font_group.csv" index="id" mode="map" group="c"/>
+  <table name="TbLocalizedAsset" value="LocalizedAssetRow" input="localized_asset.csv" index="id" mode="map" group="c"/>
 </module>
