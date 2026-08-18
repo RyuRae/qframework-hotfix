@@ -1,0 +1,19 @@
+##var,id,key,locale,text
+##type,string,string,string,string
+##,联合ID,Key,语言,文本
+,StartupRuntimeConfigMissing|zh-CN,StartupRuntimeConfigMissing,zh-CN,热更新运行配置缺失：Resources/{0}.asset
+,StartupRuntimeConfigMissing|en,StartupRuntimeConfigMissing,en,Hotfix runtime settings missing: Resources/{0}.asset
+,HotUpdateProcedureInitializeFailed|zh-CN,HotUpdateProcedureInitializeFailed,zh-CN,热更流程初始化失败！
+,HotUpdateProcedureInitializeFailed|en,HotUpdateProcedureInitializeFailed,en,Hot update procedure initialization failed.
+,ResourcePackageInitializeFailed|zh-CN,ResourcePackageInitializeFailed,zh-CN,资源包初始化失败！
+,ResourcePackageInitializeFailed|en,ResourcePackageInitializeFailed,en,Resource package initialization failed.
+,RequestRemoteVersionFailedTitle|zh-CN,RequestRemoteVersionFailedTitle,zh-CN,请求远端资源版本失败
+,RequestRemoteVersionFailedTitle|en,RequestRemoteVersionFailedTitle,en,Failed to request remote resource version
+,UpdateManifestFailedTitle|zh-CN,UpdateManifestFailedTitle,zh-CN,更新远端 manifest 失败
+,UpdateManifestFailedTitle|en,UpdateManifestFailedTitle,en,Failed to update remote manifest
+,DownloadFailed|zh-CN,DownloadFailed,zh-CN,下载失败：{0}\n{1}\n{2}
+,DownloadFailed|en,DownloadFailed,en,Download failed: {0}\n{1}\n{2}
+,LoadingAotMetadata|zh-CN,LoadingAotMetadata,zh-CN,加载 AOT 元数据
+,LoadingAotMetadata|en,LoadingAotMetadata,en,Loading AOT metadata
+,LoadingHotUpdateAssemblies|zh-CN,LoadingHotUpdateAssemblies,zh-CN,加载热更程序集
+,LoadingHotUpdateAssemblies|en,LoadingHotUpdateAssemblies,en,Loading hot update assemblies

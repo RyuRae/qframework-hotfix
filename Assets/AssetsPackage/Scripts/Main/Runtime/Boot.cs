@@ -6,6 +6,7 @@ using Framework.Procedure;
 using UnityEngine.SceneManagement;
 using Framework.Events;
 using Framework.UI;
+using Framework.Localization;
 
 namespace Framework
 {
@@ -35,6 +36,8 @@ namespace Framework
         /// </summary>
         IEnumerator Start()
         {
+            // 在任何 YooAsset 操作之前同步准备启动安全文案。
+            LocalizationService.Instance.InitializeBootstrap();
             var settings = HotfixRuntimeSettings.Load();
             if (settings == null)
             {

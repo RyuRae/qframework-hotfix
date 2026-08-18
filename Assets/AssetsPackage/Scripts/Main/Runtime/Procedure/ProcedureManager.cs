@@ -25,7 +25,9 @@ namespace Framework.Procedure
         // 保留已有状态的枚举值，避免外部持久化或日志协议因插入新状态而改变。
         ClearCacheBundle,
         StartGame,
-        PreloadHotfixResources
+        PreloadHotfixResources,
+        // 追加到末尾，保持既有状态枚举值稳定。
+        LoadLocalization
     }
 
     /// <summary>
@@ -104,6 +106,7 @@ namespace Framework.Procedure
             _mFSM.AddState(ResPackageStates.PreloadHotfixResources, new ProcedurePreloadHotfixResources(_mFSM, this));
             _mFSM.AddState(ResPackageStates.StartGame, new ProcedureStartGame(_mFSM, this));
             _mFSM.AddState(ResPackageStates.ClearCacheBundle, new ProcedureClearCacheBundle(_mFSM, this));
+            _mFSM.AddState(ResPackageStates.LoadLocalization, new ProcedureLoadLocalization(_mFSM, this));
 
             RegisterDownloadControlEvents();
         }

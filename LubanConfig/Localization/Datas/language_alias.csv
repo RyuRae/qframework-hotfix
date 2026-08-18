@@ -1,0 +1,8 @@
+##var,sourceCode,locale,priority
+##type,string,string,int
+##,来源代码,游戏语言,优先级
+,zh,zh-CN,80
+,zh-Hans,zh-CN,100
+,zh-CN,zh-CN,110
+,en,en,100
+,en-US,en,110

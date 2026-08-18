@@ -53,7 +53,7 @@ namespace Framework.Procedure
                         {
                             if (succeeded)
                             {
-                                mFSM.ChangeState(ResPackageStates.CreateDownloader);
+                                mFSM.ChangeState(ResPackageStates.LoadLocalization);
                             }
                         });
                     yield break;
@@ -108,7 +108,7 @@ namespace Framework.Procedure
                         {
                             if (succeeded)
                             {
-                                mFSM.ChangeState(ResPackageStates.CreateDownloader);
+                                mFSM.ChangeState(ResPackageStates.LoadLocalization);
                             }
                         });
                     yield break;

@@ -1,0 +1,29 @@
+<module name="">
+  <bean name="LanguageCatalogRow">
+    <var name="locale" type="string"/>
+    <var name="displayName" type="string"/>
+    <var name="fallbackLocale" type="string"/>
+    <var name="enabled" type="bool"/>
+    <var name="sortOrder" type="int"/>
+    <var name="textTableAddress" type="string"/>
+    <var name="downloadTag" type="string"/>
+    <var name="fontGroup" type="string"/>
+    <var name="rtl" type="bool"/>
+    <var name="minAppVersion" type="string"/>
+  </bean>
+  <bean name="LanguageAliasRow">
+    <var name="sourceCode" type="string"/>
+    <var name="locale" type="string"/>
+    <var name="priority" type="int"/>
+  </bean>
+  <bean name="LocalizedTextRow">
+    <var name="id" type="string"/>
+    <var name="key" type="string"/>
+    <var name="locale" type="string"/>
+    <var name="text" type="string"/>
+  </bean>
+  <table name="TbLanguageCatalog" value="LanguageCatalogRow" input="language_catalog.csv" index="locale" mode="map" group="c"/>
+  <table name="TbLanguageAlias" value="LanguageAliasRow" input="language_alias.csv" index="sourceCode" mode="map" group="c"/>
+  <table name="TbBootstrapText" value="LocalizedTextRow" input="bootstrap_text.csv" index="id" mode="map" group="c"/>
+  <table name="TbLocaleText" value="LocalizedTextRow" input="locale_text.csv" index="id" mode="map" group="c"/>
+</module>

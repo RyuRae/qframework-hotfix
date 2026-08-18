@@ -246,6 +246,15 @@ namespace Framework
     {
         public static string Get(HotfixTextKey key, params object[] args)
         {
+            if (Framework.Localization.LocalizationService.Instance.IsBootstrapInitialized)
+            {
+                string localized = Framework.Localization.L10n.Get(key.ToString(), args);
+                if (!string.Equals(localized, key.ToString(), StringComparison.Ordinal))
+                {
+                    return localized;
+                }
+            }
+
             var settings = HotfixLocalizationSettings.Load();
             return settings == null ? key.ToString() : settings.Get(key, args);
         }

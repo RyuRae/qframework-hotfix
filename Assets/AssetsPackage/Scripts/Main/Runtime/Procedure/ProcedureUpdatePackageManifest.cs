@@ -52,7 +52,7 @@ namespace Framework.Procedure
                 if (operation.Status == EOperationStatus.Succeed &&
                     (!mTarget._isIncludeRawFile || rawfileOperation.Status == EOperationStatus.Succeed))
                 {
-                    mFSM.ChangeState(ResPackageStates.CreateDownloader);
+                    mFSM.ChangeState(ResPackageStates.LoadLocalization);
                     yield break;
                 }
 
@@ -83,7 +83,7 @@ namespace Framework.Procedure
                         {
                             if (succeeded)
                             {
-                                mFSM.ChangeState(ResPackageStates.CreateDownloader);
+                                mFSM.ChangeState(ResPackageStates.LoadLocalization);
                             }
                         });
                     yield break;
