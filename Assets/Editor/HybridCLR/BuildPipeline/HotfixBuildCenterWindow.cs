@@ -145,7 +145,7 @@ namespace HybridCLR.Editor
 
         private void DrawBuildTask()
         {
-            DrawSectionTitle("① 选择构建任务");
+            DrawSectionTitle("构建类型");
             if (mMode == HotfixBuildMode.AOTMetadataPatch)
             {
                 EditorGUILayout.HelpBox(
@@ -161,7 +161,7 @@ namespace HybridCLR.Editor
 
             int selectedTask = mMode == HotfixBuildMode.HotfixPackage ? 1 : 0;
             EditorGUI.BeginChangeCheck();
-            selectedTask = GUILayout.Toolbar(selectedTask, TaskLabels, GUILayout.Height(30));
+            selectedTask = GUILayout.Toolbar(selectedTask, TaskLabels, GUILayout.Height(36));
             if (EditorGUI.EndChangeCheck())
             {
                 mMode = selectedTask == 0
@@ -179,7 +179,7 @@ namespace HybridCLR.Editor
 
         private void DrawFlavorPreset()
         {
-            DrawSectionTitle("② 选择发布环境");
+            DrawSectionTitle("① 发布环境");
             int selectedFlavor = Mathf.Clamp((int)mReleaseProfile.BuildFlavor, 0, FlavorLabels.Length - 1);
             EditorGUI.BeginChangeCheck();
             selectedFlavor = GUILayout.Toolbar(selectedFlavor, FlavorLabels, GUILayout.Height(28));
@@ -224,8 +224,13 @@ namespace HybridCLR.Editor
 
         private void DrawCoreSettings()
         {
-            DrawSectionTitle("③ 确认核心配置");
+            DrawSectionTitle(mMode == HotfixBuildMode.InitialPackage
+                ? "② 首包构建配置"
+                : mMode == HotfixBuildMode.HotfixPackage
+                    ? "② 热更构建配置"
+                    : "② AOT 元数据补丁配置");
 
+            EditorGUILayout.LabelField("版本身份", EditorStyles.boldLabel);
             DrawProperty("BuildTarget", "目标平台");
             using (new EditorGUI.DisabledScope(true))
             {
@@ -245,15 +250,18 @@ namespace HybridCLR.Editor
             DrawProperty("AppVersion", "App 版本");
             DrawResourceVersion();
 
-            mShowCompatibility = EditorGUILayout.Foldout(mShowCompatibility, "App 兼容范围", true);
-            if (mShowCompatibility)
+            if (mMode != HotfixBuildMode.InitialPackage)
             {
-                DrawProperty("AppVersionMin", "最低兼容 App");
-                DrawProperty("AppVersionMax", "最高兼容 App");
+                mShowCompatibility = EditorGUILayout.Foldout(mShowCompatibility, "热更 App 兼容范围", true);
+                if (mShowCompatibility)
+                {
+                    DrawProperty("AppVersionMin", "最低兼容 App");
+                    DrawProperty("AppVersionMax", "最高兼容 App");
+                }
             }
 
             EditorGUILayout.Space(4);
-            EditorGUILayout.LabelField("CDN", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(mMode == HotfixBuildMode.InitialPackage ? "首包资源与 CDN" : "热更发布与 CDN", EditorStyles.boldLabel);
             using (new EditorGUI.DisabledScope(true))
             {
                 EditorGUILayout.EnumPopup("远端环境", mReleaseProfile.RemoteEnvironment);
@@ -263,25 +271,13 @@ namespace HybridCLR.Editor
             DrawProperty("MainCdnUrlTemplate", "主 CDN");
             DrawProperty("FallbackCdnUrlTemplate", "备用 CDN");
 
-            EditorGUILayout.Space(4);
-            EditorGUILayout.LabelField("启动", EditorStyles.boldLabel);
-            DrawProperty("StartupPackageMode", "启动包策略");
-            DrawProperty("StartupDownloadMode", "启动下载模式");
-            DrawProperty("StartupUpdatePolicy", "更新失败策略");
-            DrawProperty("EntryTypeName", "热更入口类型");
-
-            var downloadMode = FindProperty("StartupDownloadMode");
-            if (downloadMode.enumValueIndex == (int)StartupDownloadMode.DownloadByTags)
+            if (mMode == HotfixBuildMode.InitialPackage)
             {
-                DrawProperty("StartupDownloadTags", "主包启动 Tags", true);
-                DrawProperty("RawFileStartupDownloadTags", "RawFile 启动 Tags", true);
+                DrawInitialPackageSettings();
             }
-
-            mShowStartupAdvanced = EditorGUILayout.Foldout(mShowStartupAdvanced, "启动高级选项", true);
-            if (mShowStartupAdvanced)
+            else
             {
-                DrawProperty("PlayerPlayMode", "Player YooAsset 模式");
-                DrawProperty("HotfixVersion", "热更版本覆盖（通常留空）");
+                DrawHotfixPackageSettings();
             }
 
             var flavor = mReleaseProfile.BuildFlavor;
@@ -299,9 +295,64 @@ namespace HybridCLR.Editor
             }
         }
 
+        private void DrawInitialPackageSettings()
+        {
+            EditorGUILayout.Space(6);
+            EditorGUILayout.LabelField("Player 启动与内置资源", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "这些选项决定 Player 首次启动使用的 YooAsset 模式、内置资源范围以及网络失败时的恢复策略。",
+                MessageType.None);
+            DrawProperty("StartupPackageMode", "启动包策略");
+            DrawProperty("PlayerPlayMode", "Player YooAsset 模式");
+            DrawProperty("StartupDownloadMode", "启动下载模式");
+            DrawProperty("StartupUpdatePolicy", "更新失败策略");
+            DrawProperty("EntryTypeName", "首包热更入口类型");
+
+            var downloadMode = FindProperty("StartupDownloadMode");
+            if (downloadMode.enumValueIndex == (int)StartupDownloadMode.DownloadByTags)
+            {
+                DrawProperty("StartupDownloadTags", "主包启动 Tags", true);
+                DrawProperty("RawFileStartupDownloadTags", "RawFile 启动 Tags", true);
+            }
+
+            mShowStartupAdvanced = EditorGUILayout.Foldout(mShowStartupAdvanced, "首包高级选项", true);
+            if (mShowStartupAdvanced)
+            {
+                EditorGUILayout.HelpBox(
+                    "首包构建会生成新的 AOT 基线，并根据启动包策略决定是否复制资源到 StreamingAssets。",
+                    MessageType.Info);
+            }
+        }
+
+        private void DrawHotfixPackageSettings()
+        {
+            EditorGUILayout.Space(6);
+            EditorGUILayout.LabelField("热更内容", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "热更包复用已发布 Player AOT 基线，不修改首包内的启动包策略和 Player YooAsset 模式。",
+                MessageType.None);
+            DrawProperty("EntryTypeName", "热更入口类型");
+            DrawProperty("HotfixVersion", "热更版本覆盖（通常留空）");
+
+            using (new EditorGUI.DisabledScope(true))
+            {
+                EditorGUILayout.TextField(
+                    "Required AOT 基线",
+                    mReleaseProfile == null ? string.Empty : GetCurrentAotBaselineSummary());
+            }
+        }
+
+        private static string GetCurrentAotBaselineSummary()
+        {
+            var baseline = HotfixPlayerAOTBaselineUtility.Load();
+            return baseline == null
+                ? "尚未建立，请先构建首包"
+                : $"{baseline.BuildTarget} / App {baseline.AppVersion} / {baseline.AotVersion}";
+        }
+
         private void DrawActions()
         {
-            DrawSectionTitle("④ 检查并构建");
+            DrawSectionTitle("③ 检查并构建");
             if (mReport == null)
             {
                 EditorGUILayout.HelpBox("核心配置已修改。请先执行只读检查。", MessageType.Warning);
