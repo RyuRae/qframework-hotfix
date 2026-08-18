@@ -5,6 +5,9 @@ using YooAsset;
 
 namespace Framework
 {
+    /// <summary>
+    /// 包体内可信的 Manifest RSA 公钥，只保存公钥材料，不允许保存发布私钥。
+    /// </summary>
     [Serializable]
     public sealed class HotfixManifestPublicKey
     {
@@ -19,6 +22,9 @@ namespace Framework
         public string Exponent = "AQAB";
     }
 
+    /// <summary>
+    /// 启动阶段的资源下载范围。
+    /// </summary>
     public enum StartupDownloadMode
     {
         /// <summary>
@@ -35,6 +41,9 @@ namespace Framework
         Skip
     }
 
+    /// <summary>
+    /// 远端更新失败时的启动容灾策略。
+    /// </summary>
     public enum StartupUpdatePolicy
     {
         /// <summary>
@@ -55,6 +64,9 @@ namespace Framework
         BackgroundDownload
     }
 
+    /// <summary>
+    /// Player 首次启动时资源位于包内还是远端的发布策略。
+    /// </summary>
     public enum StartupPackageMode
     {
         /// <summary>
@@ -73,6 +85,9 @@ namespace Framework
         EmptyPackage
     }
 
+    /// <summary>
+    /// Player 运行时热更新配置，由 ReleaseProfile 在构建阶段同步，启动时通过 Resources.Load 读取。
+    /// </summary>
     [CreateAssetMenu(fileName = "HotfixRuntimeSettings", menuName = "Hotfix/Runtime Settings", order = 0)]
     public sealed class HotfixRuntimeSettings : ScriptableObject
     {
@@ -155,6 +170,9 @@ namespace Framework
         public bool RequireSignedAssemblyManifests => requireSignedAssemblyManifests;
         public HotfixManifestPublicKey[] TrustedManifestPublicKeys => trustedManifestPublicKeys ?? Array.Empty<HotfixManifestPublicKey>();
 
+        /// <summary>
+        /// 按签名 KeyId 查找包体内可信公钥，用于运行时验证 AOT/Hotfix Manifest。
+        /// </summary>
         public bool TryGetTrustedManifestPublicKey(string keyId, out HotfixManifestPublicKey publicKey)
         {
             publicKey = null;
@@ -176,6 +194,9 @@ namespace Framework
             return false;
         }
 
+        /// <summary>
+        /// 从 Resources 载入当前 Player 使用的热更新运行时配置。
+        /// </summary>
         public static HotfixRuntimeSettings Load()
         {
             return Resources.Load<HotfixRuntimeSettings>(ResourcesPath);

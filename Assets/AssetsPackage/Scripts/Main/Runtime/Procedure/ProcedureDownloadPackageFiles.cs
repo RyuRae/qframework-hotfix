@@ -8,6 +8,7 @@ using YooAsset;
 
 namespace Framework.Procedure
 {
+    /// <summary>执行资源下载，处理进度、重试、暂停、取消和本地缓存降级。</summary>
     public class ProcedureDownloadPackageFiles : AbstractState<ResPackageStates, ProcedureManager>
     {
         private const int DownloadingMaxNum = 10;

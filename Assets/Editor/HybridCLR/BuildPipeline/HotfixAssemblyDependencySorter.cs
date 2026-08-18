@@ -8,14 +8,17 @@ using Framework.Assemblies;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>热更程序集拓扑排序结果及其内部依赖记录。</summary>
     public sealed class HotfixAssemblyDependencySortResult
     {
         public List<string> SortedAssemblies = new List<string>();
         public List<AssemblyDependencyRecord> Dependencies = new List<AssemblyDependencyRecord>();
     }
 
+    /// <summary>读取 DLL 元数据并生成稳定加载顺序，构建期阻断循环、重复和缺失依赖。</summary>
     public static class HotfixAssemblyDependencySorter
     {
+        /// <summary>扫描指定热更 DLL，验证集合并执行依赖拓扑排序。</summary>
         public static HotfixAssemblyDependencySortResult Sort(string hotfixCodesPath, IEnumerable<string> hotfixAssemblies)
         {
             string folder = (hotfixCodesPath ?? string.Empty).Replace('\\', '/').Trim();
@@ -64,12 +67,14 @@ namespace HybridCLR.Editor
             };
         }
 
+        /// <summary>把最终 DLL 加载顺序格式化为构建报告文本。</summary>
         public static string FormatLoadingOrder(IEnumerable<string> dllNames)
         {
             var names = HotfixUtility.NormalizeAssemblyNames(dllNames);
             return names.Count == 0 ? "empty" : string.Join(" -> ", names);
         }
 
+        /// <summary>把程序集依赖记录格式化为构建报告文本。</summary>
         public static string FormatDependencies(IEnumerable<AssemblyDependencyRecord> records)
         {
             var lines = new List<string>();
@@ -248,6 +253,7 @@ namespace HybridCLR.Editor
             return Path.Combine(folder, $"{dllName}.bytes");
         }
 
+        /// <summary>热更程序集及其内部引用关系，用于拓扑排序和循环依赖诊断。</summary>
         private sealed class AssemblyNode
         {
             public string DllName;

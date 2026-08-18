@@ -8,6 +8,7 @@ using YooAsset;
 
 namespace Framework.Procedure
 {
+    /// <summary>本地 Manifest 候选的来源类型。</summary>
     internal enum HotfixLocalManifestSource
     {
         None,
@@ -18,6 +19,7 @@ namespace Framework.Procedure
         Editor
     }
 
+    /// <summary>单个资源包切换本地 Manifest 的结果。</summary>
     internal struct HotfixLocalManifestResult
     {
         public bool Succeeded;
@@ -27,6 +29,7 @@ namespace Framework.Procedure
         public HotfixLocalManifestSource Source;
     }
 
+    /// <summary>业务成功启动后持久化的主包、RawFile、AOT 与 Hotfix 兼容组合。</summary>
     internal struct HotfixLastGoodRecord
     {
         public string MainPackageVersion;
@@ -41,6 +44,9 @@ namespace Framework.Procedure
             !string.IsNullOrWhiteSpace(AotVersion);
     }
 
+    /// <summary>
+    /// LastGood 记录与本地 Manifest 恢复工具，确保降级返回经过业务启动验证的版本组合。
+    /// </summary>
     internal static class HotfixLocalManifestUtility
     {
         private const string LastGoodRecordKeyPrefix = "Hotfix.LastGoodRecord.";
@@ -50,6 +56,7 @@ namespace Framework.Procedure
         private const string LegacyLastUsableAssemblyCombinationKeyPrefix = "Hotfix.LastUsableAssemblyCombination.";
         private const char RecordSeparator = '\u001f';
 
+        /// <summary>获取业务曾成功启动的主资源包版本，并兼容读取旧版单字段记录。</summary>
         public static string GetLastUsablePackageVersion(string packageName)
         {
             return TryGetLastGoodRecord(packageName, out var record)
@@ -57,6 +64,7 @@ namespace Framework.Procedure
                 : GetLegacyValue(LegacyLastUsablePackageVersionKeyPrefix, packageName);
         }
 
+        /// <summary>读取并解析主包、RawFile、Hotfix 与 AOT 的原子 LastGood 组合。</summary>
         public static bool TryGetLastGoodRecord(string packageName, out HotfixLastGoodRecord record)
         {
             record = default;
@@ -113,6 +121,7 @@ namespace Framework.Procedure
             return record.IsValid;
         }
 
+        /// <summary>获取 LastGood 组合中的 AOT 版本，并兼容旧记录。</summary>
         public static string GetLastUsableAotVersion(string packageName)
         {
             return TryGetLastGoodRecord(packageName, out var record)
@@ -120,6 +129,7 @@ namespace Framework.Procedure
                 : GetLegacyValue(LegacyLastUsableAotVersionKeyPrefix, packageName);
         }
 
+        /// <summary>获取 LastGood 组合中的 Hotfix 版本，并兼容旧记录。</summary>
         public static string GetLastUsableHotfixVersion(string packageName)
         {
             return TryGetLastGoodRecord(packageName, out var record)
@@ -127,6 +137,7 @@ namespace Framework.Procedure
                 : GetLegacyValue(LegacyLastUsableHotfixVersionKeyPrefix, packageName);
         }
 
+        /// <summary>获取可用于快速比对的 Hotfix/AOT 已验证版本组合。</summary>
         public static string GetLastUsableAssemblyCombination(string packageName)
         {
             if (TryGetLastGoodRecord(packageName, out var record))
@@ -137,6 +148,7 @@ namespace Framework.Procedure
             return GetLegacyValue(LegacyLastUsableAssemblyCombinationKeyPrefix, packageName);
         }
 
+        /// <summary>校验并立即持久化业务已成功启动的完整版本组合。</summary>
         public static bool SaveLastGoodRecord(
             string packageName,
             string mainPackageVersion,
@@ -157,6 +169,7 @@ namespace Framework.Procedure
                 out error);
         }
 
+        /// <summary>校验并写入完整 LastGood 组合，可由信任事务决定是否立即刷新到磁盘。</summary>
         public static bool SaveLastGoodRecord(
             string packageName,
             string mainPackageVersion,
@@ -226,6 +239,9 @@ namespace Framework.Procedure
             }
         }
 
+        /// <summary>
+        /// 严格切回指定 LastGood：仅接受当前活动版本或 CacheFileSystem 中的同版本 Manifest。
+        /// </summary>
         public static IEnumerator TryLoadLastGoodManifest(
             ResourcePackage package,
             string lastGoodVersion,
@@ -279,6 +295,7 @@ namespace Framework.Procedure
             onCompleted?.Invoke(result);
         }
 
+        /// <summary>跳过缓存并恢复包体内置 Manifest，用作没有可用 LastGood 时的最终基线。</summary>
         public static IEnumerator TryLoadBuildinManifest(
             ResourcePackage package,
             Action<HotfixLocalManifestResult> onCompleted)

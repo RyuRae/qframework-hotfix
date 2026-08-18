@@ -4,6 +4,7 @@ using YooAsset;
 
 namespace Framework.Procedure
 {
+    /// <summary>仅在新版本成功提交 LastGood 后清理未使用缓存，避免提前删除回滚资源。</summary>
     public class ProcedureClearCacheBundle : AbstractState<ResPackageStates, ProcedureManager>
     {
         public ProcedureClearCacheBundle(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)

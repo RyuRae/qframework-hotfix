@@ -1,5 +1,6 @@
 namespace HybridCLR.Editor
 {
+    /// <summary>构建中心支持的三种热更新资源任务。</summary>
     public enum HotfixBuildMode
     {
         InitialPackage,
@@ -7,6 +8,7 @@ namespace HybridCLR.Editor
         AOTMetadataPatch
     }
 
+    /// <summary>构建模式的界面显示辅助方法。</summary>
     public static class HotfixBuildModeUtility
     {
         public static string GetDisplayName(HotfixBuildMode mode)
@@ -25,6 +27,7 @@ namespace HybridCLR.Editor
         }
     }
 
+    /// <summary>统一维护热更新相关 Unity 菜单的排序优先级。</summary>
     public static class HotfixBuildMenuPriority
     {
         public const int BuildCenter = 100;

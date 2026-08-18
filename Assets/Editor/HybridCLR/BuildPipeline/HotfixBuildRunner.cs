@@ -11,18 +11,23 @@ using YooAsset.Editor;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>
+    /// 构建中心和 CI 共用的统一执行器，按模式编排配置应用、校验、HybridCLR、Manifest 与 YooAsset 构建。
+    /// </summary>
     public static class HotfixBuildRunner
     {
         public static Action<string, float, string> ProgressChanged;
         public static HotfixBuildExecutionResult LastExecutionResult { get; private set; }
         private static HotfixBuildExecutionOptions sExecutionOptions;
 
+        /// <summary>只读取并校验当前构建配置，不生成任何资源产物。</summary>
         public static HotfixBuildReport ValidateOnly(HotfixBuildMode mode)
         {
             var context = HotfixBuildContext.Create(mode);
             return HotfixBuildValidator.Validate(context);
         }
 
+        /// <summary>把 ReleaseProfile 应用到编辑器资产并执行可自动完成的配置修复。</summary>
         public static HotfixBuildReport FixAll(HotfixBuildMode mode)
         {
             var context = HotfixBuildContext.Create(mode);
@@ -36,11 +41,13 @@ namespace HybridCLR.Editor
             return ValidateOnly(mode);
         }
 
+        /// <summary>以交互模式执行指定资源构建任务。</summary>
         public static HotfixBuildReport Build(HotfixBuildMode mode)
         {
             return Build(mode, HotfixBuildExecutionOptions.Interactive);
         }
 
+        /// <summary>使用指定交互策略执行构建，供 batchmode CI 禁止弹窗并显式确认高风险任务。</summary>
         public static HotfixBuildReport Build(
             HotfixBuildMode mode,
             HotfixBuildExecutionOptions executionOptions)
@@ -116,6 +123,7 @@ namespace HybridCLR.Editor
             return report;
         }
 
+        /// <summary>构建首包资源，在完整成功后建立独立 Player AOT 基线。</summary>
         public static HotfixBuildExecutionResult BuildInitialPackage(HotfixBuildContext context)
         {
             Debug.Log("[HotfixBuild] 开始构建首包。");
@@ -193,6 +201,7 @@ namespace HybridCLR.Editor
             return result;
         }
 
+        /// <summary>复用现有 AOT 基线，仅更新 Hotfix DLL、资源和远端 YooAsset 包。</summary>
         public static HotfixBuildExecutionResult BuildHotfixPackage(HotfixBuildContext context)
         {
             Debug.Log("[HotfixBuild] 开始构建热更包。");
@@ -254,6 +263,7 @@ namespace HybridCLR.Editor
                 false);
         }
 
+        /// <summary>严格绑定同一 Player AOT 基线，构建显式确认的 AOT 元数据补丁。</summary>
         public static HotfixBuildExecutionResult BuildAOTMetadataPatch(HotfixBuildContext context)
         {
             const string message =
@@ -547,6 +557,7 @@ namespace HybridCLR.Editor
         }
     }
 
+    /// <summary>控制构建是否允许交互，以及是否已显式确认 AOT 补丁风险。</summary>
     public sealed class HotfixBuildExecutionOptions
     {
         public static readonly HotfixBuildExecutionOptions Interactive = new HotfixBuildExecutionOptions();
@@ -555,6 +566,7 @@ namespace HybridCLR.Editor
         public bool ConfirmAOTMetadataPatch;
     }
 
+    /// <summary>一次构建的结构化结果，供构建中心、文本报告和 CI JSON 复用。</summary>
     public sealed class HotfixBuildExecutionResult
     {
         public HotfixBuildMode Mode;
@@ -591,6 +603,7 @@ namespace HybridCLR.Editor
         public string ReportPath;
         public double DurationSeconds;
 
+        /// <summary>从构建上下文、YooAsset 结果和双 Manifest 创建结果快照。</summary>
         public static HotfixBuildExecutionResult Create(
             HotfixBuildContext context,
             string packageName,
@@ -633,6 +646,7 @@ namespace HybridCLR.Editor
             };
         }
 
+        /// <summary>记录本次首包建立或 AOT 补丁验证使用的 Player 基线。</summary>
         public void SetPlayerBaseline(HotfixPlayerAOTBaseline baseline, bool verified)
         {
             PlayerBaselinePath = baseline == null ? string.Empty : HotfixPlayerAOTBaseline.AssetPath;
@@ -640,6 +654,7 @@ namespace HybridCLR.Editor
             PlayerBaselineVerified = baseline != null && verified;
         }
 
+        /// <summary>比较补丁前后 AOT Metadata 文件并记录新增、变化和移除项。</summary>
         public void SetAOTMetadataPatchChanges(
             string previousAotVersion,
             string previousManifestFingerprint,
@@ -662,6 +677,7 @@ namespace HybridCLR.Editor
             AotRemovedFiles = removed;
         }
 
+        /// <summary>将构建产物、版本、基线和 DLL 摘要追加到校验报告。</summary>
         public void AppendTo(HotfixBuildReport report)
         {
             report.AddInfo("资源包名", PackageName);

@@ -6,6 +6,7 @@ using YooAsset;
 
 namespace Framework.Procedure
 {
+    /// <summary>按全量或 Tag 模式创建主包与 RawFile 下载器，并向用户确认下载量。</summary>
     public class ProcedureCreateDownloader : AbstractState<ResPackageStates, ProcedureManager>
     {
         public ProcedureCreateDownloader(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)

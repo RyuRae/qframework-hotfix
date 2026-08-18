@@ -8,6 +8,7 @@ using YooAsset;
 
 namespace Framework.Procedure
 {
+    /// <summary>验证 AOT/Hotfix 清单组合，并向 HybridCLR 补充当前热更代码所需的 AOT 元数据。</summary>
     public class ProcedureLoadAOTMetadata : AbstractState<ResPackageStates, ProcedureManager>
     {
         private float rawProgress;

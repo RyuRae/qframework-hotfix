@@ -6,8 +6,14 @@ using QFramework;
 
 namespace Framework
 {
+    /// <summary>
+    /// 热更入口反射创建与异步调用适配器，统一处理类型校验、取消、异常展开和失败观察。
+    /// </summary>
     public static class HotfixCodeEntryInvoker
     {
+        /// <summary>
+        /// 从已加载程序集查找并实例化指定的 IHotfixEntry 实现。
+        /// </summary>
         public static bool TryCreateEntry(string entryTypeName, out IHotfixEntry entry, out string error)
         {
             entry = null;
@@ -63,6 +69,9 @@ namespace Framework
             }
         }
 
+        /// <summary>
+        /// 调用业务入口并等待其真正启动完成；空 Task、取消和业务异常都会向上抛出。
+        /// </summary>
         public static async Task StartAsync(
             IHotfixEntry entry,
             HotfixContext context,
@@ -90,6 +99,9 @@ namespace Framework
             LogKit.I($"[HotfixCodeEntryInvoker] {entry.GetType().FullName}.StartAsync completed.");
         }
 
+        /// <summary>
+        /// 调用热更层可选的资源预加载器，并等待配置与关键资源准备完成。
+        /// </summary>
         public static async Task PreloadAsync(
             IHotfixResourcePreloader preloader,
             HotfixContext context,
@@ -118,6 +130,9 @@ namespace Framework
             LogKit.I($"[HotfixCodeEntryInvoker] {preloader.GetType().FullName}.PreloadAsync completed.");
         }
 
+        /// <summary>
+        /// 展开只有一个内部异常的 AggregateException，返回便于展示的根异常。
+        /// </summary>
         public static Exception GetRootException(Exception exception)
         {
             while (exception is AggregateException aggregateException &&
@@ -129,6 +144,9 @@ namespace Framework
             return exception;
         }
 
+        /// <summary>
+        /// 对流程已取消等待的 Task 继续观察异常，防止产生未观察任务异常。
+        /// </summary>
         public static void ObserveFailure(Task task)
         {
             if (task == null || task.IsCompletedSuccessfully || task.IsCanceled)

@@ -6,6 +6,7 @@ using YooAsset;
 
 namespace Framework.UI
 {
+    /// <summary>热更新启动 UI 的全局协调器，统一转发下载事件并管理 Loading、提示和确认框。</summary>
     public partial class UIPanelRoot : ViewController, ISingleton
     {
         private void Awake()

@@ -5,6 +5,7 @@ using UnityEngine;
 
 namespace Framework
 {
+    /// <summary>热更新启动界面的语言选择。</summary>
     public enum HotfixLanguage
     {
         FollowSystem,
@@ -12,6 +13,7 @@ namespace Framework
         English
     }
 
+    /// <summary>启动、下载和程序集加载阶段的本地化文案键。</summary>
     public enum HotfixTextKey
     {
         StartupRuntimeConfigMissing,
@@ -82,6 +84,7 @@ namespace Framework
         HotfixResourcesPreloaded
     }
 
+    /// <summary>单条中英文热更新提示文案。</summary>
     [Serializable]
     public sealed class HotfixLocalizedText
     {
@@ -112,6 +115,7 @@ namespace Framework
         }
     }
 
+    /// <summary>热更新启动层的轻量本地化配置。</summary>
     [CreateAssetMenu(fileName = AssetName, menuName = "Hotfix/Localization Settings", order = 2)]
     public sealed class HotfixLocalizationSettings : ScriptableObject
     {
@@ -136,6 +140,7 @@ namespace Framework
         private static HotfixLocalizationSettings cachedSettings;
         private Dictionary<string, HotfixLocalizedText> textLookup;
 
+        /// <summary>从 Resources 载入并缓存本地化配置。</summary>
         public static HotfixLocalizationSettings Load()
         {
             return cachedSettings != null
@@ -143,6 +148,7 @@ namespace Framework
                 : cachedSettings = Resources.Load<HotfixLocalizationSettings>(ResourcesPath);
         }
 
+        /// <summary>按当前语言获取文案，并使用不受地区影响的格式化规则填充参数。</summary>
         public string Get(HotfixTextKey key, params object[] args)
         {
             string template = ResolveText(key);
@@ -235,6 +241,7 @@ namespace Framework
 
     }
 
+    /// <summary>热更新启动层获取本地化文案的静态门面。</summary>
     public static class HotfixText
     {
         public static string Get(HotfixTextKey key, params object[] args)

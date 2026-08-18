@@ -5,6 +5,7 @@ using QFramework;
 
 namespace Framework.Procedure
 {
+    /// <summary>等待 IHotfixEntry.StartAsync 真正成功，再提交 LastGood 并完成启动流程。</summary>
     public class ProcedureStartGame : AbstractState<ResPackageStates, ProcedureManager>
     {
         public ProcedureStartGame(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)

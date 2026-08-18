@@ -9,6 +9,7 @@ using YooAsset;
 
 namespace Framework.YooAssetBridge
 {
+    /// <summary>本地 YooAsset Manifest 的实际来源。</summary>
     public enum YooAssetLocalManifestSource
     {
         None,
@@ -18,6 +19,7 @@ namespace Framework.YooAssetBridge
         Editor
     }
 
+    /// <summary>切换或查找本地 Manifest 的结果信息。</summary>
     public struct YooAssetLocalManifestResult
     {
         public bool Succeeded;
@@ -27,6 +29,7 @@ namespace Framework.YooAssetBridge
         public YooAssetLocalManifestSource Source;
     }
 
+    /// <summary>YooAsset Manifest 的确定性 SHA-256 及包身份。</summary>
     public struct YooAssetManifestFingerprintResult
     {
         public bool Succeeded;
@@ -36,6 +39,9 @@ namespace Framework.YooAssetBridge
         public string Error;
     }
 
+    /// <summary>
+    /// YooAsset 本地 Manifest 桥接层，封装版本相关内部能力，用于 LastGood 降级和 RawFile 信任校验。
+    /// </summary>
     public sealed class YooAssetLocalManifestBridge
     {
         private const int LocalManifestTimeout = 60;
@@ -51,6 +57,7 @@ namespace Framework.YooAssetBridge
 
         public string PackageName { get; }
 
+        /// <summary>计算当前激活 Manifest 的确定性指纹。</summary>
         public static bool TryGetActiveManifestFingerprint(
             ResourcePackage package,
             out YooAssetManifestFingerprintResult result)
@@ -74,6 +81,7 @@ namespace Framework.YooAssetBridge
         }
 
 #if UNITY_EDITOR
+        /// <summary>编辑器构建期读取输出目录中的 Manifest 并计算指纹。</summary>
         public static bool TryGetBuiltManifestFingerprint(
             string outputPackageDirectory,
             string packageName,
@@ -131,6 +139,7 @@ namespace Framework.YooAssetBridge
             }
         }
 
+        /// <summary>根据构建 Manifest 将完整 YooAsset 包复制到 StreamingAssets。</summary>
         public static bool TryCopyBuiltPackageToBuildin(
             string outputPackageDirectory,
             string buildinRootDirectory,
@@ -231,6 +240,7 @@ namespace Framework.YooAssetBridge
         }
 #endif
 
+        /// <summary>从 ResourcePackage 获取其 PlayMode 实现，创建本地 Manifest 操作桥。</summary>
         public static bool TryCreate(ResourcePackage package, out YooAssetLocalManifestBridge bridge, out string error)
         {
             bridge = null;
@@ -253,6 +263,7 @@ namespace Framework.YooAssetBridge
             return true;
         }
 
+        /// <summary>从当前 PlayMode 可访问的各本地文件系统收集可用包版本。</summary>
         public IEnumerator TryCollectLocalPackageVersions(List<string> candidates)
         {
             foreach (var entry in GetLocalFileSystems())
@@ -261,6 +272,7 @@ namespace Framework.YooAssetBridge
             }
         }
 
+        /// <summary>优先缓存、再按 PlayMode 本地文件系统加载指定版本的 Manifest。</summary>
         public IEnumerator TryLoadLocalManifest(string packageVersion, Action<YooAssetLocalManifestResult> onCompleted)
         {
             YooAssetLocalManifestResult lastResult = default;

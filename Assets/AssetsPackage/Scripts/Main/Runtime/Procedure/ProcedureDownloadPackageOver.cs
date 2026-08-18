@@ -2,6 +2,7 @@ using QFramework;
 
 namespace Framework.Procedure
 {
+    /// <summary>下载完成后的轻量过渡状态，进入 AOT 元数据加载阶段。</summary>
     public class ProcedureDownloadPackageOver : AbstractState<ResPackageStates, ProcedureManager>
     {
         public ProcedureDownloadPackageOver(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)

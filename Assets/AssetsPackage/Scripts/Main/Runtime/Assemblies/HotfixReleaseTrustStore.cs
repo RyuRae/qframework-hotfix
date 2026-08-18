@@ -12,6 +12,9 @@ namespace Framework.Assemblies
         private const string SequenceKey = "Hotfix.Trust.HighestReleaseSequence";
         private const string VersionKey = "Hotfix.Trust.HighestReleaseVersion";
 
+        /// <summary>
+        /// 校验候选发布序号是否不低于设备已接受的最高序号，并阻止同序号对应不同版本。
+        /// </summary>
         public static bool TryValidate(long releaseSequence, string releaseVersion, out string error)
         {
             error = string.Empty;
@@ -44,6 +47,9 @@ namespace Framework.Assemblies
             return true;
         }
 
+        /// <summary>
+        /// 在 LastGood 记录提交成功后推进最高可信发布序号；任一步失败都会恢复原有信任记录。
+        /// </summary>
         public static bool TryCommit(
             long releaseSequence,
             string releaseVersion,

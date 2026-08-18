@@ -9,6 +9,7 @@ using YooAsset;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>构建中心面向开发、测试、预发和正式发布的环境预设。</summary>
     public enum HotfixBuildFlavor
     {
         Development,
@@ -17,6 +18,9 @@ namespace HybridCLR.Editor
         Production
     }
 
+    /// <summary>
+    /// 热更新发布的唯一配置入口，统一版本、平台、CDN、启动策略、入口和 Manifest 签名参数。
+    /// </summary>
     [CreateAssetMenu(fileName = "HotfixReleaseProfile", menuName = "Hotfix/Release Profile", order = 10)]
     public sealed class HotfixReleaseProfile : ScriptableObject
     {
@@ -151,11 +155,13 @@ namespace HybridCLR.Editor
             return BuildTarget == target;
         }
 
+        /// <summary>按本地时间生成适合 YooAsset PackageVersion 的建议资源版本。</summary>
         public static string CreateSuggestedResourceVersion()
         {
             return DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
         }
 
+        /// <summary>应用环境预设的日志、CDN 安全和启动更新策略。</summary>
         public void ApplyBuildFlavorPreset(HotfixBuildFlavor flavor)
         {
             switch (flavor)
@@ -196,6 +202,7 @@ namespace HybridCLR.Editor
             EnsureEditorDefaults();
         }
 
+        /// <summary>将 Profile 同步到 PlayerSettings、运行时配置、远端配置和入口 Manifest。</summary>
         public void ApplyToEditorSettings()
         {
             EnsureEditorDefaults();
@@ -260,6 +267,7 @@ namespace HybridCLR.Editor
             }
         }
 
+        /// <summary>从 Unity 当前设置与运行时资产回填 Profile，供创建或迁移配置使用。</summary>
         public void CaptureCurrentEditorSettings()
         {
             BuildTarget = EditorUserBuildSettings.activeBuildTarget;
@@ -344,6 +352,7 @@ namespace HybridCLR.Editor
             manifest.EntryMethodName = string.Empty;
         }
 
+        /// <summary>校验当前 Profile 是否满足指定任务和正式发布安全规则。</summary>
         public bool ValidateForBuild(HotfixBuildContext context, out string error)
         {
             error = string.Empty;
@@ -522,6 +531,7 @@ namespace HybridCLR.Editor
             return JsonUtility.ToJson(this, true);
         }
 
+        /// <summary>加载或创建默认 ReleaseProfile 资产。</summary>
         public static HotfixReleaseProfile GetOrCreateDefault()
         {
             var profile = AssetDatabase.LoadAssetAtPath<HotfixReleaseProfile>(DefaultAssetPath);
@@ -554,6 +564,7 @@ namespace HybridCLR.Editor
             return profile;
         }
 
+        /// <summary>优先返回构建期临时覆盖，其次返回编辑器选择或默认 Profile。</summary>
         public static HotfixReleaseProfile LoadSelectedOrDefault()
         {
             if (sBuildProfileOverride != null)
@@ -597,6 +608,7 @@ namespace HybridCLR.Editor
             return Application.dataPath + SelectedProfileKeySuffix;
         }
 
+        /// <summary>在作用域结束时恢复此前的临时 ReleaseProfile，避免 CI 参数污染后续构建。</summary>
         private sealed class BuildProfileOverrideScope : IDisposable
         {
             private readonly HotfixReleaseProfile mPrevious;

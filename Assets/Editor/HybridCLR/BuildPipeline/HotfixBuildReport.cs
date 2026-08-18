@@ -4,6 +4,7 @@ using System.Text;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>构建检查项严重级别。</summary>
     public enum HotfixBuildReportSeverity
     {
         Info,
@@ -11,6 +12,7 @@ namespace HybridCLR.Editor
         Error
     }
 
+    /// <summary>一条面向构建中心和文本报告的结构化检查结果。</summary>
     public sealed class HotfixBuildReportItem
     {
         public readonly HotfixBuildReportSeverity Severity;
@@ -31,6 +33,7 @@ namespace HybridCLR.Editor
         }
     }
 
+    /// <summary>聚合构建信息、建议和阻断错误，并提供错误摘要。</summary>
     public sealed class HotfixBuildReport
     {
         private readonly List<HotfixBuildReportItem> mItems = new List<HotfixBuildReportItem>();

@@ -4,6 +4,9 @@ using UnityEngine;
 
 namespace Framework.Assemblies
 {
+    /// <summary>
+    /// 热更程序集之间的直接依赖记录，构建期生成并用于诊断最终加载顺序。
+    /// </summary>
     [Serializable]
     public sealed class AssemblyDependencyRecord
     {
@@ -12,6 +15,9 @@ namespace Framework.Assemblies
         public List<string> DependsOn = new List<string>();
     }
 
+    /// <summary>
+    /// 热更代码发布清单，绑定 App 兼容范围、AOT 版本、RawFile 包、入口类型和签名信息。
+    /// </summary>
     [CreateAssetMenu(fileName = AssetName, menuName = "Hotfix/Hotfix Assembly Manifest", order = 3)]
     public sealed class HotfixAssemblyManifest : ScriptableObject
     {

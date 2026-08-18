@@ -8,6 +8,7 @@ using UnityEngine;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>ReleaseProfile 的高级 Inspector，用于完整字段编辑、诊断、复制和 JSON 导出。</summary>
     [CustomEditor(typeof(HotfixReleaseProfile))]
     public sealed class HotfixReleaseProfileInspector : UnityEditor.Editor
     {

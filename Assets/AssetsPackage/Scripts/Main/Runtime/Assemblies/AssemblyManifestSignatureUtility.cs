@@ -16,6 +16,7 @@ namespace Framework.Assemblies
         private const int LegacySignatureVersion = 1;
         public const string RsaSha256Algorithm = "RSA-SHA256-PKCS1";
 
+        /// <summary>判断 AOT Manifest 是否包含一组完整、可用于验签的签名字段。</summary>
         public static bool HasSignature(AOTAssemblyManifest manifest)
         {
             return manifest != null && HasSignature(
@@ -25,6 +26,7 @@ namespace Framework.Assemblies
                 manifest.Signature);
         }
 
+        /// <summary>判断 Hotfix Manifest 是否包含一组完整、可用于验签的签名字段。</summary>
         public static bool HasSignature(HotfixAssemblyManifest manifest)
         {
             return manifest != null && HasSignature(
@@ -34,6 +36,7 @@ namespace Framework.Assemblies
                 manifest.Signature);
         }
 
+        /// <summary>判断 AOT Manifest 是否写入过任意签名元数据，用于识别不完整签名。</summary>
         public static bool HasAnySignatureMetadata(AOTAssemblyManifest manifest)
         {
             return manifest != null && HasAnySignatureMetadata(
@@ -43,6 +46,7 @@ namespace Framework.Assemblies
                 manifest.Signature);
         }
 
+        /// <summary>判断 Hotfix Manifest 是否写入过任意签名元数据，用于识别不完整签名。</summary>
         public static bool HasAnySignatureMetadata(HotfixAssemblyManifest manifest)
         {
             return manifest != null && HasAnySignatureMetadata(
@@ -52,6 +56,7 @@ namespace Framework.Assemblies
                 manifest.Signature);
         }
 
+        /// <summary>将 AOT Manifest 的受信字段编码为顺序稳定的 UTF-8 签名载荷。</summary>
         public static byte[] CreateCanonicalPayload(AOTAssemblyManifest manifest)
         {
             if (manifest == null)
@@ -75,6 +80,7 @@ namespace Framework.Assemblies
             return Encoding.UTF8.GetBytes(builder.ToString());
         }
 
+        /// <summary>将 Hotfix Manifest 的受信字段编码为顺序稳定的 UTF-8 签名载荷。</summary>
         public static byte[] CreateCanonicalPayload(HotfixAssemblyManifest manifest)
         {
             if (manifest == null)
@@ -108,6 +114,7 @@ namespace Framework.Assemblies
             return Encoding.UTF8.GetBytes(builder.ToString());
         }
 
+        /// <summary>使用运行时可信公钥验证 AOT Manifest 的来源和内容完整性。</summary>
         public static bool Verify(
             AOTAssemblyManifest manifest,
             HotfixManifestPublicKey publicKey,
@@ -124,6 +131,7 @@ namespace Framework.Assemblies
                 out error);
         }
 
+        /// <summary>使用运行时可信公钥验证 Hotfix Manifest 的来源和内容完整性。</summary>
         public static bool Verify(
             HotfixAssemblyManifest manifest,
             HotfixManifestPublicKey publicKey,
@@ -141,6 +149,7 @@ namespace Framework.Assemblies
         }
 
 #if UNITY_EDITOR
+        /// <summary>构建期使用 RSA-SHA256 私钥为规范载荷签名并返回 Base64 文本。</summary>
         public static string Sign(byte[] payload, RSA privateKey)
         {
             if (payload == null)
@@ -161,6 +170,7 @@ namespace Framework.Assemblies
         }
 #endif
 
+        /// <summary>解析并校验运行时公钥参数，拒绝不完整或低于 2048 位的 RSA 密钥。</summary>
         public static bool TryDecodePublicKey(
             HotfixManifestPublicKey publicKey,
             out RSAParameters parameters,

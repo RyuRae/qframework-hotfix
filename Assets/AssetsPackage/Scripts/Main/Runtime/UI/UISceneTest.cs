@@ -4,9 +4,11 @@ using QFramework;
 
 namespace QFramework.Example
 {
+	/// <summary>启动 UI 测试面板数据。</summary>
 	public class UISceneTestData : UIPanelData
 	{
 	}
+	/// <summary>用于验证启动 UI 框架接入的测试面板。</summary>
 	public partial class UISceneTest : UIPanel
 	{
 		protected override void OnInit(IUIData uiData = null)

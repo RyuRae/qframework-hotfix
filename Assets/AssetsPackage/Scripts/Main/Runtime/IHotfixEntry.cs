@@ -10,6 +10,9 @@ namespace Framework
     /// </summary>
     public interface IHotfixEntry
     {
+        /// <summary>
+        /// 启动热更业务；返回的 Task 成功结束后，框架才会提交 LastGood 并认为本次启动成功。
+        /// </summary>
         Task StartAsync(HotfixContext context);
     }
 
@@ -18,6 +21,9 @@ namespace Framework
     /// </summary>
     public interface IHotfixResourcePreloader
     {
+        /// <summary>
+        /// 在业务启动前预加载配置和关键资源，并通过 progress 上报启动进度。
+        /// </summary>
         Task PreloadAsync(
             HotfixContext context,
             IProgress<HotfixPreloadProgress> progress);
@@ -50,6 +56,9 @@ namespace Framework
         public string Description { get; }
     }
 
+    /// <summary>
+    /// 主工程传递给热更入口的只读启动上下文，包含资源包、版本身份、降级状态和取消令牌。
+    /// </summary>
     public sealed class HotfixContext
     {
         public HotfixContext(

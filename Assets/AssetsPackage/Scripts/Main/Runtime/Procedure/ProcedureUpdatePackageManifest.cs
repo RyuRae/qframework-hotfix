@@ -6,6 +6,7 @@ using YooAsset;
 
 namespace Framework.Procedure
 {
+    /// <summary>更新远端 YooAsset Manifest，失败时统一执行重试、缓存降级或退出策略。</summary>
     public class ProcedureUpdatePackageManifest : AbstractState<ResPackageStates, ProcedureManager>
     {
         public ProcedureUpdatePackageManifest(FSM<ResPackageStates> fsm, ProcedureManager manager) : base(fsm, manager)

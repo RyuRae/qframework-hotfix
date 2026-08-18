@@ -16,6 +16,9 @@ using HybridCLR;
 
 namespace Framework.Assemblies
 {
+    /// <summary>
+    /// AOT 清单的运行时不可变快照，避免卸载 ScriptableObject 后继续持有资源对象。
+    /// </summary>
     public sealed class AOTAssemblyManifestSnapshot
     {
         public string ReleaseVersion = string.Empty;
@@ -26,6 +29,7 @@ namespace Framework.Assemblies
         public List<string> AotMetadataAssemblies = new List<string>();
         public List<AssemblyFileRecord> AotMetadataFiles = new List<AssemblyFileRecord>();
 
+        /// <summary>从资源清单复制运行时需要的发布身份与文件记录。</summary>
         public static AOTAssemblyManifestSnapshot From(AOTAssemblyManifest manifest)
         {
             return new AOTAssemblyManifestSnapshot
@@ -46,6 +50,9 @@ namespace Framework.Assemblies
         }
     }
 
+    /// <summary>
+    /// Hotfix 清单的运行时不可变快照，供程序集加载、入口创建和 LastGood 校验共享。
+    /// </summary>
     public sealed class HotfixAssemblyManifestSnapshot
     {
         public int SignatureVersion;
@@ -66,6 +73,7 @@ namespace Framework.Assemblies
         public string EntryPrefabAddress = string.Empty;
         public string EntryTypeName = string.Empty;
 
+        /// <summary>从资源清单复制运行时需要的兼容性、依赖、入口和 RawFile 信息。</summary>
         public static HotfixAssemblyManifestSnapshot From(HotfixAssemblyManifest manifest)
         {
             return new HotfixAssemblyManifestSnapshot
@@ -96,6 +104,7 @@ namespace Framework.Assemblies
         }
     }
 
+    /// <summary>清单快照深拷贝辅助工具。</summary>
     internal static class AssemblyManifestSnapshotUtility
     {
         public static List<AssemblyFileRecord> CloneFileRecords(IEnumerable<AssemblyFileRecord> records)
@@ -126,6 +135,9 @@ namespace Framework.Assemblies
         }
     }
 
+    /// <summary>
+    /// 单次启动内共享的 AOT/Hotfix 清单上下文，避免两个加载阶段重复读取和产生版本漂移。
+    /// </summary>
     public sealed class HotfixAssemblyLoadContext
     {
         public AOTAssemblyManifestSnapshot AotManifest { get; private set; }
@@ -145,6 +157,9 @@ namespace Framework.Assemblies
         }
     }
 
+    /// <summary>
+    /// HybridCLR 程序集加载器：先验证并补充 AOT 元数据，再按 Manifest 顺序校验和加载热更 DLL。
+    /// </summary>
     public class HybridCLRAssemblyLoader
     {
         private readonly Dictionary<string, Assembly> mLoadedAssembliesCache = new Dictionary<string, Assembly>();
@@ -161,6 +176,7 @@ namespace Framework.Assemblies
         public AOTAssemblyManifestSnapshot AotManifest => mContext == null ? null : mContext.AotManifest;
         public HotfixAssemblyManifestSnapshot HotfixManifest => mContext == null ? null : mContext.HotfixManifest;
 
+        /// <summary>顺序执行 AOT 元数据和热更程序集的完整加载流程。</summary>
         public IEnumerator Load(ResourcePackage package, Action<float> onProgress = null)
         {
             var context = new HotfixAssemblyLoadContext();
@@ -173,11 +189,13 @@ namespace Framework.Assemblies
             yield return LoadHotUpdateAssemblies(package, context, progress => onProgress?.Invoke(0.5f + progress * 0.5f));
         }
 
+        /// <summary>创建独立上下文并加载当前发布要求的 AOT 元数据。</summary>
         public IEnumerator LoadAotMetadata(ResourcePackage package, Action<float> onProgress = null)
         {
             yield return LoadAotMetadata(package, new HotfixAssemblyLoadContext(), onProgress);
         }
 
+        /// <summary>复用指定上下文加载并验证 AOT Manifest 与 metadata DLL。</summary>
         public IEnumerator LoadAotMetadata(ResourcePackage package, HotfixAssemblyLoadContext context, Action<float> onProgress = null)
         {
             ResetOperation(context);
@@ -196,11 +214,13 @@ namespace Framework.Assemblies
             yield return LoadAotMetadataAssemblies(package, onProgress);
         }
 
+        /// <summary>创建独立上下文并加载热更程序集。</summary>
         public IEnumerator LoadHotUpdateAssemblies(ResourcePackage package, Action<float> onProgress = null)
         {
             yield return LoadHotUpdateAssemblies(package, new HotfixAssemblyLoadContext(), onProgress);
         }
 
+        /// <summary>复用已验证的清单上下文，按依赖排序加载全部热更程序集。</summary>
         public IEnumerator LoadHotUpdateAssemblies(ResourcePackage package, HotfixAssemblyLoadContext context, Action<float> onProgress = null)
         {
             ResetOperation(context);

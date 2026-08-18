@@ -6,6 +6,9 @@ using YooAsset;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>
+    /// 单次热更新构建的只读上下文，汇总平台、ReleaseProfile、运行时配置、远端配置和现有 Manifest。
+    /// </summary>
     public sealed class HotfixBuildContext
     {
         public readonly HotfixBuildMode Mode;
@@ -112,6 +115,7 @@ namespace HybridCLR.Editor
         public bool ShouldCopyInitialPackageToStreamingAssets =>
             Mode == HotfixBuildMode.InitialPackage && StartupPackageMode != StartupPackageMode.EmptyPackage;
 
+        /// <summary>从 Unity 当前平台和已选择的发布资产创建最新构建快照。</summary>
         public static HotfixBuildContext Create(HotfixBuildMode mode)
         {
             return new HotfixBuildContext(

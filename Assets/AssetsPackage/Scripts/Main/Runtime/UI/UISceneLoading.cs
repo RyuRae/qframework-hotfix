@@ -5,9 +5,11 @@ using YooAsset;
 
 namespace Framework.UI
 {
+	/// <summary>加载进度面板数据。</summary>
 	public class UISceneLoadingData : UIPanelData
 	{
 	}
+	/// <summary>展示资源下载、程序集加载和场景加载进度的面板。</summary>
 	public partial class UISceneLoading : UIPanel
 	{
 		protected override void OnInit(IUIData uiData = null)

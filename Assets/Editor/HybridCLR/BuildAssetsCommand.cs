@@ -17,6 +17,10 @@ using YooAsset;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>
+    /// 热更新底层资源构建工具，负责复制 DLL、生成/校验 Manifest 和调用 YooAsset 构建管线。
+    /// 日常发布应通过 HotfixBuildRunner 或构建中心调用，不建议直接组合这些底层方法。
+    /// </summary>
     public static class BuildAssetsCommand
     {
         public const string DefaultPackageName = HotfixRuntimeSettings.DefaultMainPackageName;
@@ -34,6 +38,7 @@ namespace HybridCLR.Editor
         // Mirrors YooAsset's internal EBuildBundleType.RawBundle without referencing an internal enum.
         private const int YooAssetBuildBundleTypeRawBundle = 3;
 
+        /// <summary>从 YooAsset Collector 推导出的主包与可选 RawFile 包配置。</summary>
         public sealed class RuntimePackageConfig
         {
             public readonly string MainPackageName;
@@ -48,6 +53,7 @@ namespace HybridCLR.Editor
             }
         }
 
+        /// <summary>内部工具：构建首包 YooAsset 资源并按启动策略复制到 StreamingAssets。</summary>
         [MenuItem("Build/热更新/内部工具/仅构建首包 YooAsset", false, HotfixBuildMenuPriority.InternalYooAssetInitialOnly)]
         public static void BuildInitialYooAssetPackage()
         {
@@ -93,6 +99,7 @@ namespace HybridCLR.Editor
             AssetDatabase.Refresh();
         }
 
+        /// <summary>内部工具：复用可信 AOT 基线构建不写入 StreamingAssets 的热更资源。</summary>
         [MenuItem("Build/热更新/内部工具/仅构建热更 YooAsset", false, HotfixBuildMenuPriority.InternalYooAssetHotfixOnly)]
         public static void BuildHotfixYooAssetPackage()
         {
@@ -125,6 +132,7 @@ namespace HybridCLR.Editor
             AssetDatabase.Refresh();
         }
 
+        /// <summary>旧版兼容入口：复制程序集并刷新 Manifest，不执行 YooAsset 打包。</summary>
         [MenuItem("Build/热更新/内部工具/旧命令/构建并复制到 AssetsPackage", false, HotfixBuildMenuPriority.LegacyCommands)]
         public static void BuildAndCopyToAssetsPackage()
         {
@@ -140,12 +148,14 @@ namespace HybridCLR.Editor
             AssetDatabase.Refresh();
         }
 
+        /// <summary>旧版兼容入口：转发到完整首包资源构建。</summary>
         [MenuItem("Build/热更新/内部工具/旧命令/构建并复制到 StreamingAssets", false, HotfixBuildMenuPriority.LegacyCommands + 1)]
         public static void BuildAndCopyABAOTHotUpdateDlls()
         {
             BuildInitialYooAssetPackage();
         }
 
+        /// <summary>编译并复制当前平台 AOT 元数据 DLL，同时刷新程序集 Manifest。</summary>
         [MenuItem("Build/热更新/内部工具/复制 AOT 元数据 DLL", false, HotfixBuildMenuPriority.InternalCopyAOTMetadata)]
         public static void BuildAndCopyAOTHotUpdateDlls()
         {
@@ -155,6 +165,7 @@ namespace HybridCLR.Editor
             AssetDatabase.Refresh();
         }
 
+        /// <summary>复用已验证的 AOT 基线，编译并复制当前平台的热更 DLL。</summary>
         [MenuItem("Build/热更新/内部工具/复制热更 DLL", false, HotfixBuildMenuPriority.InternalCopyHotfixDlls)]
         public static void BuildAndCopyHotUpdateDlls()
         {
@@ -165,6 +176,7 @@ namespace HybridCLR.Editor
             AssetDatabase.Refresh();
         }
 
+        /// <summary>基于活动平台的可信 AOT 基线复制热更 DLL 并刷新 Manifest。</summary>
         public static void CopyHotUpdateDlls()
         {
             BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
@@ -180,6 +192,7 @@ namespace HybridCLR.Editor
             CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixManifest.HotUpdateAssemblies);
         }
 
+        /// <summary>复制指定平台的 AOT 元数据 DLL，并重建 AOT/Hotfix 版本绑定。</summary>
         public static void CopyAotMetaDataDlls(BuildTarget target)
         {
             var aotAssemblies = CopyAOTAssembliesToTargetPath(target);
@@ -189,11 +202,13 @@ namespace HybridCLR.Editor
             CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
         }
 
+        /// <summary>将活动平台裁剪后的 AOT DLL 复制为可被 YooAsset 收集的 bytes 资源。</summary>
         public static List<string> CopyAOTAssembliesToTargetPath()
         {
             return CopyAOTAssembliesToTargetPath(EditorUserBuildSettings.activeBuildTarget);
         }
 
+        /// <summary>将指定平台裁剪后的 AOT DLL 复制为可被 YooAsset 收集的 bytes 资源。</summary>
         public static List<string> CopyAOTAssembliesToTargetPath(BuildTarget target)
         {
             string aotAssembliesSrcDir = SettingsUtil.GetAssembliesPostIl2CppStripDir(target);
@@ -218,11 +233,13 @@ namespace HybridCLR.Editor
             return copiedAssemblies;
         }
 
+        /// <summary>将活动平台编译产出的热更 DLL 复制为可被 YooAsset 收集的 bytes 资源。</summary>
         public static List<string> CopyHotUpdateAssembliesToTargetPath()
         {
             return CopyHotUpdateAssembliesToTargetPath(EditorUserBuildSettings.activeBuildTarget);
         }
 
+        /// <summary>将指定平台编译产出的热更 DLL 复制为可被 YooAsset 收集的 bytes 资源。</summary>
         public static List<string> CopyHotUpdateAssembliesToTargetPath(BuildTarget target)
         {
             string hotfixDllSrcDir = SettingsUtil.GetHotUpdateDllsOutputDirByTarget(target);
@@ -257,6 +274,7 @@ namespace HybridCLR.Editor
             CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
         }
 
+        /// <summary>按 Collector 配置生成主包，并可选择把构建结果作为首包资源写入 StreamingAssets。</summary>
         public static BuildResult BuildYooAssetPackage(
             string packageName,
             BuildTarget target,
@@ -272,6 +290,7 @@ namespace HybridCLR.Editor
                 packageVersion);
         }
 
+        /// <summary>使用指定内置文件复制策略构建主 YooAsset AssetBundle 包。</summary>
         public static BuildResult BuildYooAssetPackage(
             string packageName,
             BuildTarget target,
@@ -311,6 +330,7 @@ namespace HybridCLR.Editor
             return result;
         }
 
+        /// <summary>使用 RawFile 管线构建独立包，返回值包含后续信任绑定所需的输出目录。</summary>
         public static BuildResult BuildRawFilePackage(
             string packageName,
             BuildTarget target,
@@ -348,6 +368,7 @@ namespace HybridCLR.Editor
             return result;
         }
 
+        /// <summary>将已构建的 RawFile 包完整追加到 StreamingAssets，并保留主包内容。</summary>
         public static void AppendRawFilePackageToStreamingAssets(
             string packageName,
             string packageVersion,
@@ -371,6 +392,7 @@ namespace HybridCLR.Editor
             AssetDatabase.Refresh();
         }
 
+        /// <summary>从 YooAsset Collector 推导运行时主包、RawFile 开关及包名。</summary>
         public static RuntimePackageConfig GetRuntimePackageConfigFromCollectorSettings()
         {
             var mainPackageName = GetConfiguredMainPackageName();
@@ -378,6 +400,7 @@ namespace HybridCLR.Editor
             return new RuntimePackageConfig(mainPackageName, includeRawFilePackage, rawFilePackageName);
         }
 
+        /// <summary>获取 Collector 中的主资源包名，缺失时回退到框架默认包名。</summary>
         public static string GetConfiguredMainPackageName()
         {
             var packageNames = GetConfiguredPackageNames();
@@ -389,6 +412,7 @@ namespace HybridCLR.Editor
                 HotfixRuntimeSettings.DefaultMainPackageName);
         }
 
+        /// <summary>读取 HybridCLR 配置并确认指定平台的裁剪 AOT DLL 已生成。</summary>
         public static List<string> FindAllAOTMetaAssemblies(BuildTarget buildTarget)
         {
             string folder = SettingsUtil.GetAssembliesPostIl2CppStripDir(buildTarget);
@@ -411,6 +435,7 @@ namespace HybridCLR.Editor
             return aotAssemblies;
         }
 
+        /// <summary>获取规范化、去重后的全部热更程序集文件名。</summary>
         public static List<string> GetAllHotfixAssemblies()
         {
             return SettingsUtil.HotUpdateAssemblyFilesExcludePreserved
@@ -420,6 +445,7 @@ namespace HybridCLR.Editor
                 .ToList();
         }
 
+        /// <summary>根据当前 AOT 文件创建版本基线、文件摘要和构建签名。</summary>
         public static AOTAssemblyManifest CreateOrUpdateAOTAssemblyManifest(
             BuildTarget target,
             List<string> aotAssemblies,
@@ -462,6 +488,7 @@ namespace HybridCLR.Editor
             return manifest;
         }
 
+        /// <summary>绑定所需 AOT 版本，按依赖排序热更 DLL，并生成文件摘要和构建签名。</summary>
         public static HotfixAssemblyManifest CreateOrUpdateHotfixAssemblyManifest(
             BuildTarget target,
             List<string> hotfixAssemblies,
@@ -547,6 +574,7 @@ namespace HybridCLR.Editor
             return manifest;
         }
 
+        /// <summary>把 RawFile 包身份及 Manifest 摘要写入 Hotfix Manifest 后重新签名。</summary>
         public static void BindRawFileManifestToHotfixManifest(
             HotfixAssemblyManifest manifest,
             string rawFilePackageName,
@@ -589,6 +617,7 @@ namespace HybridCLR.Editor
             AssetDatabase.SaveAssetIfDirty(manifest);
         }
 
+        /// <summary>关闭 RawFile 包时清除旧信任绑定并重新签名，避免残留发布信息。</summary>
         public static void ClearRawFileManifestBinding(HotfixAssemblyManifest manifest)
         {
             if (manifest == null)
@@ -623,6 +652,7 @@ namespace HybridCLR.Editor
             ClearRawFileManifestBinding(hotfixManifest);
         }
 
+        /// <summary>生成仅供旧版本兼容读取的合并程序集清单。</summary>
         public static AssemblyManifest CreateOrUpdateAssemblyManifest(List<string> aotAssemblies, List<string> hotfixAssemblies)
         {
             Directory.CreateDirectory(ConfigsPath);
@@ -665,11 +695,13 @@ namespace HybridCLR.Editor
             BuildHotfixYooAssetPackage();
         }
 
+        /// <summary>构建资源前校验活动平台的启动资源和 RawFile 信任绑定。</summary>
         public static void ValidateStartupPackageForBuild(BuildTarget target)
         {
             ValidateStartupPackageForBuild(target, true);
         }
 
+        /// <summary>构建资源前校验启动模式、必需资源标签，并按需检查 RawFile 信任绑定。</summary>
         public static void ValidateStartupPackageForBuild(BuildTarget target, bool validateRawFileBinding)
         {
             var settings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(HotfixBuildProfileUtility.RuntimeSettingsAssetPath);
@@ -677,6 +709,7 @@ namespace HybridCLR.Editor
             ValidateStartupPackageForBuild(target, settings, playerPlayMode, true, validateRawFileBinding);
         }
 
+        /// <summary>Player 构建前按最终 PlayMode 校验首启所需的内置资源策略。</summary>
         public static void ValidateStartupPackageForPlayerBuild(BuildTarget target, EPlayMode playerPlayMode)
         {
             var settings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(HotfixBuildProfileUtility.RuntimeSettingsAssetPath);
@@ -728,6 +761,7 @@ namespace HybridCLR.Editor
             }
         }
 
+        /// <summary>校验主包与 RawFile 包的按标签下载配置是否覆盖框架必需的 startup 标签。</summary>
         public static void ValidateStartupDownloadTags(HotfixRuntimeSettings settings)
         {
             if (settings == null)
@@ -746,6 +780,7 @@ namespace HybridCLR.Editor
             }
         }
 
+        /// <summary>当采用按标签下载时，确保下载标签中包含框架必需的 startup 标签。</summary>
         public static void ValidateStartupDownloadTags(StartupDownloadMode downloadMode, string[] tags)
         {
             if (downloadMode != StartupDownloadMode.DownloadByTags)
@@ -760,6 +795,7 @@ namespace HybridCLR.Editor
             }
         }
 
+        /// <summary>校验 RawFile 包独立性、Collector 类型及启动下载标签。</summary>
         public static void ValidateRawFilePackageForBuild(
             string mainPackageName,
             string rawFilePackageName,
@@ -880,6 +916,7 @@ namespace HybridCLR.Editor
             }
         }
 
+        /// <summary>校验 AOT/Hotfix 清单的平台、版本绑定、签名、文件摘要和依赖顺序。</summary>
         public static void ValidateSplitAssemblyManifestsForBuild(BuildTarget target)
         {
             var aotManifest = AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(AOTAssemblyManifestAssetPath);
@@ -986,6 +1023,7 @@ namespace HybridCLR.Editor
             }
         }
 
+        /// <summary>确认普通热更仍使用首包建立的 AOT 基线，阻止隐式更新 AOT 元数据。</summary>
         public static void ValidateAOTManifestNotExpired(BuildTarget target, AOTAssemblyManifest manifest)
         {
             if (manifest == null)
@@ -1053,6 +1091,7 @@ namespace HybridCLR.Editor
             return aotManifest;
         }
 
+        /// <summary>校验当前 AppVersion 位于 Hotfix Manifest 声明的兼容范围内。</summary>
         public static void ValidateHotfixAppVersionRange(HotfixAssemblyManifest manifest)
         {
             if (manifest == null)
@@ -1703,6 +1742,7 @@ namespace HybridCLR.Editor
             return Path.Combine(folder, $"{NormalizeDllName(dllName)}.bytes");
         }
 
+        /// <summary>优先采用 ReleaseProfile 资源版本，否则生成适合 YooAsset 的建议版本号。</summary>
         public static string CreatePackageVersion(BuildTarget target)
         {
             var releaseProfile = HotfixReleaseProfile.LoadSelectedOrDefault();
@@ -1885,6 +1925,7 @@ namespace HybridCLR.Editor
             return HotfixUtility.NormalizePackageName(packageName, fallback);
         }
 
+        /// <summary>启动资源所命中的 YooAsset Collector 及其标签快照。</summary>
         private struct CollectorMatch
         {
             public readonly string PackageName;
@@ -1912,6 +1953,7 @@ namespace HybridCLR.Editor
             }
         }
 
+        /// <summary>构建热更包时临时移除 AOT Collector 所需的原位置快照。</summary>
         private struct CollectorSnapshot
         {
             public readonly AssetBundleCollectorGroup Group;

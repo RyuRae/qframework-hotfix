@@ -5,6 +5,7 @@ using UnityEngine;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>Unity 菜单入口集合，将日常操作统一转发到 HotfixBuildRunner。</summary>
     public static class HotfixInternalBuildMenu
     {
         [MenuItem("Build/热更新/一键构建/构建首包", false, HotfixBuildMenuPriority.OneClickInitialPackage)]

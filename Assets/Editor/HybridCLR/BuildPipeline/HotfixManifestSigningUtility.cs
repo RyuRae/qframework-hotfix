@@ -14,6 +14,7 @@ namespace HybridCLR.Editor
     /// </summary>
     public static class HotfixManifestSigningUtility
     {
+        /// <summary>按当前正式 ReleaseProfile 签名 AOT Manifest；非正式环境清除签名字段。</summary>
         public static void SignOrClear(AOTAssemblyManifest manifest)
         {
             var profile = HotfixReleaseProfile.LoadSelectedOrDefault();
@@ -35,6 +36,7 @@ namespace HybridCLR.Editor
             EditorUtility.SetDirty(manifest);
         }
 
+        /// <summary>按当前正式 ReleaseProfile 签名 Hotfix Manifest；非正式环境清除签名字段。</summary>
         public static void SignOrClear(HotfixAssemblyManifest manifest)
         {
             var profile = HotfixReleaseProfile.LoadSelectedOrDefault();
@@ -56,6 +58,7 @@ namespace HybridCLR.Editor
             EditorUtility.SetDirty(manifest);
         }
 
+        /// <summary>校验公钥格式、私钥 Secret、密钥匹配关系与最低 RSA 位数。</summary>
         public static bool TryValidateSigningConfiguration(HotfixReleaseProfile profile, out string error)
         {
             error = string.Empty;

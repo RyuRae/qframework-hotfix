@@ -12,6 +12,9 @@ using UnityEngine;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>
+    /// 首包成功后保存的 Editor-only Player AOT 身份快照，AOT 补丁只允许读取和验证。
+    /// </summary>
     public sealed class HotfixPlayerAOTBaseline : ScriptableObject
     {
         public const int CurrentFormatVersion = 1;
@@ -32,15 +35,18 @@ namespace HybridCLR.Editor
         public List<AssemblyFileRecord> StrippedAOTAssemblies = new List<AssemblyFileRecord>();
     }
 
+    /// <summary>负责建立、校验 Player AOT 基线并比较全量裁剪 AOT DLL。</summary>
     public static class HotfixPlayerAOTBaselineUtility
     {
         private const string PackagesLockPath = "Packages/packages-lock.json";
 
+        /// <summary>加载当前项目提交的 Player AOT 基线资产。</summary>
         public static HotfixPlayerAOTBaseline Load()
         {
             return AssetDatabase.LoadAssetAtPath<HotfixPlayerAOTBaseline>(HotfixPlayerAOTBaseline.AssetPath);
         }
 
+        /// <summary>首包资源完整成功后，捕获 PlayerSettings 身份和全量裁剪 AOT DLL。</summary>
         public static HotfixPlayerAOTBaseline CaptureAfterInitialPackage(
             BuildTarget target,
             string appVersion,
@@ -98,6 +104,7 @@ namespace HybridCLR.Editor
             return baseline;
         }
 
+        /// <summary>校验平台、App、Unity、Player/HybridCLR 设置和基线自身指纹。</summary>
         public static bool TryValidateIdentity(
             HotfixPlayerAOTBaseline baseline,
             BuildTarget target,
@@ -203,6 +210,7 @@ namespace HybridCLR.Editor
             }
         }
 
+        /// <summary>比对 Generate All 后的全量裁剪 AOT DLL，任何变化都阻断补丁。</summary>
         public static void ValidateGeneratedAssembliesOrThrow(
             HotfixPlayerAOTBaseline baseline,
             BuildTarget target)
@@ -232,6 +240,7 @@ namespace HybridCLR.Editor
                 "这表示当前输出不再属于原 Player，请发布新 App 并重新构建首包资源。");
         }
 
+        /// <summary>扫描指定平台裁剪后的所有 AOT DLL，并计算大小与 SHA-256。</summary>
         public static List<AssemblyFileRecord> CreateStrippedAOTAssemblyRecords(BuildTarget target)
         {
             string directory = SettingsUtil.GetAssembliesPostIl2CppStripDir(target);
@@ -265,6 +274,7 @@ namespace HybridCLR.Editor
             return records;
         }
 
+        /// <summary>比较两组程序集记录，输出新增、内容变化和移除的文件名。</summary>
         public static void BuildAssemblyDiff(
             IEnumerable<AssemblyFileRecord> previous,
             IEnumerable<AssemblyFileRecord> current,

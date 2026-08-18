@@ -6,6 +6,7 @@ using YooAsset;
 
 namespace Framework.Procedure
 {
+    /// <summary>请求主包和 RawFile 包远端版本，失败时进入重试或 LastGood 降级决策。</summary>
     public class ProcedureRequestPackageVersion : AbstractState<ResPackageStates, ProcedureManager>
     {
         private struct PackageVersionRequestResult

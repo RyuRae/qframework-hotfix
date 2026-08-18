@@ -127,6 +127,7 @@ namespace Framework
         public string GrayReleaseSalt => grayReleaseSalt;
 
 #if UNITY_EDITOR
+        /// <summary>由构建中心更新单个环境的 CDN、安全策略和灰度配置。</summary>
         public void SetForEditor(
             HotfixRemoteEnvironment environment,
             string mainCdnUrlTemplate,
@@ -157,6 +158,9 @@ namespace Framework
 #endif
     }
 
+    /// <summary>
+    /// 热更新远端环境配置，负责按环境、平台、渠道、地区和包名解析并校验主备 CDN 地址。
+    /// </summary>
     [CreateAssetMenu(fileName = AssetName, menuName = "Hotfix/Remote Settings", order = 1)]
     public sealed class HotfixRemoteSettings : ScriptableObject
     {
@@ -232,11 +236,13 @@ namespace Framework
         public string DefaultRegion => NormalizeSelector(defaultRegion);
         public bool IsProductionRuntimeEnvironment => ResolveEnvironment() == HotfixRemoteEnvironment.Production;
 
+        /// <summary>从 Resources 载入 Player 当前使用的远端环境配置。</summary>
         public static HotfixRemoteSettings Load()
         {
             return Resources.Load<HotfixRemoteSettings>(ResourcesPath);
         }
 
+        /// <summary>使用默认环境和当前运行平台校验 Player 的远端资源配置。</summary>
         public bool TryValidateForPlayerBuild(bool allowDevelopmentEnvironment, out string error)
         {
             return TryValidateForPlayerBuild(allowDevelopmentEnvironment, HotfixUtility.GetRuntimePlatformName(), out error);
@@ -246,6 +252,7 @@ namespace Framework
         /// 校验空包首次启动依赖的远端地址。空包没有内置资源，不能使用 RFC 保留的示例域名，
         /// 否则干净安装一定无法取得首个 package version 和 manifest。
         /// </summary>
+        /// <summary>使用显式选择器校验空包首启所需 CDN，额外拒绝无法提供资源的示例域名。</summary>
         public bool TryValidateForEmptyPackageBuild(
             bool allowDevelopmentEnvironment,
             string platform,
@@ -313,6 +320,7 @@ namespace Framework
             return true;
         }
 
+        /// <summary>使用默认环境和指定平台校验 Player 的远端资源配置。</summary>
         public bool TryValidateForPlayerBuild(bool allowDevelopmentEnvironment, string platform, out string error)
         {
             return TryValidateForPlayerBuild(
@@ -324,6 +332,9 @@ namespace Framework
                 out error);
         }
 
+        /// <summary>
+        /// 校验指定环境的主备 CDN、安全策略、域名白名单及正式构建限制。
+        /// </summary>
         public bool TryValidateForPlayerBuild(
             bool allowDevelopmentEnvironment,
             string platform,
@@ -390,6 +401,7 @@ namespace Framework
             return true;
         }
 
+        /// <summary>使用默认或允许运行时覆盖的选择器，解析指定 YooAsset 包的最终主备 CDN。</summary>
         public bool TryResolve(string packageName, out HotfixRemoteAddress address, out string error)
         {
             address = null;

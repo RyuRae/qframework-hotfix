@@ -7,6 +7,9 @@ using UnityEngine;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>
+    /// 面向日常发布的热更新构建中心，统一 Profile 编辑、只读校验、风险确认、构建进度与产物交付。
+    /// </summary>
     public sealed class HotfixBuildCenterWindow : EditorWindow
     {
         private static readonly string[] TaskLabels =
@@ -41,6 +44,7 @@ namespace HybridCLR.Editor
         private double mLastBuildDurationSeconds;
         private HotfixBuildExecutionResult mLastExecutionResult;
 
+        /// <summary>打开构建中心并刷新当前 ReleaseProfile 的只读校验报告。</summary>
         [MenuItem("Build/热更新/构建中心...", false, HotfixBuildMenuPriority.BuildCenter)]
         public static void Open()
         {

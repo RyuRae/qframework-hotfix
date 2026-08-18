@@ -7,6 +7,9 @@ using YooAsset;
 
 namespace Framework.Procedure
 {
+    /// <summary>
+    /// 创建并初始化主包和可选 RawFile 包，根据运行模式配置编辑器、离线、Host 或 Web 参数。
+    /// </summary>
     public class ProcedureInitializePackage : AbstractState<ResPackageStates, ProcedureManager>
     {
         private ResourcePackage rawFilePackage;
@@ -226,6 +229,7 @@ namespace Framework.Procedure
             mTarget.SetFailed(error);
         }
 
+        /// <summary>将解析后的主备 CDN 根地址适配为 YooAsset 远端服务。</summary>
         private class RemoteServices : IRemoteServices
         {
             private readonly HotfixRemoteAddress address;

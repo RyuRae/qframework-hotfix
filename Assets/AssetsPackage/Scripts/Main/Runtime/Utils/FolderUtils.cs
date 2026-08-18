@@ -6,6 +6,7 @@ using UnityEngine;
 
 namespace Framework.Utils
 {
+	/// <summary>编辑器与构建工具共用的目录复制、文件复制和清理辅助方法。</summary>
 	public class FolderUtils
 	{
 		/// <summary>

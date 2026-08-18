@@ -9,6 +9,7 @@ using YooAsset;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>按 Unity 平台保存 Player 使用的 YooAsset 运行模式。</summary>
     public sealed class HotfixBuildProfile : ScriptableObject
     {
         public const string AssetPath = "Assets/Editor/HybridCLR/HotfixBuildProfile.asset";
@@ -28,6 +29,7 @@ namespace HybridCLR.Editor
         [SerializeField]
         private EPlayMode webGLPlayMode = EPlayMode.WebPlayMode;
 
+        /// <summary>获取指定平台发布时应使用的 YooAsset PlayMode。</summary>
         public EPlayMode GetPlayMode(BuildTarget target)
         {
             if (target == BuildTarget.WebGL)
@@ -54,6 +56,7 @@ namespace HybridCLR.Editor
         }
 
 #if UNITY_EDITOR
+        /// <summary>设置指定平台的 Player PlayMode；调用方负责将 Profile 标记为已修改。</summary>
         public void SetPlayModeForEditor(BuildTarget target, EPlayMode playMode)
         {
             if (target == BuildTarget.WebGL)
@@ -93,6 +96,7 @@ namespace HybridCLR.Editor
         }
     }
 
+    /// <summary>同步 BuildProfile、运行时设置和 YooAsset Collector 包名，并执行 Player 构建前校验。</summary>
     public static class HotfixBuildProfileUtility
     {
         public const string RuntimeSettingsAssetPath = "Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset";
@@ -100,18 +104,21 @@ namespace HybridCLR.Editor
 
         public static bool SkipRemoteSettingsValidationForCurrentBuild { get; set; }
 
+        /// <summary>将活动构建平台的 PlayMode 应用到 Player 运行时配置。</summary>
         [MenuItem("Build/热更新/内部工具/应用构建 PlayMode 到运行时设置", false, HotfixBuildMenuPriority.InternalApplyPlayMode)]
         public static void ApplyActiveBuildTargetPlayMode()
         {
             ApplyPlayModeToRuntimeSettings(EditorUserBuildSettings.activeBuildTarget);
         }
 
+        /// <summary>从 YooAsset Collector 将主包和 RawFile 包名同步到运行时配置。</summary>
         [MenuItem("Build/热更新/内部工具/从 YooAsset Collector 同步包名", false, HotfixBuildMenuPriority.InternalSyncPackageNames)]
         public static void SyncPackageNamesFromCollectorSettingsMenu()
         {
             SyncPackageNamesFromCollectorSettings();
         }
 
+        /// <summary>将指定平台 PlayMode 与包名写入运行时配置。</summary>
         public static EPlayMode ApplyPlayModeToRuntimeSettings(BuildTarget target)
         {
             var profile = GetOrCreateProfile();
@@ -122,11 +129,13 @@ namespace HybridCLR.Editor
             return playMode;
         }
 
+        /// <summary>Player 构建前应用 ReleaseProfile，并校验最终 PlayMode、CDN 和资源包名。</summary>
         public static EPlayMode ApplyPlayModeToRuntimeSettingsForBuild(BuildTarget target)
         {
             return ApplyPlayModeToRuntimeSettingsForBuild(target, EditorUserBuildSettings.development);
         }
 
+        /// <summary>按本次 BuildOptions 判定是否允许开发环境，再应用并校验 Player 配置。</summary>
         public static EPlayMode ApplyPlayModeToRuntimeSettingsForBuild(BuildTarget target, BuildOptions options)
         {
             return ApplyPlayModeToRuntimeSettingsForBuild(target, IsDevelopmentBuild(options));
@@ -163,6 +172,7 @@ namespace HybridCLR.Editor
             return playMode;
         }
 
+        /// <summary>从 YooAsset Collector 推导主包/RawFile 包并同步到运行时配置。</summary>
         public static BuildAssetsCommand.RuntimePackageConfig SyncPackageNamesFromCollectorSettings()
         {
             var packageConfig = BuildAssetsCommand.GetRuntimePackageConfigFromCollectorSettings();
@@ -227,6 +237,7 @@ namespace HybridCLR.Editor
             return profile;
         }
 
+        /// <summary>阻断 Player 平台使用 EditorSimulateMode 或不兼容的 WebGL PlayMode。</summary>
         public static void ValidatePlayerPlayMode(EPlayMode playMode, BuildTarget target)
         {
             if (playMode == EPlayMode.EditorSimulateMode)
@@ -248,11 +259,13 @@ namespace HybridCLR.Editor
             }
         }
 
+        /// <summary>使用当前构建的 Development 标记校验远端设置。</summary>
         public static void ValidateRemoteSettingsForBuild(BuildTarget target)
         {
             ValidateRemoteSettingsForBuild(target, EditorUserBuildSettings.development);
         }
 
+        /// <summary>按显式环境权限校验指定平台的远端地址与首包策略。</summary>
         public static void ValidateRemoteSettingsForBuild(BuildTarget target, bool allowDevelopmentEnvironment)
         {
             var settings = AssetDatabase.LoadAssetAtPath<HotfixRuntimeSettings>(RuntimeSettingsAssetPath);
@@ -367,10 +380,12 @@ namespace HybridCLR.Editor
         }
     }
 
+    /// <summary>真实 Player 构建前同步并校验 PlayMode、远端环境与发布 Profile。</summary>
     public sealed class HotfixBuildPreprocessor : IPreprocessBuildWithReport
     {
         public int callbackOrder => 0;
 
+        /// <summary>Unity Player 构建开始前统一应用和校验热更新发布配置。</summary>
         public void OnPreprocessBuild(BuildReport report)
         {
             if (HotfixBuildProfileUtility.SkipRemoteSettingsValidationForCurrentBuild)

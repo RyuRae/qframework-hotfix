@@ -5,9 +5,11 @@ using System;
 
 namespace Framework.UI
 {
+	/// <summary>确认对话框数据，包含确认、取消回调及确认后的 Loading 行为。</summary>
 	public class UISceneMessageBoxData : UIPanelData
 	{
 	}
+	/// <summary>启动更新阶段的确认/取消对话框。</summary>
 	public partial class UISceneMessageBox : UIPanel
 	{
 		private Action confirmCallback = null;

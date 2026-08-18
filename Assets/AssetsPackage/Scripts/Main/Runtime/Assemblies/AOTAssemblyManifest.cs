@@ -4,6 +4,9 @@ using UnityEngine;
 
 namespace Framework.Assemblies
 {
+    /// <summary>
+    /// 程序集文件完整性记录，用文件名、大小和 SHA-256 绑定实际 DLL 内容。
+    /// </summary>
     [Serializable]
     public sealed class AssemblyFileRecord
     {
@@ -13,6 +16,9 @@ namespace Framework.Assemblies
         public long Size;
     }
 
+    /// <summary>
+    /// AOT 元数据发布清单，描述 Player 基线身份、补充元数据 DLL 及发布签名。
+    /// </summary>
     [CreateAssetMenu(fileName = AssetName, menuName = "Hotfix/AOT Assembly Manifest", order = 2)]
     public sealed class AOTAssemblyManifest : ScriptableObject
     {

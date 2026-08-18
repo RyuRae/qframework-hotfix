@@ -5,8 +5,12 @@ using YooAsset;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>
+    /// 热更新构建只读校验器，检查发布身份、运行模式、CDN、启动资源和 Manifest 信任状态。
+    /// </summary>
     public static class HotfixBuildValidator
     {
+        /// <summary>对指定构建上下文执行完整校验，不主动修改发布资产。</summary>
         public static HotfixBuildReport Validate(HotfixBuildContext context)
         {
             var report = new HotfixBuildReport();

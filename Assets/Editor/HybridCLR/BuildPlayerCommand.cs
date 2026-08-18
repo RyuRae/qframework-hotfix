@@ -7,6 +7,7 @@ using UnityEngine;
 
 namespace HybridCLR.Editor
 {
+    /// <summary>旧版 Win64 Player 构建命令；后续多平台 CI 应迁移到统一 Player Builder。</summary>
     public class BuildPlayerCommand
     {
         public static void CopyAssets(string outputDir)

@@ -9,7 +9,7 @@ using YooAsset;
 namespace Framework.Procedure
 {
     /// <summary>
-    /// 加载热更代码资源
+    /// 校验并按构建期依赖顺序加载热更程序集，然后创建 IHotfixEntry 业务入口。
     /// </summary>
     public class ProcedureLoadAssembly : AbstractState<ResPackageStates, ProcedureManager>
     {

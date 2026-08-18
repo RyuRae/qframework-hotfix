@@ -9,6 +9,9 @@ using Framework.UI;
 
 namespace Framework
 {
+    /// <summary>
+    /// 热更新框架的 Unity 启动入口，负责初始化日志与 YooAsset，并启动完整的 Procedure 更新流程。
+    /// </summary>
     public class Boot : MonoBehaviour
     {
         [Header("游戏运行帧率")]
@@ -27,6 +30,9 @@ namespace Framework
             DontDestroyOnLoad(gameObject);
         }
 
+        /// <summary>
+        /// 读取运行时配置、创建资源更新流程，并等待热更业务真正启动完成。
+        /// </summary>
         IEnumerator Start()
         {
             var settings = HotfixRuntimeSettings.Load();
@@ -73,6 +79,9 @@ namespace Framework
 
         }
 
+        /// <summary>
+        /// 校验当前 Player 平台与 YooAsset 运行模式是否匹配，避免把编辑器模拟模式带入正式包。
+        /// </summary>
         private bool ValidatePlayModeForRuntime(EPlayMode playMode)
         {
 #if !UNITY_EDITOR

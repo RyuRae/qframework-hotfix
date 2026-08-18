@@ -11,6 +11,7 @@ using YooAsset;
 
 namespace Framework.Procedure
 {
+    /// <summary>热更新启动流程的有限状态机状态。</summary>
     public enum ResPackageStates
     {
         InitializePackage,
@@ -27,6 +28,9 @@ namespace Framework.Procedure
         PreloadHotfixResources
     }
 
+    /// <summary>
+    /// 热更新启动流程总调度器，持有包版本、下载器、清单快照、入口上下文和 LastGood 状态。
+    /// </summary>
     public class ProcedureManager : GameAsyncOperation
     {
         private readonly string _packageName;
@@ -125,6 +129,7 @@ namespace Framework.Procedure
             _mFSM.Update();
         }
 
+        /// <summary>标记整个启动操作成功并释放流程级订阅与取消资源。</summary>
         public void SetFinish()
         {
             if (IsDone)
@@ -136,6 +141,7 @@ namespace Framework.Procedure
             ReleaseDownloadControlEvents();
         }
 
+        /// <summary>以统一错误结束启动流程，并取消仍在运行的下载或业务任务。</summary>
         public void SetFailed(string error)
         {
             if (IsDone)
@@ -150,6 +156,7 @@ namespace Framework.Procedure
             ReleaseDownloadControlEvents();
         }
 
+        /// <summary>根据当前包和清单身份创建传递给热更业务的启动上下文。</summary>
         public HotfixContext CreateHotfixContext()
         {
             var mainPackage = YooAssets.GetPackage(_packageName);
@@ -169,6 +176,7 @@ namespace Framework.Procedure
                 StartupCancellationToken);
         }
 
+        /// <summary>根据 Hotfix Manifest 的入口类型创建业务入口并缓存启动上下文。</summary>
         public bool TryInitializeHotfixEntry(out string error)
         {
             error = string.Empty;
@@ -198,6 +206,7 @@ namespace Framework.Procedure
             }
         }
 
+        /// <summary>请求取消当前主包与 RawFile 包下载，并收口 UI/FSM 状态。</summary>
         public void CancelDownload(string reason = null)
         {
             if (IsDone)
@@ -219,6 +228,7 @@ namespace Framework.Procedure
             SetFailed(cancelReason);
         }
 
+        /// <summary>暂停当前可暂停的下载任务。</summary>
         public bool TryPauseDownload()
         {
             if (IsDone || _downloadCancelRequested)
@@ -236,6 +246,7 @@ namespace Framework.Procedure
             return handled;
         }
 
+        /// <summary>恢复此前暂停的下载任务。</summary>
         public bool TryResumeDownload()
         {
             if (IsDone || _downloadCancelRequested)
@@ -253,6 +264,7 @@ namespace Framework.Procedure
             return handled;
         }
 
+        /// <summary>判断当前网络与更新策略是否要求启动时只使用本地缓存。</summary>
         public bool ShouldUseLocalCacheOnlyAtStartup()
         {
             if (!CanUseLocalCacheFallback)
@@ -278,6 +290,7 @@ namespace Framework.Procedure
             return false;
         }
 
+        /// <summary>记录本次启动已降级到本地 Manifest，并向 UI 广播原因。</summary>
         public void MarkUseLocalManifestFallback(string reason)
         {
             _useLocalManifestFallback = true;
@@ -288,6 +301,7 @@ namespace Framework.Procedure
             }
         }
 
+        /// <summary>业务启动成功后原子提交 LastGood 版本组合和正式发布防回滚序号。</summary>
         public bool CommitLastGood(out string error)
         {
             LastGoodCommittedThisRun = false;
@@ -403,6 +417,7 @@ namespace Framework.Procedure
             return true;
         }
 
+        /// <summary>尝试恢复到已验证的 LastGood 主包/RawFile Manifest 组合。</summary>
         public IEnumerator TryUseLocalManifestFallback(string reason, Action<bool, string> onCompleted)
         {
             ClearExpectedFallbackAssemblyCombination();
@@ -466,6 +481,7 @@ namespace Framework.Procedure
             onCompleted?.Invoke(false, string.Join(" | ", errors));
         }
 
+        /// <summary>校验已加载的 AOT 与 Hotfix 清单是否属于同一兼容发布组合。</summary>
         public bool ValidateLoadedAssemblyCombination(out string error)
         {
             error = string.Empty;
@@ -493,6 +509,7 @@ namespace Framework.Procedure
             return true;
         }
 
+        /// <summary>校验当前 RawFile 活动 Manifest 与 Hotfix 清单中签名绑定的指纹一致。</summary>
         public bool ValidateRawFileManifestTrust(out string error)
         {
             error = string.Empty;
@@ -745,6 +762,7 @@ namespace Framework.Procedure
 
 
 
+        /// <summary>保存程序集加载器解析出的热更入口类型名。</summary>
         public void SetHotfixEntryType(string typeName)
         {
             EntryTypeName = typeName ?? string.Empty;

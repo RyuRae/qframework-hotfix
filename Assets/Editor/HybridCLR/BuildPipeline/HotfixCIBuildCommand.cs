@@ -17,6 +17,9 @@ namespace HybridCLR.Editor
         private const int FailureExitCode = 1;
         private const string DefaultResultPath = "BuildReports/Hotfix/ci-result.json";
 
+        /// <summary>
+        /// 解析 -hotfix* 参数、执行非交互构建、写入 JSON，并以 0/1 退出 Unity 进程。
+        /// </summary>
         public static void Run()
         {
             if (!Application.isBatchMode)
@@ -227,6 +230,7 @@ namespace HybridCLR.Editor
         }
     }
 
+    /// <summary>专用 CI 命令行参数模型，负责白名单解析、类型转换和内存 Profile 覆盖。</summary>
     internal sealed class HotfixCIArguments
     {
         private const string DefaultResultPath = "BuildReports/Hotfix/ci-result.json";
@@ -257,6 +261,7 @@ namespace HybridCLR.Editor
         public bool ConfirmProduction;
         public bool ConfirmAOTMetadataPatch;
 
+        /// <summary>解析并严格校验 Unity 命令行中的所有 -hotfix* 参数。</summary>
         public static HotfixCIArguments Parse(string[] commandLine)
         {
             var raw = ReadRaw(commandLine);
@@ -307,6 +312,7 @@ namespace HybridCLR.Editor
             return arguments;
         }
 
+        /// <summary>把 CI 版本和平台参数应用到临时 Profile，不修改磁盘资产。</summary>
         public void ApplyOverrides(HotfixReleaseProfile profile)
         {
             if (BuildTargetOverride.HasValue)
@@ -452,6 +458,7 @@ namespace HybridCLR.Editor
         }
     }
 
+    /// <summary>CI 成功或失败时写入 JSON 的机器可读构建结果。</summary>
     [Serializable]
     public sealed class HotfixCIBuildResult
     {
@@ -497,6 +504,7 @@ namespace HybridCLR.Editor
         public string ErrorMessage = string.Empty;
         public string ErrorStackTrace = string.Empty;
 
+        /// <summary>创建带 Unity 版本和 UTC 开始时间的初始结果。</summary>
         public static HotfixCIBuildResult CreateStarted()
         {
             return new HotfixCIBuildResult
