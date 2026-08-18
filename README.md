@@ -696,6 +696,7 @@ Assets/Editor/HybridCLR/HotfixReleaseProfile.asset
 - 开发 / 测试：自动启用 Unity Development Build，`LogKit` 输出完整日志。
 - 预发 / 正式：关闭 Development Build，`LogKit` 仅输出 Error / Exception。
 - 正式：强制 Production、HTTPS、MustUpdate，并要求固定 ResourceVersion、递增 ReleaseSequence 和 Manifest 签名。
+- 打开构建中心、切换 Profile 或创建默认 Profile 时，空的 `ResourceVersion` 会按 `yyyy-MM-dd-HHmmss` 自动预填；可以直接修改，也可以点击“重新生成”。
 
 不再需要配置 `ENABLE_LOG`。如曾误把它填写到 `Additional Compiler Arguments`，应删除；编译参数会把裸 `ENABLE_LOG` 当作源文件路径并产生 `CS2001`。
 
@@ -708,7 +709,7 @@ Assets/Editor/HybridCLR/HotfixReleaseProfile.asset
 - 写入 `HotfixBuildProfile.asset` 的当前平台 PlayerPlayMode。
 - 写入 `HotfixRemoteSettings.asset` 的默认环境、渠道、地区和目标环境 CDN 模板。
 - 写入 `HotfixAssemblyManifest.asset` 的兼容 App 版本、HotfixVersion 和 CodeEntry。
-- `ResourceVersion` 非空时作为 YooAsset `PackageVersion`；为空时继续使用时间戳自动版本。
+- `ResourceVersion` 直接作为 YooAsset `PackageVersion`；构建中心默认按 `yyyy-MM-dd-HHmmss` 预填，构建命令在字段为空时也使用相同规则兜底。
 - Collector 中存在 RawFile 包时，主包和 RawFile 包使用同一个 `PackageVersion`；RawFile 包名与清单 SHA-256 会写入并签名到 `HotfixAssemblyManifest.asset`。
 - Manifest 签名协议新构建使用 v2；运行时仍可验证旧 v1 AOT/Hotfix 清单，但正式环境启用 RawFile 时必须使用带 RawFile 绑定的 v2 Hotfix 清单。
 
@@ -733,7 +734,7 @@ AllowDevelopmentCdn = false
 4. 在构建中心选择任务和开发 / 测试 / 预发 / 正式环境预设，并确认核心配置：
    - `BuildTarget`、`AppVersion`。
    - `AppVersionMin` / `AppVersionMax`。
-   - `ResourceVersion`，建议正式发布填写明确版本；为空则使用时间戳。
+   - `ResourceVersion`，即 YooAsset `PackageVersion`；默认按 `yyyy-MM-dd-HHmmss` 预填，可手动修改或点击“重新生成”。主包和 RawFile 包共用该版本。
    - `HotfixVersion`，通常留空自动生成；需要外部版本协议时再固定。
    - `RemoteEnvironment` / `Channel` / `Region`。
    - `MainCdnUrlTemplate` / `FallbackCdnUrlTemplate` / `RequireHttps` / `AllowedDomains` / 灰度 CDN 配置。

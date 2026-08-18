@@ -399,7 +399,7 @@ namespace HybridCLR.Editor
         private static string FormatPackageVersion(HotfixReleaseProfile profile)
         {
             return string.IsNullOrWhiteSpace(profile.ResourceVersion)
-                ? "自动时间戳 yyyy-MM-dd-HHmmss"
+                ? $"建议值 {HotfixReleaseProfile.CreateSuggestedResourceVersion()}"
                 : profile.ResourceVersion.Trim();
         }
 

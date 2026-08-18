@@ -45,6 +45,7 @@ namespace HybridCLR.Editor
         private void OnEnable()
         {
             LoadSelectedReleaseProfile();
+            EnsureResourceVersionPrefilled();
             RefreshReport();
         }
 
@@ -101,6 +102,7 @@ namespace HybridCLR.Editor
                 mReleaseProfile = selected;
                 mSerializedProfile = null;
                 HotfixReleaseProfile.SaveSelectedProfile(mReleaseProfile);
+                EnsureResourceVersionPrefilled();
                 RefreshReport();
             }
 
@@ -114,7 +116,8 @@ namespace HybridCLR.Editor
             {
                 mReleaseProfile = HotfixReleaseProfile.GetOrCreateDefault();
                 HotfixReleaseProfile.SaveSelectedProfile(mReleaseProfile);
-                mSerializedProfile = new SerializedObject(mReleaseProfile);
+                EnsureResourceVersionPrefilled();
+                EnsureSerializedProfile();
                 RefreshReport();
             }
         }
@@ -219,7 +222,7 @@ namespace HybridCLR.Editor
             }
 
             DrawProperty("AppVersion", "App 版本");
-            DrawProperty("ResourceVersion", "资源版本（正式必填）");
+            DrawResourceVersion();
 
             mShowCompatibility = EditorGUILayout.Foldout(mShowCompatibility, "App 兼容范围", true);
             if (mShowCompatibility)
@@ -484,6 +487,21 @@ namespace HybridCLR.Editor
             }
         }
 
+        private void EnsureResourceVersionPrefilled()
+        {
+            if (mReleaseProfile == null ||
+                !string.IsNullOrWhiteSpace(mReleaseProfile.ResourceVersion))
+            {
+                return;
+            }
+
+            Undo.RecordObject(mReleaseProfile, "Prefill YooAsset Resource Version");
+            mReleaseProfile.ResourceVersion = HotfixReleaseProfile.CreateSuggestedResourceVersion();
+            EditorUtility.SetDirty(mReleaseProfile);
+            AssetDatabase.SaveAssetIfDirty(mReleaseProfile);
+            mSerializedProfile = null;
+        }
+
         private SerializedProperty FindProperty(string propertyName)
         {
             return mSerializedProfile.FindProperty(propertyName);
@@ -502,6 +520,31 @@ namespace HybridCLR.Editor
                 property,
                 new GUIContent(label, property.tooltip),
                 includeChildren);
+        }
+
+        private void DrawResourceVersion()
+        {
+            var property = FindProperty("ResourceVersion");
+            if (property == null)
+            {
+                EditorGUILayout.HelpBox("Profile 字段缺失：ResourceVersion", MessageType.Error);
+                return;
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.PropertyField(
+                property,
+                new GUIContent("资源版本 / PackageVersion", property.tooltip));
+            if (GUILayout.Button("重新生成", GUILayout.Width(82)))
+            {
+                property.stringValue = HotfixReleaseProfile.CreateSuggestedResourceVersion();
+                mReport = null;
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.LabelField(
+                "将作为 YooAsset 主包与 RawFile 包的共同 PackageVersion；可直接修改。",
+                EditorStyles.miniLabel);
         }
 
         private static void DrawSectionTitle(string title)

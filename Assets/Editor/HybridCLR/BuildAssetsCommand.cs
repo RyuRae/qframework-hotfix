@@ -1717,7 +1717,7 @@ namespace HybridCLR.Editor
                 return releaseProfile.ResourceVersion.Trim();
             }
 
-            return DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
+            return HotfixReleaseProfile.CreateSuggestedResourceVersion();
         }
 
         private static void ValidateManifestSignatureForBuild(

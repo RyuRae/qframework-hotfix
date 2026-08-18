@@ -36,7 +36,7 @@ namespace HybridCLR.Editor
         [Tooltip("本次热更资源允许覆盖的最高 App 版本。通常和 AppVersion 一致，跨小版本兼容时再放宽。")]
         public string AppVersionMax = "1.0.0";
 
-        [Tooltip("YooAsset PackageVersion。正式发布建议填写明确版本号；留空时构建流程会使用时间戳自动生成。")]
+        [Tooltip("YooAsset PackageVersion。构建中心会按 yyyy-MM-dd-HHmmss 自动预填，也可以手动修改。")]
         public string ResourceVersion = string.Empty;
 
         [Tooltip("热更 DLL 版本号。通常留空由 DLL hash 自动生成；只有接入外部版本协议时才手动固定。")]
@@ -148,6 +148,11 @@ namespace HybridCLR.Editor
         public bool IsCompatibleWith(BuildTarget target)
         {
             return BuildTarget == target;
+        }
+
+        public static string CreateSuggestedResourceVersion()
+        {
+            return DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
         }
 
         public void ApplyBuildFlavorPreset(HotfixBuildFlavor flavor)
