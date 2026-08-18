@@ -12,11 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7adbd3b0d1da4a9fa0154700edf9a56b, type: 3}
   m_Name: AOTAssemblyManifest
   m_EditorClassIdentifier: 
+  ReleaseVersion: 2026-08-18-100234
+  ReleaseSequence: 0
   AppVersion: 0.1
   BuildTarget: Android
-  AotVersion: aot-8e4a27124f69d754
-  BaselineFingerprint: 739f374a1834d284
-  BaselineGeneratedAtUtc: 2026-05-09T08:45:23.8363670Z
+  AotVersion: aot-63764ad7e34b08ae
+  BaselineFingerprint: 5d599a98881858e6
+  BaselineGeneratedAtUtc: 2026-08-18T10:11:52.9164470Z
   BaselineGitCommit: 
   AotMetadataAssemblies:
   - QFramework.CoreKit.dll
@@ -30,33 +32,37 @@ MonoBehaviour:
   AotMetadataFiles:
   - FileName: QFramework.CoreKit.dll
     AssemblyName: QFramework.CoreKit.dll
-    Sha256: b39c0bee61b68e0686d6b0eb3ecee5e99c2be732633c42426718568676d26497
-    Size: 777728
+    Sha256: e456754389894e5d7846ba1fa16fae63d5e2fa780560f6435e17f68cfd534465
+    Size: 855040
   - FileName: QFramework.dll
     AssemblyName: QFramework.dll
-    Sha256: c196cc0b8c7bb27d64f4d28447afa2b1f6e1e534dbf610165f69373e1e031896
-    Size: 28160
+    Sha256: 573392c5a9cc0d340b90592aa4457ee35806645e15a296389eed90bbb8e19ba6
+    Size: 29184
   - FileName: System.Core.dll
     AssemblyName: System.Core.dll
-    Sha256: 387f5f15bab44b3d4b7434fd6ca04202cbde7cb8cc21dcf4d20e254a6dcae1b2
-    Size: 392704
+    Sha256: 90f5384a433d51f70f5e33dadfd7b6bfc7333f280df1fca8b2a37b9d40cdecb9
+    Size: 419328
   - FileName: UniTask.dll
     AssemblyName: UniTask.dll
-    Sha256: 3077e1ae32b41bda3d8d676a7c225545858b9bfaf09bceb6bd0e441297760ca5
-    Size: 552448
+    Sha256: bf566bbb42391ef7abe6dbf926cce6b2a3832ed5c6db0efb18971688f958155f
+    Size: 608256
   - FileName: UnityEngine.CoreModule.dll
     AssemblyName: UnityEngine.CoreModule.dll
-    Sha256: 8476368fec0765fa62fa8c633d16ab328c6a5211095b3e8a0ae3e43f6e8107c9
-    Size: 446464
+    Sha256: c74060d537077998ab7b9f46b5d1501636f466a2409d16389da375628371ff3f
+    Size: 447488
   - FileName: YooAsset.dll
     AssemblyName: YooAsset.dll
-    Sha256: 038a0d5a7b590b6177827f1b00c0205f412743411c8b0dbc8b13a0bdeebf7080
-    Size: 234496
+    Sha256: b0f163b9b813039f3a693e2b897c8d206cf32b01ff0adce69ccc5e6b308e9700
+    Size: 271360
   - FileName: YooAssetKit.dll
     AssemblyName: YooAssetKit.dll
-    Sha256: ad3e37aecef5eb55604f38297dbeb06d3d0d6042c8ef3cb481fea33ec5e1254e
-    Size: 26112
+    Sha256: 7099e067e98f91f0cc49a6b7b5bcb97d4a619d3af89bfd0de4ce56a436b9fc6e
+    Size: 41984
   - FileName: mscorlib.dll
     AssemblyName: mscorlib.dll
-    Sha256: 8982d59dc99d2e9c88c40a63849d1f09fd27c767ff613d6e034987bed3a6def0
-    Size: 2240512
+    Sha256: c24e70009ee67cad03d468587dba8f5fd50c465ef0fbb070477071c4ac3d4453
+    Size: 2264576
+  SignatureVersion: 0
+  SignatureAlgorithm: 
+  SigningKeyId: 
+  Signature: 

@@ -82,3 +82,24 @@ MonoBehaviour:
         FilterRuleName: CollectAll
         AssetTags: 
         UserData: 
+    - GroupName: localization-locales
+      GroupDesc: "Luban \u81EA\u52A8\u751F\u6210\u7684\u72EC\u7ACB\u8BED\u8A00\u5305"
+      AssetTags: 
+      ActiveRuleName: EnableGroup
+      Collectors:
+      - CollectPath: Assets/AssetsPackage/AssetsHotFix/Localization/Locales/zh-CN
+        CollectorGUID: 97fd74b8ff5794ecaa0a044c35ce1451
+        CollectorType: 0
+        AddressRuleName: AddressByFileName
+        PackRuleName: PackDirectory
+        FilterRuleName: CollectAll
+        AssetTags: l10n.zh-CN
+        UserData: 
+      - CollectPath: Assets/AssetsPackage/AssetsHotFix/Localization/Locales/en
+        CollectorGUID: 289226f2a6d4d4cc4995708d3aae2abe
+        CollectorType: 0
+        AddressRuleName: AddressByFileName
+        PackRuleName: PackDirectory
+        FilterRuleName: CollectAll
+        AssetTags: l10n.en
+        UserData: 

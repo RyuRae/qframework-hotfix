@@ -13,31 +13,31 @@ namespace Framework.Localization.Generated
 {
 public partial class LocalizationTables
 {
-    public TbLanguageCatalog TbLanguageCatalog {get; }
-    public TbLanguageAlias TbLanguageAlias {get; }
     public TbBootstrapText TbBootstrapText {get; }
-    public TbLocaleText TbLocaleText {get; }
     public TbFontGroup TbFontGroup {get; }
+    public TbLanguageAlias TbLanguageAlias {get; }
+    public TbLanguageCatalog TbLanguageCatalog {get; }
+    public TbLocaleText TbLocaleText {get; }
     public TbLocalizedAsset TbLocalizedAsset {get; }
 
     public LocalizationTables(System.Func<string, ByteBuf> loader)
     {
-        TbLanguageCatalog = new TbLanguageCatalog(loader("tblanguagecatalog"));
-        TbLanguageAlias = new TbLanguageAlias(loader("tblanguagealias"));
         TbBootstrapText = new TbBootstrapText(loader("tbbootstraptext"));
-        TbLocaleText = new TbLocaleText(loader("tblocaletext"));
         TbFontGroup = new TbFontGroup(loader("tbfontgroup"));
+        TbLanguageAlias = new TbLanguageAlias(loader("tblanguagealias"));
+        TbLanguageCatalog = new TbLanguageCatalog(loader("tblanguagecatalog"));
+        TbLocaleText = new TbLocaleText(loader("tblocaletext"));
         TbLocalizedAsset = new TbLocalizedAsset(loader("tblocalizedasset"));
         ResolveRef();
     }
     
     private void ResolveRef()
     {
-        TbLanguageCatalog.ResolveRef(this);
-        TbLanguageAlias.ResolveRef(this);
         TbBootstrapText.ResolveRef(this);
-        TbLocaleText.ResolveRef(this);
         TbFontGroup.ResolveRef(this);
+        TbLanguageAlias.ResolveRef(this);
+        TbLanguageCatalog.ResolveRef(this);
+        TbLocaleText.ResolveRef(this);
         TbLocalizedAsset.ResolveRef(this);
     }
 }

@@ -12,12 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ec3b401b9ef14ad282669bc721319451, type: 3}
   m_Name: HotfixAssemblyManifest
   m_EditorClassIdentifier: 
-  ReleaseVersion: 
+  ReleaseVersion: 2026-08-18-100234
   ReleaseSequence: 0
   AppVersionMin: 0.1
   AppVersionMax: 0.1
   BuildTarget: Android
-  RequiredAotVersion: aot-8e4a27124f69d754
+  RequiredAotVersion: aot-63764ad7e34b08ae
   HotfixVersion: hotfix-57a6f98849d9a2fb
   RawFilePackageName: 
   RawFilePackageVersion: 
@@ -28,12 +28,12 @@ MonoBehaviour:
   HotUpdateFiles:
   - FileName: HotfixCommon.dll
     AssemblyName: HotfixCommon.dll
-    Sha256: 89241e586cad75116b312dad0442ca872d1e62c8b71ad8b0d8133e9d9f69ed48
-    Size: 10240
+    Sha256: 0d8e88ee45ff7fa3fe8f611ac746baa62c84d34eba4e35d9d6a431dcdca0f6e0
+    Size: 11776
   - FileName: HotfixDemo.dll
     AssemblyName: HotfixDemo.dll
-    Sha256: da05654da9657486b0d08b35ec2b0dd2ec217407252c0ee131bded0e0c39f926
-    Size: 12800
+    Sha256: afb550102f16c54810bb5c4c27bdd1390c7d655b72a7615d50d9e5016a90da40
+    Size: 16384
   HotUpdateDependencies:
   - AssemblyName: HotfixCommon
     DllName: HotfixCommon.dll

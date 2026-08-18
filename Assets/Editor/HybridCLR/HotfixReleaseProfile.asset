@@ -23,23 +23,22 @@ MonoBehaviour:
   ManifestPublicKeyModulus: 
   ManifestPublicKeyExponent: AQAB
   ManifestPrivateKeyEnvironmentVariable: HOTFIX_MANIFEST_PRIVATE_KEY
-  RemoteEnvironment: 1
+  RemoteEnvironment: 0
   Channel: default
   Region: global
   AllowDevelopmentCdn: 1
-  MainCdnUrlTemplate: https://test-cdn.example.com/TestProject/{Platform}/{Channel}/{Region}
-  FallbackCdnUrlTemplate: https://test-cdn-backup.example.com/TestProject/{Platform}/{Channel}/{Region}
-  RequireHttps: 1
+  MainCdnUrlTemplate: http://127.0.0.1:8080/TestProject/{Platform}/{Channel}/{Region}
+  FallbackCdnUrlTemplate: http://127.0.0.1:8081/TestProject/{Platform}/{Channel}/{Region}
+  RequireHttps: 0
   AllowedDomains:
-  - test-cdn.example.com
-  - test-cdn-backup.example.com
+  - 127.0.0.1
   CertificatePinningEnabled: 0
   CertificatePublicKeyPin: 
   EnableGrayRelease: 0
   GrayReleasePercent: 0
   GrayMainCdnUrlTemplate: 
   GrayFallbackCdnUrlTemplate: 
-  GrayReleaseSalt: hotfix-test
+  GrayReleaseSalt: hotfix-dev
   PlayerPlayMode: 2
   StartupPackageMode: 0
   StartupDownloadMode: 0

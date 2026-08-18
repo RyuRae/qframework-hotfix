@@ -126,6 +126,346 @@
 
    其他平台可以使用 Unity `Build Settings`，构建前预处理器会校验 Player PlayMode、远端配置和启动包策略。
 
+## 多语言使用
+
+工程使用 **Luban + YooAsset + Main.Runtime LocalizationService** 管理多语言：
+
+```text
+Luban CSV 翻译源
+├── Resources Bootstrap：YooAsset 初始化前的启动兜底
+└── YooAsset 独立语言包：业务文本、字体和本地化资源
+        ↓
+LocalizationService（Main.Runtime 唯一实例）
+        ↓
+L10n / LocalizedText / LocalizedTMPText / LocalizedImage
+```
+
+语言使用 BCP-47 字符串 ID，例如 `zh-CN`、`en`、`ja-JP`，不要新增语言枚举。旧 Player 只要已经包含通用 LocalizationService，就可以通过热更 Catalog 和 YooAsset 资源发现并使用后来新增的语言。
+
+详细架构和表字段说明见 [Luban 多语言设计](Docs/Luban多语言设计.md)。
+
+### 配置文件
+
+| 文件 | 用途 |
+| --- | --- |
+| `LubanConfig/Localization/Datas/language_catalog.csv` | 可用语言、fallback、文本地址、Tag 和字体组 |
+| `LubanConfig/Localization/Datas/language_alias.csv` | 系统语言代码到游戏 Locale 的映射 |
+| `LubanConfig/Localization/Datas/bootstrap_text.csv` | 版本请求、下载、AOT/DLL 加载等启动安全文案 |
+| `LubanConfig/Localization/Datas/locale_text.csv` | 统一业务翻译源，构建时按 Locale 拆分 |
+| `LubanConfig/Localization/Datas/font_group.csv` | TMP 字体组和下载 Tag |
+| `LubanConfig/Localization/Datas/localized_asset.csv` | Sprite 等本地化资源地址映射 |
+
+### 生成和同步
+
+修改表格后先生成 Luban 主数据和代码：
+
+macOS/Linux：
+
+```bash
+bash LubanConfig/Localization/gen.sh
+```
+
+Windows：
+
+```bat
+LubanConfig\Localization\gen.bat
+```
+
+然后在 Unity 执行：
+
+```text
+Build/热更新/内部工具/同步 Luban 语言包与 Collector
+```
+
+同步器会自动：
+
+- 按 Catalog 将 `locale_text.csv` 拆成每语言独立二进制；
+- 输出到 `AssetsHotFix/Localization/Locales/<locale>`；
+- 创建或更新 `localization-locales` YooAsset Group；
+- 为每种语言配置独立 Collector、`PackDirectory` 和 `l10n.<locale>` Tag；
+- 删除已从 Catalog 移除的语言目录和 Collector。
+
+首包、热更包、AOT Metadata 补丁和 Player Build 都会自动执行同步，一般不需要手工运行菜单。手工入口主要用于立即检查生成结果和 Collector 配置。
+
+发布前可以单独执行：
+
+```text
+Build/热更新/内部工具/校验 Luban 多语言
+```
+
+校验包括默认英语、fallback 环、重复 ID、空译文、格式参数一致性、字体组和拆分产物完整性。
+
+### 新增一种语言
+
+以新增日语 `ja-JP` 为例：
+
+1. 在 `language_catalog.csv` 增加：
+
+   ```csv
+   ,ja-JP,日本語,en,true,30,l10n_text_ja-JP,l10n.ja-JP,CJK_JP,false,
+   ```
+
+2. 在 `language_alias.csv` 增加系统语言映射：
+
+   ```csv
+   ,ja,ja-JP,100
+   ,ja-JP,ja-JP,110
+   ```
+
+3. 在 `locale_text.csv` 为每个业务 Key 增加 `ja-JP` 记录。联合 ID 约定为 `key|locale`：
+
+   ```csv
+   ,common.confirm|ja-JP,common.confirm,ja-JP,確認
+   ,common.cancel|ja-JP,common.cancel,ja-JP,キャンセル
+   ```
+
+4. 在 `font_group.csv` 增加 `CJK_JP`，并填写已被 YooAsset 收集的 TMP Font Asset 地址。
+5. 如有本地化图片，在 `localized_asset.csv` 增加 `key + locale + Sprite + assetAddress`。
+6. 运行生成/同步，或直接通过构建中心构建热更包。
+7. 检查生成目录和 YooAsset Tag：
+
+   ```text
+   Assets/AssetsPackage/AssetsHotFix/Localization/Locales/ja-JP/l10n_text_ja-JP.bytes
+   Tag: l10n.ja-JP
+   ```
+
+### 代码获取文案和切换语言
+
+获取文案：
+
+```csharp
+string title = Framework.Localization.L10n.Get("ui.login.title");
+string count = Framework.Localization.L10n.Get("common.item_count", itemCount);
+```
+
+异步切换语言必须走事务式 `ChangeLocale`，不要在 Catalog 加载后调用同步的 `TryRequestLocale`：
+
+```csharp
+StartCoroutine(Framework.Localization.L10n.ChangeLocale("ja-JP", (succeeded, error) =>
+{
+    if (!succeeded)
+    {
+        Debug.LogError($"Change locale failed: {error}");
+    }
+}));
+```
+
+切换时会先下载目标文本和字体，完成解析与校验后一次性提交。失败时继续保留旧语言、旧字体和当前 UI。
+
+可以读取当前状态：
+
+```csharp
+string requested = Framework.Localization.L10n.RequestedLocale;
+string active = Framework.Localization.L10n.ActiveLocale;
+bool changing = Framework.Localization.LocalizationService.Instance.IsChangingLocale;
+string lastError = Framework.Localization.LocalizationService.Instance.LastChangeError;
+```
+
+`RequestedLocale` 是用户或系统期望的语言，`ActiveLocale` 是当前真正加载成功的语言。首包没有系统语言时，启动阶段会暂时使用 Bootstrap fallback；Manifest 更新并发现对应热更语言后再切换。
+
+### UI 组件
+
+Prefab 不再内嵌每种语言译文，只保存 Key：
+
+- `LocalizedText`：用于 `UnityEngine.UI.Text`；
+- `LocalizedTMPText`：用于 TMP，并随语言快照应用字体；
+- `LocalizedImage`：根据 `localized_asset.csv` 加载 Sprite，并自动释放 YooAsset Handle。
+
+使用步骤：
+
+1. 在对象上添加对应组件。
+2. 将 `Key` 设置为 `locale_text.csv` 或 `localized_asset.csv` 中的 Key。
+3. 不再向旧 QFramework `LocaleText.LanguageTexts` 手工添加各语言内容。
+
+### 首包和热更边界
+
+| 内容 | 来源 | 使用阶段 |
+| --- | --- | --- |
+| Bootstrap 文案 | `Resources/Localization/bootstrap.bytes` | YooAsset 可用前、更新失败兜底 |
+| Language Catalog/Alias | YooAsset 主 Package | Manifest 可用后发现语言 |
+| 独立语言文本 | `Localization/Locales/<locale>` | 当前语言按需下载和加载 |
+| TMP 字体/本地化图片 | YooAsset 地址 | 与语言快照一起准备或按组件加载 |
+
+不要删除 Bootstrap。网络、CDN 或 Manifest 失败时，启动 UI 不能依赖尚未可用的远端语言资源。
+
+## Luban 数据构建中心
+
+工程提供统一的可视化 Luban 数据生产入口：
+
+```text
+Build/Luban/数据构建中心...
+```
+
+首次打开时会自动创建默认 Profile：
+
+```text
+Assets/Editor/Luban/LubanBuildProfile.asset
+```
+
+默认包含两个任务：
+
+- `Client`：普通游戏配置，使用 `LubanConfig/DataTables/luban.conf`；
+- `Localization`：多语言配置，使用 `LubanConfig/Localization/luban.conf`。
+
+Profile 是 ScriptableObject，可以提交 Git、复制成不同项目/环境配置，也可以被本地构建和 CI 共同读取。不要把个人机器的绝对路径写进 Profile，界面会优先保存项目相对路径。
+
+### 界面功能
+
+数据构建中心支持：
+
+- 配置 Luban DLL、`luban.conf` 和数据源目录；
+- 创建、删除和启用多个生成任务；
+- 扫描 Excel、CSV、JSON、XML 数据源；
+- 勾选需要生成的表；
+- 为扫描表配置 Luban `OutputTable`；
+- 选择 Target，例如 `client`、`server`、`all`；
+- 选择代码格式，例如 `cs-bin`、`cs-simple-json`；
+- 选择数据格式，例如 `bin`、`json`、`bson`、`msgpack`、`lua`；
+- 修改代码与数据输出目录；
+- 显示最终 Luban 命令预览；
+- 只校验、生成当前任务或一键生成所有任务；
+- 异步读取 stdout/stderr，生成期间可以取消；
+- 显示每个任务的退出码、耗时和完整日志；
+- 可选清理未勾选表的旧数据产物；
+- 多语言生成后自动拆包并同步 YooAsset Collector/Tag；
+- 生成完成后自动刷新 Unity AssetDatabase。
+
+格式列表是常用格式快捷选项；选择“自定义”后可以填写当前 Luban 版本实际支持的其他 Target。若自定义 Target 不存在，Luban 会在构建日志中返回明确错误。
+
+### 普通配置表操作
+
+1. 打开 `Build/Luban/数据构建中心...`。
+2. 选择 `Client` 或新建任务。
+3. 设置：
+
+   ```text
+   Config: LubanConfig/DataTables/luban.conf
+   数据源: LubanConfig/DataTables/Datas
+   Target: client
+   代码格式: cs-bin
+   数据格式: bin
+   ```
+
+4. 点击“扫描/刷新”。
+5. 勾选需要生成的输入表。
+6. 检查自动推导的 `OutputTable`，例如：
+
+   ```text
+   #Person.xlsx → TbPerson
+   ```
+
+7. 修改输出目录或保留默认目录。
+8. 展开“命令预览”，确认 `-t`、`-c`、`-d`、`-o` 和 `-x` 参数。
+9. 点击“生成当前任务”。
+
+当前 Luban 4.5 支持在同一次命令中重复传入：
+
+```text
+-o TbPerson -o TbItem
+```
+
+因此多个勾选表会在同一次进程中生成，避免分表执行时反复覆盖 `Tables.cs`。如果表列表为空，则当前任务按 `luban.conf` 全量生成；如果已有表列表但没有勾选有效 `OutputTable`，工具会阻止执行。
+
+### 多语言任务操作
+
+选择 `Localization` 任务后，窗口会额外显示 Locale 数量和翻译记录数。
+
+推荐配置：
+
+```text
+Config: LubanConfig/Localization/luban.conf
+数据源: LubanConfig/Localization/Datas
+Target: client
+代码格式: cs-bin
+数据格式: bin
+代码目录: Assets/AssetsPackage/Scripts/Main/Runtime/Localization/Generated
+数据目录: Assets/AssetsPackage/AssetsHotFix/Datas/Localization
+```
+
+点击生成后会继续执行：
+
+```text
+Luban 主表生成
+→ 按 Locale 拆分业务文本
+→ 生成 l10n_text_<locale>.bytes
+→ 同步 localization-locales Group
+→ 同步独立 Collector 和 l10n.<locale> Tag
+→ 刷新 AssetDatabase
+```
+
+因此使用数据构建中心生成多语言时，不需要再单独运行 `gen.sh` 和 Collector 同步菜单；命令行脚本仍保留给 CI 或无界面环境使用。
+
+### 输出路径限制
+
+为了避免误覆盖工程或外部目录，可视化工具要求代码和数据产物位于项目 `Assets` 下。以下目录不应作为输出：
+
+```text
+Library
+Temp
+Packages
+项目根目录
+```
+
+路径右侧按钮支持：
+
+- `选择`：选择文件或目录并转换为项目相对路径；
+- `打开`：在 Finder/Explorer 中显示当前路径。
+
+### 构建日志和取消
+
+生成任务通过独立 `dotnet Luban.dll` 进程异步运行，不会在等待输出时长时间阻塞 Unity 主线程。
+
+执行区域会显示：
+
+```text
+任务名称
+退出码
+任务耗时
+实际命令
+stdout/stderr
+整体成功/失败/取消状态
+```
+
+点击“取消生成”会终止当前 Luban 子进程，并停止剩余任务。失败任务不会继续执行后处理或 Collector 同步。
+
+### Profile 扩展示例
+
+可以增加独立服务端任务：
+
+```text
+名称: Server
+类别: Server
+Config: LubanConfig/DataTables/luban.conf
+Target: server
+生成代码: 按服务端技术栈配置
+数据格式: json
+数据输出: Assets/GeneratedServerConfig
+```
+
+如果服务端产物不应进入 Unity Assets，建议继续使用仓库外部 CI 脚本；当前 Unity 数据构建中心出于写入安全考虑，只允许输出到 `Assets`。
+
+### 相关实现
+
+| 文件 | 职责 |
+| --- | --- |
+| `Assets/Editor/Luban/LubanBuildCenterWindow.cs` | 可视化窗口 |
+| `Assets/Editor/Luban/LubanBuildProfile.cs` | Profile 和任务定义 |
+| `Assets/Editor/Luban/LubanTableScanner.cs` | 输入表扫描与表名推导 |
+| `Assets/Editor/Luban/LubanCommandBuilder.cs` | Luban 命令构造 |
+| `Assets/Editor/Luban/LubanBuildPipeline.cs` | 异步执行、取消和报告 |
+| `Assets/Editor/Luban/LubanProfileUtility.cs` | 默认 Profile 和安全校验 |
+| `Assets/Editor/HybridCLR/BuildPipeline/LocalizationContentSynchronizer.cs` | 多语言拆包和 Collector 同步 |
+
+### 常见问题
+
+- **新语言没有出现在语言列表**：检查 Catalog 的 `enabled`、Alias、最新 YooAsset Manifest 是否已发布。
+- **找不到 `l10n_text_<locale>`**：执行同步菜单，检查对应目录、Collector 地址规则和 Catalog 的 `textTableAddress`。
+- **语言切换后缺字**：检查 `fontGroup` 和 `primaryFontAddress`，确认 TMP Font Asset 被 YooAsset 收集。
+- **切换失败后仍显示旧语言**：这是事务式回退的预期行为，查看 `LastChangeError`。
+- **修改 CSV 后资源没有变化**：重新执行 `gen.sh/gen.bat`，再同步 Collector 或构建热更包。
+- **构建提示格式参数不一致**：确保同一 Key 的所有语言拥有相同的 `{0}`、`{1}` 参数集合。
+- **`ApplicationName='dotnet'` / 无法启动 Luban**：Unity Hub 启动的 Editor 可能没有继承终端 PATH。工具会自动查找 `DOTNET_HOST_PATH`、`DOTNET_ROOT` 以及 macOS/Windows/Linux 的常见安装位置；仍失败时请安装 .NET SDK，或设置环境变量后重新启动 Unity。
+
 ## 目录结构
 
 ```text
@@ -152,7 +492,7 @@ Assets/AssetsPackage
 | `Assets/Editor/HybridCLR/HotfixBuildProfile.asset` | ReleaseProfile 同步出的平台 PlayerPlayMode，运行时构建预处理器读取 |
 | `Assets/AssetsPackage/Resources/HotfixRuntimeSettings.asset` | ReleaseProfile 同步出的启动策略、下载策略、更新策略；包名仍从 YooAsset Collector 同步 |
 | `Assets/AssetsPackage/Resources/HotfixRemoteSettings.asset` | ReleaseProfile 同步出的环境、渠道、地区、主/备 CDN 地址 |
-| `Assets/AssetsPackage/Resources/HotfixLocalizationSettings.asset` | 启动阶段中文和英文提示 |
+| `Assets/AssetsPackage/Resources/HotfixLocalizationSettings.asset` | 旧启动文案兼容兜底；新内容应维护在 Luban Bootstrap/业务表中 |
 | `Assets/Editor/HybridCLR/HotfixReleaseProfile.asset` | 发布配置主入口，绑定 BuildTarget、AppVersion、ResourceVersion、HotfixVersion、远端环境、CDN、启动策略、PlayerPlayMode 和 CodeEntry |
 | `Assets/AssetsPackage/AssetsHotFix/Configs/AOTAssemblyManifest.asset` | AOT 版本、平台、App 版本、AOT DLL 列表、size 和 sha256 |
 | `Assets/AssetsPackage/AssetsHotFix/Configs/HotfixAssemblyManifest.asset` | Hotfix 版本、兼容 App 版本、RequiredAotVersion、热更 DLL、size / sha256、依赖顺序、CodeEntry |

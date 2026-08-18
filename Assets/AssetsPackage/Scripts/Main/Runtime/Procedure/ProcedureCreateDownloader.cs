@@ -15,7 +15,8 @@ namespace Framework.Procedure
 
         protected override bool OnCondition()
         {
-            return mFSM.CurrentStateId == ResPackageStates.UpdatePackageManifest ||
+            return mFSM.CurrentStateId == ResPackageStates.LoadLocalization ||
+                   mFSM.CurrentStateId == ResPackageStates.UpdatePackageManifest ||
                    mFSM.CurrentStateId == ResPackageStates.RequestPackageVersion;
         }
 

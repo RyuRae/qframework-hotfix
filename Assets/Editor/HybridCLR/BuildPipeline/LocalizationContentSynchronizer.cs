@@ -10,6 +10,7 @@ using UnityEditor.Build.Reporting;
 using UnityEngine;
 using YooAsset.Editor;
 using Debug = UnityEngine.Debug;
+using Framework.Luban.Editor;
 
 namespace HybridCLR.Editor
 {
@@ -69,7 +70,7 @@ namespace HybridCLR.Editor
             string outputDirectory = Path.Combine(projectRoot, OutputRoot, safe);
             Directory.CreateDirectory(outputDirectory);
             string lubanDll = Path.Combine(projectRoot, "LubanConfig/DataTables/Luban/Luban.dll");
-            var startInfo = new ProcessStartInfo("dotnet")
+            var startInfo = new ProcessStartInfo(DotNetHostResolver.ResolveOrThrow())
             {
                 WorkingDirectory = workspace,
                 UseShellExecute = false,

@@ -1,0 +1,306 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c9198f97eb5477ea45fd6300e065403, type: 3}
+  m_Name: PlayerAOTBaseline
+  m_EditorClassIdentifier: 
+  FormatVersion: 1
+  BuildTarget: Android
+  AppVersion: 0.1
+  UnityVersion: 2022.3.62f2
+  PackageVersion: 2026-08-18-100234
+  AotVersion: aot-63764ad7e34b08ae
+  ManifestBaselineFingerprint: 5d599a98881858e6
+  PlayerSettingsFingerprint: 81523b933a0a513ad1c5c74d02cd213833ebce86a69c6cce44749244d8e1b3ef
+  PlayerSettingsIdentity: 'UnityVersion=2022.3.62f2
+
+    BuildTarget=Android
+
+    BuildTargetGroup=Android
+
+    AppVersion=0.1
+
+    ApplicationIdentifier=com.test.hotfix
+
+    CompanyName=test
+
+    ProductName=hotfix
+
+    DevelopmentBuild=True
+
+    AllowDebugging=False
+
+    ScriptingBackend=IL2CPP
+
+    ApiCompatibilityLevel=NET_Standard_2_0
+
+    ManagedStrippingLevel=Low
+
+    Il2CppCompilerConfiguration=Release
+
+    Architecture=0
+
+    AdditionalIl2CppArgs=
+
+    StripEngineCode=True
+
+    ScriptingDefineSymbols=
+
+    AdditionalCompilerArguments=
+
+    PackagesLockSha256=baa60512938296a7da73ec0050dccedfb9ea450d83fdbf3716976d2afe8b0833
+
+    NativePluginSourcesSha256=b4493e5a830e2ef2c9789b8ff25cb9430fa74017d45d1ab500503172fafa7cc6
+
+    HybridCLR.enable=True
+
+    HybridCLR.useGlobalIl2cpp=False
+
+    HybridCLR.hybridclrRepoURL=https://gitee.com/focus-creative-games/hybridclr
+
+    HybridCLR.il2cppPlusRepoURL=https://gitee.com/focus-creative-games/il2cpp_plus
+
+    HybridCLR.hotUpdateAssemblyDefinitions=069c3fc561f083348af13a1f671ee84d,42ade416c3baea146a45af7bb4ce3b31
+
+    HybridCLR.hotUpdateAssemblies=
+
+    HybridCLR.preserveHotUpdateAssemblies=
+
+    HybridCLR.externalHotUpdateAssembliyDirs=
+
+    HybridCLR.hotUpdateDllCompileOutputRootDir=HybridCLRData/HotUpdateDlls
+
+    HybridCLR.strippedAOTDllOutputRootDir=HybridCLRData/AssembliesPostIl2CppStrip
+
+    HybridCLR.outputLinkFile=HybridCLRGenerate/link.xml
+
+    HybridCLR.outputAOTGenericReferenceFile=HybridCLRGenerate/AOTGenericReferences.cs
+
+    HybridCLR.maxGenericReferenceIteration=10
+
+    HybridCLR.maxMethodBridgeGenericIteration=10
+
+'
+  BaselineFingerprint: 722e6e82eb87a114d1ee2a5d93db75fa99b89d6986ec21ecccee88ef4c61d492
+  GeneratedAtUtc: 2026-08-18T10:12:06.7510410Z
+  StrippedAOTAssemblies:
+  - FileName: Assembly-CSharp.dll
+    AssemblyName: Assembly-CSharp.dll
+    Sha256: 69afcdb1ba921733bd07aaf730c5c9ecf460a55f2ff58c2b96e25225ab2cd53f
+    Size: 6656
+  - FileName: AudioKit.dll
+    AssemblyName: AudioKit.dll
+    Sha256: d57c55e46b7ae3b9ab2bf2f1e4798351c88ec94457b4582788a26a0ad3ac483c
+    Size: 35840
+  - FileName: Luban.Runtime.dll
+    AssemblyName: Luban.Runtime.dll
+    Sha256: 7ae67a5f768aad437a0e389586edba2ca35fe21d4850fac487a8a368202198eb
+    Size: 21504
+  - FileName: Main.Runtime.dll
+    AssemblyName: Main.Runtime.dll
+    Sha256: 5d0d53d4d26c9886f730874b8534fa8d91216bdd6bf5c0bb481866f6668d582c
+    Size: 180224
+  - FileName: Mono.Security.dll
+    AssemblyName: Mono.Security.dll
+    Sha256: 84fc6731636d3b4890a6645d4faafc9d07ec736807b963ea78b8395f7a207f7f
+    Size: 117248
+  - FileName: mscorlib.dll
+    AssemblyName: mscorlib.dll
+    Sha256: c24e70009ee67cad03d468587dba8f5fd50c465ef0fbb070477071c4ac3d4453
+    Size: 2264576
+  - FileName: QFramework.CoreKit.dll
+    AssemblyName: QFramework.CoreKit.dll
+    Sha256: e456754389894e5d7846ba1fa16fae63d5e2fa780560f6435e17f68cfd534465
+    Size: 855040
+  - FileName: QFramework.dll
+    AssemblyName: QFramework.dll
+    Sha256: 573392c5a9cc0d340b90592aa4457ee35806645e15a296389eed90bbb8e19ba6
+    Size: 29184
+  - FileName: ResKit.dll
+    AssemblyName: ResKit.dll
+    Sha256: a3a975436677786c599298329cee9432006c3675545c3efefcc505a87f4f25b5
+    Size: 318464
+  - FileName: SupportOldQF.dll
+    AssemblyName: SupportOldQF.dll
+    Sha256: f52a721015310a8888e771fc12853ca17889de3043fba6aa546b5536ce487c05
+    Size: 10240
+  - FileName: System.Configuration.dll
+    AssemblyName: System.Configuration.dll
+    Sha256: ac2a2d59a071196b46d7cdb61302ff7248832d92716f56432e781de53787c4eb
+    Size: 5120
+  - FileName: System.Core.dll
+    AssemblyName: System.Core.dll
+    Sha256: 90f5384a433d51f70f5e33dadfd7b6bfc7333f280df1fca8b2a37b9d40cdecb9
+    Size: 419328
+  - FileName: System.dll
+    AssemblyName: System.dll
+    Sha256: bff5bbf75cc73e1a70f95bbd8a8730551859a175cce973067311f91999f27539
+    Size: 658432
+  - FileName: System.Numerics.dll
+    AssemblyName: System.Numerics.dll
+    Sha256: b5f680c99a1b29337be244510bdbd1384f5c5a24980ed20a19a046e4fd621587
+    Size: 30720
+  - FileName: System.Xml.dll
+    AssemblyName: System.Xml.dll
+    Sha256: 51693d86906b904331012c1dda36785985478909b1ff5f6c29e4c6989b597b38
+    Size: 465920
+  - FileName: UIKit.dll
+    AssemblyName: UIKit.dll
+    Sha256: da8bc80e9c64db38dd25294bdffc62d16721e25f34226137b94ab47f3c738022
+    Size: 49664
+  - FileName: UniTask.Addressables.dll
+    AssemblyName: UniTask.Addressables.dll
+    Sha256: e466a19ce8b62152f9322c259698781869957918c775f9a50d572ec1672eee4f
+    Size: 4096
+  - FileName: UniTask.dll
+    AssemblyName: UniTask.dll
+    Sha256: bf566bbb42391ef7abe6dbf926cce6b2a3832ed5c6db0efb18971688f958155f
+    Size: 608256
+  - FileName: UniTask.DOTween.dll
+    AssemblyName: UniTask.DOTween.dll
+    Sha256: bbd398e5a5da21c4f5d7131e69a6bdd6506298dd671db9d7c90aa525d29dc679
+    Size: 4096
+  - FileName: UniTask.Linq.dll
+    AssemblyName: UniTask.Linq.dll
+    Sha256: 5e2525e05018c54730738605c0b40b2a2f5caf0c6900003d46abeb5109340ce4
+    Size: 790528
+  - FileName: UniTask.TextMeshPro.dll
+    AssemblyName: UniTask.TextMeshPro.dll
+    Sha256: 26e3dd5ca48574501eec2916cbde43a98126d2fe3d0c7026daef8e7120d099ff
+    Size: 14336
+  - FileName: Unity.TextMeshPro.dll
+    AssemblyName: Unity.TextMeshPro.dll
+    Sha256: 82628a5688dc9608223050c5dbac03e6f2c11bd1932e6e83f6f8a12ec17ca81b
+    Size: 435200
+  - FileName: UnityEngine.AndroidJNIModule.dll
+    AssemblyName: UnityEngine.AndroidJNIModule.dll
+    Sha256: c6bd164e974c8a78d01103f6db2dafcdbb6835c9ed5162fa41cc62184bf0182c
+    Size: 77312
+  - FileName: UnityEngine.AnimationModule.dll
+    AssemblyName: UnityEngine.AnimationModule.dll
+    Sha256: 49f5fbfc77fd81e2ccf94e4fed908c7386aafc598b3d45666a4da53ca2a74db3
+    Size: 23040
+  - FileName: UnityEngine.AssetBundleModule.dll
+    AssemblyName: UnityEngine.AssetBundleModule.dll
+    Sha256: a48ca5f27fb0ecefbe71cc8db16dc595735d115fb900e44c16c84f5584082239
+    Size: 14336
+  - FileName: UnityEngine.AudioModule.dll
+    AssemblyName: UnityEngine.AudioModule.dll
+    Sha256: b47afd89b3b1568d39e2db1c1c6af1181127227e3c97dd8593016cbaefbc9d5c
+    Size: 14848
+  - FileName: UnityEngine.CoreModule.dll
+    AssemblyName: UnityEngine.CoreModule.dll
+    Sha256: c74060d537077998ab7b9f46b5d1501636f466a2409d16389da375628371ff3f
+    Size: 447488
+  - FileName: UnityEngine.dll
+    AssemblyName: UnityEngine.dll
+    Sha256: 24e54e227749191113574de11a4737649e8f2d832f024265aaa22f3177605b50
+    Size: 61952
+  - FileName: UnityEngine.GridModule.dll
+    AssemblyName: UnityEngine.GridModule.dll
+    Sha256: b969e5c240d678b7a2591d865fc3c5507dd76af09049700b9802b29ff60bade1
+    Size: 9728
+  - FileName: UnityEngine.ImageConversionModule.dll
+    AssemblyName: UnityEngine.ImageConversionModule.dll
+    Sha256: 03892d000fbde8d6fff849bc9a5227d59ea6a15b593e6d4146cf1e7a8929a924
+    Size: 9728
+  - FileName: UnityEngine.IMGUIModule.dll
+    AssemblyName: UnityEngine.IMGUIModule.dll
+    Sha256: e2163046e81188e79d76c6fa90e30643355c9b9d891d3a13de0ac3f9eef10a72
+    Size: 131584
+  - FileName: UnityEngine.InputLegacyModule.dll
+    AssemblyName: UnityEngine.InputLegacyModule.dll
+    Sha256: 02acd685f7ce67a046ade7d819bf543d5b02869b38dc3b3c991b1f6098ebb8d8
+    Size: 18432
+  - FileName: UnityEngine.JSONSerializeModule.dll
+    AssemblyName: UnityEngine.JSONSerializeModule.dll
+    Sha256: 24ace9160f1d2b0cae78fd43492dad3f6bd0a598989edfae8e83d46cdd7fcf61
+    Size: 10752
+  - FileName: UnityEngine.ParticleSystemModule.dll
+    AssemblyName: UnityEngine.ParticleSystemModule.dll
+    Sha256: d95bd10ca0335d9a479eb085a5234c16de14602dddd9543059964e4a1659f2d8
+    Size: 14848
+  - FileName: UnityEngine.Physics2DModule.dll
+    AssemblyName: UnityEngine.Physics2DModule.dll
+    Sha256: bcb1544e515fe24ba99cf1b90608dd2db2d10920a5b6209bed6097e8383d559c
+    Size: 17920
+  - FileName: UnityEngine.PhysicsModule.dll
+    AssemblyName: UnityEngine.PhysicsModule.dll
+    Sha256: c776bc1d61df24ef86dd1a137744333962e518e2c092059b8887d06ec3074e67
+    Size: 23552
+  - FileName: UnityEngine.PropertiesModule.dll
+    AssemblyName: UnityEngine.PropertiesModule.dll
+    Sha256: 7562a2719891f1acf19a0659ec4abf55a212297646ebbc5f88c9761e8f0e7782
+    Size: 46592
+  - FileName: UnityEngine.SharedInternalsModule.dll
+    AssemblyName: UnityEngine.SharedInternalsModule.dll
+    Sha256: 556ef6adaba24a59e55bc06fb020d485fafcb64416e1934d40af554457320d17
+    Size: 16896
+  - FileName: UnityEngine.SpriteShapeModule.dll
+    AssemblyName: UnityEngine.SpriteShapeModule.dll
+    Sha256: ec6c7af9fab1c797ea79c5369ad2a93ae4f2fe6eb296d0f70ff2c47ac4b6dd71
+    Size: 9728
+  - FileName: UnityEngine.TextCoreFontEngineModule.dll
+    AssemblyName: UnityEngine.TextCoreFontEngineModule.dll
+    Sha256: 81cda2e4a7f1408a049a8a18c84cc00360bd2b1241c662078aef77ffcb921211
+    Size: 30208
+  - FileName: UnityEngine.TextCoreTextEngineModule.dll
+    AssemblyName: UnityEngine.TextCoreTextEngineModule.dll
+    Sha256: 4c9233720e1a49c1d792d175d6fa0e60b1f75acc918a5c52b9d44fdc464966d9
+    Size: 211968
+  - FileName: UnityEngine.TextRenderingModule.dll
+    AssemblyName: UnityEngine.TextRenderingModule.dll
+    Sha256: 9e0543fdd0edd8d81b06bfcf2a947d9c274a25d0a2b05edf09cd64fbd4d31504
+    Size: 18944
+  - FileName: UnityEngine.TilemapModule.dll
+    AssemblyName: UnityEngine.TilemapModule.dll
+    Sha256: e6a8fbd66da74550ac4492e18fa99be86d201c7a7066765c817b00f7fbd2c89a
+    Size: 10240
+  - FileName: UnityEngine.UI.dll
+    AssemblyName: UnityEngine.UI.dll
+    Sha256: ad7406d64ff64cf12227c0baf5013ab5a09223910720973fc53f944fc49c8625
+    Size: 295936
+  - FileName: UnityEngine.UIElementsModule.dll
+    AssemblyName: UnityEngine.UIElementsModule.dll
+    Sha256: cc902e26d1734e6f4299dcfa4a90794af77c3369d948118fbcc64bf6ee098775
+    Size: 1235968
+  - FileName: UnityEngine.UIModule.dll
+    AssemblyName: UnityEngine.UIModule.dll
+    Sha256: 56f2932c75615307839287a040c552c1ed9c0a07157a268c531a25aa51fb7f3c
+    Size: 21504
+  - FileName: UnityEngine.UnityAnalyticsModule.dll
+    AssemblyName: UnityEngine.UnityAnalyticsModule.dll
+    Sha256: b26ddd218e7e857668c1ceedcaaaf65f06c2b56aea1b44036fac50c8b87738c8
+    Size: 12288
+  - FileName: UnityEngine.UnityWebRequestAssetBundleModule.dll
+    AssemblyName: UnityEngine.UnityWebRequestAssetBundleModule.dll
+    Sha256: 5a5be971d615afad73d2241fe0d7ae26acf37179a6a26584f57ed4ebf85d7252
+    Size: 11264
+  - FileName: UnityEngine.UnityWebRequestModule.dll
+    AssemblyName: UnityEngine.UnityWebRequestModule.dll
+    Sha256: 96760ba2777ae5cbe9f61ee9147fcab586b0455258dde5f77f3fb86cfa208f30
+    Size: 28672
+  - FileName: UnityEngine.UnityWebRequestWWWModule.dll
+    AssemblyName: UnityEngine.UnityWebRequestWWWModule.dll
+    Sha256: 9c0c3674fb1c96c8171b9a015291feb8be717f11e830a0f62d33258a5943da1c
+    Size: 12288
+  - FileName: YooAsset.dll
+    AssemblyName: YooAsset.dll
+    Sha256: b0f163b9b813039f3a693e2b897c8d206cf32b01ff0adce69ccc5e6b308e9700
+    Size: 271360
+  - FileName: YooAsset.RuntimeExtension.dll
+    AssemblyName: YooAsset.RuntimeExtension.dll
+    Sha256: f5bb7bb1b98905ce25c422ec3f041c57ab82fdff3961cd28e17a83b07bdac6a7
+    Size: 12800
+  - FileName: YooAssetKit.dll
+    AssemblyName: YooAssetKit.dll
+    Sha256: 7099e067e98f91f0cc49a6b7b5bcb97d4a619d3af89bfd0de4ce56a436b9fc6e
+    Size: 41984

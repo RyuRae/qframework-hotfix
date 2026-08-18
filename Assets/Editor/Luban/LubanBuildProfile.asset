@@ -1,0 +1,76 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: feba891da171849e1908caefdc815e59, type: 3}
+  m_Name: LubanBuildProfile
+  m_EditorClassIdentifier: 
+  LubanDllPath: LubanConfig/DataTables/Luban/Luban.dll
+  ValidateBeforeGenerate: 1
+  CleanupStaleOutputs: 0
+  RefreshAssetDatabase: 1
+  SyncLocalizationCollectors: 1
+  Tasks:
+  - Enabled: 1
+    Name: Client
+    Category: 0
+    ConfigPath: LubanConfig/DataTables/luban.conf
+    DataSourceRoot: LubanConfig/DataTables/Datas
+    Target: client
+    CodeTarget: cs-bin
+    DataTarget: bin
+    CodeOutputDirectory: Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/GenCodes/Bin
+    DataOutputDirectory: Assets/AssetsPackage/AssetsHotFix/Datas/bin
+    GenerateCode: 1
+    GenerateData: 1
+    ValidationFailAsError: 1
+    Tables:
+    - Enabled: 1
+      Name: Person
+      InputPath: LubanConfig/DataTables/Datas/%23Person.xlsx
+      OutputTable: TbPerson
+  - Enabled: 1
+    Name: Localization
+    Category: 1
+    ConfigPath: LubanConfig/Localization/luban.conf
+    DataSourceRoot: LubanConfig/Localization/Datas
+    Target: client
+    CodeTarget: cs-bin
+    DataTarget: bin
+    CodeOutputDirectory: Assets/AssetsPackage/Scripts/Main/Runtime/Localization/Generated
+    DataOutputDirectory: Assets/AssetsPackage/AssetsHotFix/Datas/Localization
+    GenerateCode: 1
+    GenerateData: 1
+    ValidationFailAsError: 1
+    Tables:
+    - Enabled: 1
+      Name: bootstrap_text
+      InputPath: LubanConfig/Localization/Datas/bootstrap_text.csv
+      OutputTable: TbBootstrapText
+    - Enabled: 1
+      Name: font_group
+      InputPath: LubanConfig/Localization/Datas/font_group.csv
+      OutputTable: TbFontGroup
+    - Enabled: 1
+      Name: language_alias
+      InputPath: LubanConfig/Localization/Datas/language_alias.csv
+      OutputTable: TbLanguageAlias
+    - Enabled: 1
+      Name: language_catalog
+      InputPath: LubanConfig/Localization/Datas/language_catalog.csv
+      OutputTable: TbLanguageCatalog
+    - Enabled: 1
+      Name: locale_text
+      InputPath: LubanConfig/Localization/Datas/locale_text.csv
+      OutputTable: TbLocaleText
+    - Enabled: 1
+      Name: localized_asset
+      InputPath: LubanConfig/Localization/Datas/localized_asset.csv
+      OutputTable: TbLocalizedAsset
