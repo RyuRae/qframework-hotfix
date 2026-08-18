@@ -1,6 +1,6 @@
 # 热更新框架优化 TODO
 
-更新时间：2026-05-07
+更新时间：2026-08-18
 适用分支：`develop`  
 适用范围：QFramework + YooAsset + HybridCLR 热更新框架
 
@@ -916,6 +916,74 @@ Assets/AssetsPackage/AssetsHotFix/HotfixCodes
 - [x] 运行时不再依赖人工维护 DLL 顺序。
 - [x] 运行时按 Manifest 顺序加载所有 Hotfix DLL 成功。
 
+---
+
+## CI-P0. 首包资源到多平台 Player 的原子发布流水线
+
+### 目标
+
+实现正式首包从 ReleaseProfile、HybridCLR/YooAsset 资源构建、Player 构建、平台签名到制品校验的无人值守闭环。首包资源、`PlayerAOTBaseline` 和最终 Player 必须来自同一套平台与构建身份，任一步骤失败都不能产生可发布状态。
+
+### 已完成基础
+
+- [x] 新增 batchmode 专用入口 `HybridCLR.Editor.HotfixCIBuildCommand.Run`。
+- [x] CI 明确指定 ReleaseProfile，不依赖构建机 `EditorPrefs`。
+- [x] 支持 `InitialPackage`、`HotfixPackage`、`AOTMetadataPatch` 三种资源任务。
+- [x] 支持在内存 Profile 中覆盖 AppVersion、兼容范围、ResourceVersion、ReleaseSequence 和 BuildTarget，不回写 Profile 资产。
+- [x] 正式资源发布要求 `-hotfixConfirmProduction true`。
+- [x] AOT 补丁要求 `-hotfixConfirmAotPatch true`，batchmode 不弹窗、不自动确认。
+- [x] 普通热更检测到 AOT 基线变化时直接失败，不自动切换首包或补丁任务。
+- [x] 成功返回 `0`、失败返回 `1`，并尽力输出机器可读 JSON 结果。
+- [x] Manifest 私钥只通过 CI Secret 环境变量注入，结果中只记录 KeyId。
+
+### P0 待办
+
+- [ ] 新增统一 `HotfixCIPlayerBuilder`，封装 `BuildPipeline.BuildPlayer`，禁止继续复用仅支持 Win64 的旧构建命令。
+- [ ] 新增流水线类型参数，至少支持：
+  - `InitialRelease`：首包资源 + Player。
+  - `ResourcesOnly`：普通热更或 AOT 补丁资源。
+  - `PlayerOnly`：只允许针对已经验证的首包资源构建 Player，用于失败重试。
+- [ ] 首包发布采用原子状态：
+  - 首包资源成功后只生成“候选 Player AOT 基线”。
+  - Player 构建成功后重新校验 PlayerSettings 身份和全量裁剪 AOT DLL。
+  - 复验通过后才将基线标记为可发布。
+  - Player 失败时禁止上传首包资源、归档可信基线或标记发布成功。
+- [ ] Android Player 自动化：
+  - APK / AAB 参数选择。
+  - ARMv7 / ARM64 等 ABI 校验。
+  - Keystore、alias、密码通过 CI Secret 注入。
+  - 正式构建禁止 Development / AllowDebugging。
+- [ ] iOS Player 自动化：
+  - Unity 输出 Xcode 工程。
+  - 输出可供后续 `xcodebuild archive/export` 使用的稳定目录。
+  - Team ID、签名方式、Provisioning Profile 等配置不得写死在仓库代码中。
+- [ ] Standalone Player 自动化：
+  - Windows、macOS、Linux 输出路径规范化。
+  - 根据平台生成正确扩展名和目录结构。
+  - macOS `.app` 与 Windows/Linux 可执行文件作为完整制品归档。
+- [ ] 所有平台统一使用启用的 `EditorBuildSettings.scenes`，没有场景、Boot 场景缺失或重复时直接阻断。
+- [ ] CI JSON 增加 Player 结果：
+  - Player 输出路径。
+  - Unity Build GUID。
+  - 文件或目录总大小。
+  - SHA-256 制品摘要。
+  - Unity `BuildReport` 结果、错误数、警告数和耗时。
+- [ ] 正式 Player 构建完成后校验：
+  - BuildTarget、AppVersion、ApplicationIdentifier 与 Profile 一致。
+  - Player 内置资源和 Manifest 的 PackageVersion、AotVersion、ReleaseSequence 一致。
+  - Manifest 签名可由包内公钥验证。
+- [ ] 实现平台能力前置检查：构建机缺少对应 Unity Build Support、Android SDK/JDK、Xcode 或签名工具时，在耗时构建前失败。
+- [ ] CI 必须使用平台独立工作区，禁止多个 Unity 实例同时打开同一项目或共享同一个 Library 写目录。
+- [ ] 完成真实 batchmode 验收：当前项目在 IDE 中打开时不能作为第二 Unity 实例烟雾测试，需在 CI 独占工作区验证成功和失败两条退出路径。
+
+### P0 验收标准
+
+- Android、iOS、Windows、macOS、Linux 至少能够按平台矩阵调用同一个 Player Builder。
+- `InitialRelease` 任一步失败均返回非 0，且不会留下可误发布的基线或“成功”JSON。
+- 首包资源、Player、AOT 基线、Manifest 和构建报告具备同一个可核对的发布身份。
+- Android 正式制品完成签名；iOS 至少稳定生成可归档的 Xcode 工程并完成签名参数校验。
+- 流水线日志和 JSON 不包含 Keystore 密码、Manifest 私钥、证书私钥或 Provisioning Profile 敏感内容。
+
 # P1 商业化前建议完善
 
 ## 16. ReleaseProfile 发布配置（已完成）
@@ -1399,32 +1467,38 @@ Assets/AssetsPackage/Scripts/Main/Runtime/UI
 
 ---
 
-## 28. CI / 命令行构建入口
+## 28. CI 发布效率、上传与平台集成（P1）
 
 ### 任务
 
-- [ ] Build Center 对应能力提供命令行入口。
-- [ ] 支持命令行参数：
-  - buildMode
-  - target
-  - profile
-  - environment
-  - version
-  - outputPath
-  - upload
-- [ ] 构建失败返回非 0 exit code。
-- [ ] CI 中至少支持：
-  - Validate Only
-  - Build Initial Package
-  - Build Hotfix Package
-- [ ] CI 输出构建报告。
+- [x] Build Center 的首包、热更包和 AOT 补丁能力提供专用命令行入口。
+- [x] 支持明确指定任务、BuildTarget、Profile、AppVersion、ResourceVersion、ReleaseSequence 和 JSON 路径。
+- [x] 构建失败返回非 0 exit code。
+- [x] CI 输出文本报告和机器可读 JSON 结果。
+- [ ] 增加独立 `ValidateOnly` CI 任务，只执行配置、签名、AOT 基线和平台能力检查，不生成产物。
+- [ ] 增加 GitHub Actions、Jenkins、GitLab CI 平台矩阵模板。
+- [ ] 为 Unity Library、HybridCLR 生成目录和平台工具链设计稳定缓存键，避免跨 Unity 版本、平台或 Profile 复用错误缓存。
 - [ ] CI 可以校验 Git 工作区是否干净。
+- [ ] 构建前后输出工作区差异，区分预期生成资产与意外污染；一次性工作区结束后自动丢弃生成改动。
+- [ ] 自动上传 YooAsset 主包和 RawFile 包，上传目标必须来自已验证 ReleaseProfile，不能由任意未审核 URL 覆盖。
+- [ ] 上传前后执行文件数量、大小、Manifest 和 SHA-256 对比。
+- [ ] 上传完成后从 CDN 下载 package version、package manifest 和抽样 bundle 回验。
+- [ ] 增加 CDN 原子发布：先上传不可变版本目录，验证成功后再切换线上版本指针。
+- [ ] 增加 ReleaseSequence 远端单调性校验或分布式锁，阻止并发流水线发布重复/回退序号。
+- [ ] 增加 Android APK/AAB 安装与 Boot 场景启动 smoke test。
+- [ ] 增加 Standalone Player 启动、热更下载和 CodeEntry 成功 smoke test。
+- [ ] 增加 iOS `xcodebuild archive` / `exportArchive` 阶段以及签名失败诊断。
+- [ ] 输出 JUnit 或其他 CI 可识别测试报告，并把构建警告、错误和产物链接展示在流水线页面。
+- [ ] 归档 ReleaseProfile JSON、CI JSON、Unity BuildReport、Player 制品、YooAsset 上传目录和 Player AOT 基线。
+- [ ] 增加人工审批、发布通知、回滚清单及失败制品保留策略。
 
 验收标准：
 
 - 本地和 CI 使用同一套构建逻辑。
 - 不需要维护两套构建脚本。
 - CI 构建失败能明确定位原因。
+- 普通热更和 AOT 补丁只发布资源，不重复构建 Player。
+- 首包发布、资源上传、Player 制品和回滚记录可从同一发布编号追溯。
 
 ---
 
@@ -1737,7 +1811,8 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 - [ ] Manifest 签名校验。
 - [ ] JSON 构建报告与发布产物管理。
 - [ ] CDN 原子发布与回滚。
-- [ ] CI / 命令行构建入口。
+- [x] CI / 命令行资源构建入口。
+- [ ] 多平台 Player CI 原子构建、签名和制品校验。
 
 目标：
 
@@ -1794,7 +1869,7 @@ Assets/AssetsPackage/Scripts/Hotfix/HotfixDemo/Test.cs
 完整版本协议与发布 manifest
 Manifest / DLL 签名验签
 JSON 构建报告与 CDN 原子回滚
-CI / 命令行构建入口
+多平台 Player CI 原子发布流水线
 运行期 LastGood / LastFailed 自动回退
 ```
 
