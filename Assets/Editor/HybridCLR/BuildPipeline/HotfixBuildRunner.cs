@@ -13,6 +13,9 @@ namespace HybridCLR.Editor
 {
     public static class HotfixBuildRunner
     {
+        public static Action<string, float, string> ProgressChanged;
+        public static HotfixBuildExecutionResult LastExecutionResult { get; private set; }
+
         public static HotfixBuildReport ValidateOnly(HotfixBuildMode mode)
         {
             var context = HotfixBuildContext.Create(mode);
@@ -34,6 +37,9 @@ namespace HybridCLR.Editor
 
         public static HotfixBuildReport Build(HotfixBuildMode mode)
         {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            LastExecutionResult = null;
+            ReportProgress("准备构建", 0f, string.Empty);
             var context = HotfixBuildContext.Create(mode);
             if (context.ReleaseProfile == null)
             {
@@ -41,8 +47,10 @@ namespace HybridCLR.Editor
                     $"缺少 ReleaseProfile：{HotfixReleaseProfile.DefaultAssetPath}。请在构建中心创建并绑定默认发布配置。");
             }
 
+            ReportProgress("应用 ReleaseProfile", 0.05f, string.Empty);
             context.ReleaseProfile.ApplyToEditorSettings();
             context = HotfixBuildContext.Create(mode);
+            ReportProgress("校验构建配置", 0.1f, string.Empty);
             var report = HotfixBuildValidator.Validate(context);
             if (report.HasErrors)
             {
@@ -54,38 +62,53 @@ namespace HybridCLR.Editor
             switch (mode)
             {
                 case HotfixBuildMode.InitialPackage:
+                    ReportProgress("构建首包资源", 0.15f, string.Empty);
                     executionResult = BuildInitialPackage(context);
                     break;
                 case HotfixBuildMode.HotfixPackage:
+                    ReportProgress("构建热更资源", 0.15f, string.Empty);
                     executionResult = BuildHotfixPackage(context);
                     break;
                 case HotfixBuildMode.AOTMetadataPatch:
+                    ReportProgress("构建 AOT 元数据补丁", 0.15f, string.Empty);
                     executionResult = BuildAOTMetadataPatch(context);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
             }
 
+            ReportProgress(
+                "构建产物已生成",
+                0.92f,
+                executionResult.OutputPackageDirectory);
+            stopwatch.Stop();
+            executionResult.DurationSeconds = stopwatch.Elapsed.TotalSeconds;
+            LastExecutionResult = executionResult;
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             report = ValidateOnly(executionResult.Mode);
             executionResult.AppendTo(report);
             WriteBuildReport(executionResult, report);
             report.AddInfo("构建", "完成", HotfixBuildModeUtility.GetDisplayName(mode));
+            ReportProgress("构建完成", 1f, executionResult.OutputPackageDirectory);
             return report;
         }
 
         public static HotfixBuildExecutionResult BuildInitialPackage(HotfixBuildContext context)
         {
             Debug.Log("[HotfixBuild] 开始构建首包。");
+            ReportProgress("同步 YooAsset Collector", 0.2f, string.Empty);
             var packageConfig = HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
+            ReportProgress("生成 HybridCLR 文件", 0.28f, string.Empty);
             HybridCLRGenerateAllSafe.Run();
+            ReportProgress("编译 AOT / 热更 DLL", 0.38f, string.Empty);
             CompileDllCommand.CompileDll(context.BuildTarget);
 
             string packageVersion = BuildAssetsCommand.CreatePackageVersion(context.BuildTarget);
 
             var aotAssemblies = BuildAssetsCommand.CopyAOTAssembliesToTargetPath(context.BuildTarget);
             var hotfixAssemblies = BuildAssetsCommand.CopyHotUpdateAssembliesToTargetPath(context.BuildTarget);
+            ReportProgress("生成 AOT / Hotfix Manifest", 0.5f, string.Empty);
             var aotManifest = BuildAssetsCommand.CreateOrUpdateAOTAssemblyManifest(
                 context.BuildTarget,
                 aotAssemblies,
@@ -95,10 +118,15 @@ namespace HybridCLR.Editor
                 hotfixAssemblies,
                 aotManifest.AotVersion,
                 packageVersion);
+            ReportProgress("构建 RawFile 包", 0.56f, string.Empty);
             BuildResult rawFileBuildResult = BuildRawFilePackage(
                 context,
                 packageConfig,
                 packageVersion);
+            ReportProgress(
+                "RawFile 包构建完成",
+                0.64f,
+                rawFileBuildResult == null ? string.Empty : rawFileBuildResult.OutputPackageDirectory);
             ApplyRawFileManifestBinding(packageConfig, packageVersion, rawFileBuildResult, hotfixManifest);
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
             BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
@@ -106,6 +134,7 @@ namespace HybridCLR.Editor
             BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget, false);
 
             bool copyToStreamingAssets = context.StartupPackageMode != Framework.StartupPackageMode.EmptyPackage;
+            ReportProgress("构建主资源包", 0.72f, string.Empty);
             var buildResult = BuildAssetsCommand.BuildYooAssetPackage(
                 packageConfig.MainPackageName,
                 context.BuildTarget,
@@ -113,6 +142,7 @@ namespace HybridCLR.Editor
                     ? EBuildinFileCopyOption.ClearAndCopyAll
                     : EBuildinFileCopyOption.None,
                 packageVersion);
+            ReportProgress("主资源包构建完成", 0.84f, buildResult == null ? string.Empty : buildResult.OutputPackageDirectory);
             if (copyToStreamingAssets && rawFileBuildResult != null)
             {
                 BuildAssetsCommand.AppendRawFilePackageToStreamingAssets(
@@ -137,6 +167,7 @@ namespace HybridCLR.Editor
         public static HotfixBuildExecutionResult BuildHotfixPackage(HotfixBuildContext context)
         {
             Debug.Log("[HotfixBuild] 开始构建热更包。");
+            ReportProgress("同步 YooAsset Collector", 0.2f, string.Empty);
             var packageConfig = HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
             var aotManifest = AssetDatabase.LoadAssetAtPath<AOTAssemblyManifest>(BuildAssetsCommand.AOTAssemblyManifestAssetPath);
             try
@@ -148,6 +179,7 @@ namespace HybridCLR.Editor
                 return ResolveExpiredAOTManifest(context, exception);
             }
 
+            ReportProgress("编译热更 DLL", 0.38f, string.Empty);
             CompileDllCommand.CompileDll(context.BuildTarget);
             string packageVersion = BuildAssetsCommand.CreatePackageVersion(context.BuildTarget);
             var hotfixAssemblies = BuildAssetsCommand.CopyHotUpdateAssembliesToTargetPath(context.BuildTarget);
@@ -156,21 +188,29 @@ namespace HybridCLR.Editor
                 hotfixAssemblies,
                 aotManifest.AotVersion,
                 packageVersion);
+            ReportProgress("生成 Hotfix Manifest", 0.5f, string.Empty);
+            ReportProgress("构建 RawFile 包", 0.56f, string.Empty);
             BuildResult rawFileBuildResult = BuildRawFilePackage(
                 context,
                 packageConfig,
                 packageVersion);
+            ReportProgress(
+                "RawFile 包构建完成",
+                0.64f,
+                rawFileBuildResult == null ? string.Empty : rawFileBuildResult.OutputPackageDirectory);
             ApplyRawFileManifestBinding(packageConfig, packageVersion, rawFileBuildResult, hotfixManifest);
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
             BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotManifest.AotMetadataAssemblies, hotfixManifest.HotUpdateAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
             BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget, false);
 
+            ReportProgress("构建主资源包", 0.72f, string.Empty);
             var buildResult = BuildAssetsCommand.BuildYooAssetPackage(
                 packageConfig.MainPackageName,
                 context.BuildTarget,
                 EBuildinFileCopyOption.None,
                 packageVersion);
+            ReportProgress("主资源包构建完成", 0.84f, buildResult == null ? string.Empty : buildResult.OutputPackageDirectory);
             Debug.Log("[HotfixBuild] 热更包构建完成。");
 
             return HotfixBuildExecutionResult.Create(
@@ -215,14 +255,18 @@ namespace HybridCLR.Editor
             }
 
             Debug.Log("[HotfixBuild] 开始构建 AOT 元数据补丁。");
+            ReportProgress("同步 YooAsset Collector", 0.2f, string.Empty);
             var packageConfig = HotfixBuildProfileUtility.SyncPackageNamesFromCollectorSettings();
+            ReportProgress("生成 HybridCLR 文件", 0.28f, string.Empty);
             HybridCLRGenerateAllSafe.Run();
+            ReportProgress("编译 AOT / 热更 DLL", 0.38f, string.Empty);
             CompileDllCommand.CompileDll(context.BuildTarget);
 
             string packageVersion = BuildAssetsCommand.CreatePackageVersion(context.BuildTarget);
 
             var aotAssemblies = BuildAssetsCommand.CopyAOTAssembliesToTargetPath(context.BuildTarget);
             var hotfixAssemblies = BuildAssetsCommand.CopyHotUpdateAssembliesToTargetPath(context.BuildTarget);
+            ReportProgress("生成 AOT / Hotfix Manifest", 0.5f, string.Empty);
             var aotManifest = BuildAssetsCommand.CreateOrUpdateAOTAssemblyManifest(
                 context.BuildTarget,
                 aotAssemblies,
@@ -232,21 +276,28 @@ namespace HybridCLR.Editor
                 hotfixAssemblies,
                 aotManifest.AotVersion,
                 packageVersion);
+            ReportProgress("构建 RawFile 包", 0.56f, string.Empty);
             BuildResult rawFileBuildResult = BuildRawFilePackage(
                 context,
                 packageConfig,
                 packageVersion);
+            ReportProgress(
+                "RawFile 包构建完成",
+                0.64f,
+                rawFileBuildResult == null ? string.Empty : rawFileBuildResult.OutputPackageDirectory);
             ApplyRawFileManifestBinding(packageConfig, packageVersion, rawFileBuildResult, hotfixManifest);
             BuildAssetsCommand.ValidateHotfixAppVersionRange(hotfixManifest);
             BuildAssetsCommand.CreateOrUpdateAssemblyManifest(aotAssemblies, hotfixManifest.HotUpdateAssemblies);
             BuildAssetsCommand.ValidateSplitAssemblyManifestsForBuild(context.BuildTarget);
             BuildAssetsCommand.ValidateStartupPackageForBuild(context.BuildTarget, false);
 
+            ReportProgress("构建主资源包", 0.72f, string.Empty);
             var buildResult = BuildAssetsCommand.BuildYooAssetPackage(
                 packageConfig.MainPackageName,
                 context.BuildTarget,
                 EBuildinFileCopyOption.None,
                 packageVersion);
+            ReportProgress("主资源包构建完成", 0.84f, buildResult == null ? string.Empty : buildResult.OutputPackageDirectory);
             Debug.Log("[HotfixBuild] AOT 元数据补丁构建完成。");
 
             return HotfixBuildExecutionResult.Create(
@@ -349,6 +400,7 @@ namespace HybridCLR.Editor
             builder.AppendLine($"StreamingAssets: {(result.CopyToStreamingAssets ? "复制" : "不复制")}");
             builder.AppendLine($"输出目录: {result.OutputPackageDirectory}");
             builder.AppendLine($"CDN 上传目录: {result.CdnUploadDirectory}");
+            builder.AppendLine($"构建耗时: {result.DurationSeconds:F1}s");
             builder.AppendLine();
             builder.AppendLine("校验与构建状态:");
             foreach (var item in report.Items)
@@ -380,6 +432,11 @@ namespace HybridCLR.Editor
             result.ReportPath = reportPath;
             report.AddInfo("构建报告", reportPath);
         }
+
+        private static void ReportProgress(string stage, float progress, string outputDirectory)
+        {
+            ProgressChanged?.Invoke(stage ?? string.Empty, Mathf.Clamp01(progress), outputDirectory ?? string.Empty);
+        }
     }
 
     public sealed class HotfixBuildExecutionResult
@@ -407,6 +464,7 @@ namespace HybridCLR.Editor
         public bool CopyToStreamingAssets;
         public bool IsAOTMetadataPatch;
         public string ReportPath;
+        public double DurationSeconds;
 
         public static HotfixBuildExecutionResult Create(
             HotfixBuildContext context,
@@ -472,6 +530,7 @@ namespace HybridCLR.Editor
                 report.AddInfo("RawFile CDN 上传目录", RawFileCdnUploadDirectory);
             }
             report.AddInfo("StreamingAssets", CopyToStreamingAssets ? "已复制" : "不复制");
+            report.AddInfo("构建耗时", $"{DurationSeconds:F1}s");
             report.AddInfo("Hotfix DLL 加载顺序", HotfixAssemblyDependencySorter.FormatLoadingOrder(HotUpdateFiles.Select(GetRecordFileName)));
             report.AddInfo("Hotfix DLL 依赖关系", HotfixAssemblyDependencySorter.FormatDependencies(HotUpdateDependencies));
             report.AddInfo("AOT Metadata Hash", FormatHashSummary(AotMetadataFiles));

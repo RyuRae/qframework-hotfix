@@ -40,7 +40,7 @@ namespace HybridCLR.Editor
             EditorGUILayout.Space(4);
             EditorGUILayout.LabelField("发布配置入口", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox(
-                "带 * 的字段为发布前需要确认的配置。灰色区域为构建时自动生成或从底层 asset 派生的状态，不在这里直接编辑。底层 RuntimeSettings / RemoteSettings 仍会保留给运行时加载，但日常发布优先在这里完成。",
+                "此 Inspector 是高级编辑和诊断入口。日常发布请统一打开“Build/热更新/构建中心...”，在那里完成环境预设、校验、正式发布确认和资源构建。灰色区域为自动生成或从底层 asset 派生的状态。",
                 MessageType.Info);
 
             using (new EditorGUI.DisabledScope(true))
@@ -195,22 +195,18 @@ namespace HybridCLR.Editor
                 RunAction(profile, () => mReport = HotfixBuildRunner.FixAll(mMode), "修复完成。");
             }
 
-            using (new EditorGUI.DisabledScope(mReport != null && mReport.HasErrors))
-            {
-                if (GUILayout.Button("开始构建"))
-                {
-                    RunAction(profile, () => mReport = HotfixBuildRunner.Build(mMode), "构建完成。");
-                }
-            }
-
-            EditorGUILayout.EndHorizontal();
-
-            EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("打开构建中心"))
+            if (GUILayout.Button("打开构建中心并发布"))
             {
                 HotfixBuildCenterWindow.Open();
             }
 
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.HelpBox(
+                "Profile Inspector 不提供日常资源构建按钮，避免绕过构建中心的报告分组和正式发布最终确认。复制 Profile、导出 JSON、底层设置同步等高级操作仍可在此使用。",
+                MessageType.Warning);
+
+            EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("复制 Profile"))
             {
                 SavePendingProfileEdits(profile);

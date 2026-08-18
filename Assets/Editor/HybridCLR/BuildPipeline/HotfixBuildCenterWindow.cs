@@ -30,8 +30,16 @@ namespace HybridCLR.Editor
         private Vector2 mScrollPosition;
         private bool mShowCompatibility;
         private bool mShowStartupAdvanced;
-        private bool mShowReportInfo;
+        private bool mShowRequiredFixes = true;
+        private bool mShowRecommendedFixes = true;
+        private bool mShowBuildInfo;
         private bool mShowAdvancedTools;
+        private bool mIsBuilding;
+        private string mBuildStage = string.Empty;
+        private string mBuildOutputDirectory = string.Empty;
+        private DateTime mBuildStartedAt;
+        private double mLastBuildDurationSeconds;
+        private HotfixBuildExecutionResult mLastExecutionResult;
 
         [MenuItem("Build/热更新/构建中心...", false, HotfixBuildMenuPriority.BuildCenter)]
         public static void Open()
@@ -44,9 +52,16 @@ namespace HybridCLR.Editor
 
         private void OnEnable()
         {
+            HotfixBuildRunner.ProgressChanged += OnBuildProgressChanged;
             LoadSelectedReleaseProfile();
             EnsureResourceVersionPrefilled();
             RefreshReport();
+        }
+
+        private void OnDisable()
+        {
+            HotfixBuildRunner.ProgressChanged -= OnBuildProgressChanged;
+            EditorUtility.ClearProgressBar();
         }
 
         private void OnGUI()
@@ -86,6 +101,8 @@ namespace HybridCLR.Editor
                 "按 ①任务 → ②环境 → ③核心配置 → ④检查并构建 完成发布。" +
                 "“只读检查”不会修改 RuntimeSettings、RemoteSettings、Manifest 或 PlayerSettings。",
                 MessageType.Info);
+            DrawReportSummary();
+            DrawBuildStatus();
         }
 
         private void DrawReleaseProfile()
@@ -311,7 +328,7 @@ namespace HybridCLR.Editor
                 }
             }
 
-            bool canBuild = mReport != null && !mReport.HasErrors;
+            bool canBuild = mReport != null && !mReport.HasErrors && !mIsBuilding;
             using (new EditorGUI.DisabledScope(!canBuild))
             {
                 if (GUILayout.Button(GetBuildButtonLabel(), GUILayout.Height(34)))
@@ -319,7 +336,17 @@ namespace HybridCLR.Editor
                     SaveProfileEdits();
                     if (ConfirmBuild())
                     {
-                        RunAction(() => mReport = HotfixBuildRunner.Build(mMode), "资源构建完成。");
+                        RunAction(
+                            () =>
+                            {
+                                mReport = HotfixBuildRunner.Build(mMode);
+                                mLastExecutionResult = HotfixBuildRunner.LastExecutionResult;
+                                if (mLastExecutionResult != null)
+                                {
+                                    mLastBuildDurationSeconds = mLastExecutionResult.DurationSeconds;
+                                }
+                            },
+                            "资源构建完成。");
                     }
                 }
             }
@@ -343,27 +370,26 @@ namespace HybridCLR.Editor
                 return;
             }
 
-            foreach (var item in mReport.Items.Where(item => item.Severity == HotfixBuildReportSeverity.Error))
-            {
-                DrawReportItem(item);
-            }
+            DrawReportGroup(
+                "必须修复",
+                mReport.ErrorCount,
+                HotfixBuildReportSeverity.Error,
+                ref mShowRequiredFixes,
+                MessageType.Error);
+            DrawReportGroup(
+                "建议修复",
+                mReport.WarningCount,
+                HotfixBuildReportSeverity.Warning,
+                ref mShowRecommendedFixes,
+                MessageType.Warning);
+            DrawReportGroup(
+                "构建信息",
+                mReport.InfoCount,
+                HotfixBuildReportSeverity.Info,
+                ref mShowBuildInfo,
+                MessageType.Info);
 
-            foreach (var item in mReport.Items.Where(item => item.Severity == HotfixBuildReportSeverity.Warning))
-            {
-                DrawReportItem(item);
-            }
-
-            mShowReportInfo = EditorGUILayout.Foldout(
-                mShowReportInfo,
-                $"通过项与构建信息（{mReport.InfoCount}）",
-                true);
-            if (mShowReportInfo)
-            {
-                foreach (var item in mReport.Items.Where(item => item.Severity == HotfixBuildReportSeverity.Info))
-                {
-                    DrawReportItem(item);
-                }
-            }
+            DrawBuildArtifacts();
 
             if (mReport.HasErrors && GUILayout.Button("在 Inspector 中打开高级 Profile 定位"))
             {
@@ -435,9 +461,37 @@ namespace HybridCLR.Editor
                 $"平台：{mReleaseProfile.BuildTarget}\n" +
                 $"App：{mReleaseProfile.AppVersion}\n" +
                 $"资源版本：{resourceVersion}\n" +
-                $"主 CDN：{mReleaseProfile.MainCdnUrlTemplate}\n\n" +
+                $"主 CDN：{mReleaseProfile.MainCdnUrlTemplate}\n" +
+                $"备用 CDN：{mReleaseProfile.FallbackCdnUrlTemplate}\n\n" +
                 "构建会先应用 Profile，然后编译 DLL、更新 Manifest 并构建 YooAsset 资源。是否继续？";
-            return EditorUtility.DisplayDialog("确认资源构建", message, "开始构建", "取消");
+            if (!EditorUtility.DisplayDialog("确认资源构建", message, "继续", "取消"))
+            {
+                return false;
+            }
+
+            if (!mReleaseProfile.IsFormalRelease)
+            {
+                return true;
+            }
+
+            string signingKey = string.IsNullOrWhiteSpace(mReleaseProfile.ManifestSigningKeyId)
+                ? "缺失"
+                : mReleaseProfile.ManifestSigningKeyId.Trim();
+            string signingPrivateKey = string.IsNullOrWhiteSpace(mReleaseProfile.ManifestPrivateKeyEnvironmentVariable)
+                ? "缺失"
+                : mReleaseProfile.ManifestPrivateKeyEnvironmentVariable.Trim();
+            string sequence = mReleaseProfile.ReleaseSequence.ToString();
+            string formalMessage =
+                "正式发布最终确认\n\n" +
+                $"环境：{mReleaseProfile.RemoteEnvironment}（正式）\n" +
+                $"App 版本：{mReleaseProfile.AppVersion}\n" +
+                $"ResourceVersion / PackageVersion：{resourceVersion}\n" +
+                $"主 CDN：{mReleaseProfile.MainCdnUrlTemplate}\n" +
+                $"备用 CDN：{mReleaseProfile.FallbackCdnUrlTemplate}\n" +
+                $"签名：KeyId={signingKey} / 私钥变量={signingPrivateKey}\n" +
+                $"ReleaseSequence：{sequence}\n\n" +
+                "请确认环境、版本、CDN、签名配置和发布序号均正确。正式构建产物将用于发布，是否继续？";
+            return EditorUtility.DisplayDialog("正式发布最终确认", formalMessage, "确认并构建", "返回修改");
         }
 
         private string GetBuildButtonLabel()
@@ -553,9 +607,11 @@ namespace HybridCLR.Editor
             EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
         }
 
-        private static void DrawReportItem(HotfixBuildReportItem item)
+        private static void DrawReportItem(HotfixBuildReportItem item, MessageType typeOverride = MessageType.None)
         {
-            MessageType type = item.Severity == HotfixBuildReportSeverity.Error
+            MessageType type = typeOverride != MessageType.None
+                ? typeOverride
+                : item.Severity == HotfixBuildReportSeverity.Error
                 ? MessageType.Error
                 : item.Severity == HotfixBuildReportSeverity.Warning
                     ? MessageType.Warning
@@ -615,6 +671,17 @@ namespace HybridCLR.Editor
 
         private void RunAction(Action action, string notification)
         {
+            bool isBuildAction = notification == "资源构建完成。";
+            if (isBuildAction)
+            {
+                mIsBuilding = true;
+                mBuildStage = "准备构建";
+                mBuildOutputDirectory = string.Empty;
+                mBuildStartedAt = DateTime.UtcNow;
+                mLastExecutionResult = null;
+                mLastBuildDurationSeconds = 0d;
+            }
+
             try
             {
                 action();
@@ -626,6 +693,151 @@ namespace HybridCLR.Editor
                 Debug.LogException(exception);
                 EditorUtility.DisplayDialog("热更新构建", exception.Message, "确定");
             }
+            finally
+            {
+                if (isBuildAction)
+                {
+                    mIsBuilding = false;
+                    EditorUtility.ClearProgressBar();
+                    Repaint();
+                }
+            }
+        }
+
+        private void OnBuildProgressChanged(string stage, float progress, string outputDirectory)
+        {
+            mBuildStage = stage ?? string.Empty;
+            mBuildOutputDirectory = outputDirectory ?? string.Empty;
+            if (mIsBuilding)
+            {
+                EditorUtility.DisplayProgressBar(
+                    "热更新资源构建",
+                    string.IsNullOrWhiteSpace(mBuildOutputDirectory)
+                        ? $"{mBuildStage}\n耗时：{(DateTime.UtcNow - mBuildStartedAt).TotalSeconds:F1}s"
+                        : $"{mBuildStage}\n耗时：{(DateTime.UtcNow - mBuildStartedAt).TotalSeconds:F1}s\n{mBuildOutputDirectory}",
+                    progress);
+            }
+            Repaint();
+        }
+
+        private void DrawReportSummary()
+        {
+            EditorGUILayout.Space(4);
+            EditorGUILayout.BeginHorizontal();
+            if (mReport == null)
+            {
+                EditorGUILayout.LabelField("校验报告：尚未生成", EditorStyles.miniLabel);
+            }
+            else
+            {
+                EditorGUILayout.LabelField($"通过 {mReport.PassedCount}", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField($"警告 {mReport.WarningCount}", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField($"错误 {mReport.ErrorCount}", EditorStyles.miniLabel);
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void DrawBuildStatus()
+        {
+            if (!mIsBuilding && mLastExecutionResult == null)
+            {
+                return;
+            }
+
+            double elapsed = mIsBuilding
+                ? (DateTime.UtcNow - mBuildStartedAt).TotalSeconds
+                : mLastBuildDurationSeconds;
+            MessageType type = mIsBuilding ? MessageType.Info : MessageType.None;
+            string output = string.IsNullOrWhiteSpace(mBuildOutputDirectory)
+                ? string.Empty
+                : $"\n输出目录：{mBuildOutputDirectory}";
+            EditorGUILayout.HelpBox(
+                $"{(mIsBuilding ? "构建中" : "最近一次构建")}：{mBuildStage}\n耗时：{elapsed:F1}s{output}",
+                type);
+        }
+
+        private void DrawReportGroup(
+            string title,
+            int count,
+            HotfixBuildReportSeverity severity,
+            ref bool expanded,
+            MessageType messageType)
+        {
+            expanded = EditorGUILayout.Foldout(expanded, $"{title}（{count}）", true);
+            if (!expanded)
+            {
+                return;
+            }
+
+            var items = mReport.Items.Where(item => item.Severity == severity);
+            foreach (var item in items)
+            {
+                DrawReportItem(item, messageType);
+            }
+        }
+
+        private void DrawBuildArtifacts()
+        {
+            var result = mLastExecutionResult;
+            if (result == null)
+            {
+                return;
+            }
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("构建产物", EditorStyles.boldLabel);
+            DrawReadOnlyPath("主包输出目录", result.OutputPackageDirectory);
+            DrawReadOnlyPath("主包 CDN 上传目录", result.CdnUploadDirectory);
+            if (!string.IsNullOrWhiteSpace(result.RawFileOutputPackageDirectory))
+            {
+                DrawReadOnlyPath("RawFile 输出目录", result.RawFileOutputPackageDirectory);
+                DrawReadOnlyPath("RawFile CDN 上传目录", result.RawFileCdnUploadDirectory);
+            }
+            DrawReadOnlyPath("构建报告", result.ReportPath);
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("打开输出目录"))
+            {
+                RevealDirectory(result.OutputPackageDirectory);
+            }
+            if (GUILayout.Button("复制 CDN 上传目录"))
+            {
+                EditorGUIUtility.systemCopyBuffer = result.CdnUploadDirectory ?? string.Empty;
+                ShowNotification(new GUIContent("CDN 上传目录已复制。"));
+            }
+            if (GUILayout.Button("查看报告"))
+            {
+                OpenReport(result.ReportPath);
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private static void DrawReadOnlyPath(string label, string path)
+        {
+            using (new EditorGUI.DisabledScope(true))
+            {
+                EditorGUILayout.TextField(label, string.IsNullOrWhiteSpace(path) ? "未生成" : path);
+            }
+        }
+
+        private static void RevealDirectory(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+            {
+                EditorUtility.DisplayDialog("打开输出目录", "输出目录不存在或尚未生成。", "确定");
+                return;
+            }
+            EditorUtility.RevealInFinder(path);
+        }
+
+        private static void OpenReport(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                EditorUtility.DisplayDialog("查看报告", "构建报告不存在或尚未生成。", "确定");
+                return;
+            }
+            EditorUtility.OpenWithDefaultApp(path);
         }
     }
 }

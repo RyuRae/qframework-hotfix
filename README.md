@@ -697,10 +697,15 @@ Assets/Editor/HybridCLR/HotfixReleaseProfile.asset
 - 预发 / 正式：关闭 Development Build，`LogKit` 仅输出 Error / Exception。
 - 正式：强制 Production、HTTPS、MustUpdate，并要求固定 ResourceVersion、递增 ReleaseSequence 和 Manifest 签名。
 - 打开构建中心、切换 Profile 或创建默认 Profile 时，空的 `ResourceVersion` 会按 `yyyy-MM-dd-HHmmss` 自动预填；可以直接修改，也可以点击“重新生成”。
+- 构建中心的校验报告按“必须修复 / 建议修复 / 构建信息”分组，顶部显示通过、警告、错误数量；构建阶段会显示当前阶段、耗时和产物目录。
+- 构建完成后可直接打开输出目录、复制 CDN 上传目录或查看构建报告。
+- 正式环境在开始构建前会弹出最终摘要，要求再次确认环境、App/资源版本、主备 CDN、签名 KeyId/私钥变量和 `ReleaseSequence`。
 
 不再需要配置 `ENABLE_LOG`。如曾误把它填写到 `Additional Compiler Arguments`，应删除；编译参数会把裸 `ENABLE_LOG` 当作源文件路径并产生 `CS2001`。
 
 完整 Profile Inspector、复制 Profile 和导出 JSON 保留在高级工具中，供特殊发布或 CI 使用。
+
+`HotfixReleaseProfile` 的 Inspector 仅作为高级编辑、底层设置同步、诊断和 Profile 复制入口。日常发布统一使用 `Build/热更新/构建中心...`，以确保经过统一校验、正式发布二次确认和构建产物交付操作。
 
 一键构建会先应用 ReleaseProfile：
 

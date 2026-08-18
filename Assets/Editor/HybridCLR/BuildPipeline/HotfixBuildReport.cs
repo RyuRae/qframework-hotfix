@@ -41,6 +41,8 @@ namespace HybridCLR.Editor
         public int WarningCount => mItems.Count(item => item.Severity == HotfixBuildReportSeverity.Warning);
         public int InfoCount => mItems.Count(item => item.Severity == HotfixBuildReportSeverity.Info);
 
+        public int PassedCount => InfoCount;
+
         public void AddInfo(string label, string value, string message = "")
         {
             Add(HotfixBuildReportSeverity.Info, label, value, message);
